@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
+using UnityEditor.SceneManagement;
 using UnityEditor.XR.Management;
 using UnityEditor.XR.Management.Metadata;
 using UnityEditor.XR.OpenXR.Features;
@@ -15,12 +16,13 @@ namespace Fieldmate.Editor;
 
 /// <summary>
 /// Idempotent project configuration for Quest 3: Android/IL2CPP/ARM64/Vulkan, URP, OpenXR with the Meta Quest
-/// feature group. Run once in batch mode (<c>-executeMethod Fieldmate.Editor.ProjectSetup.ConfigureQuest</c>) or
-/// from the Fieldmate menu; safe to re-run.
+/// feature group, and Main.unity as the first build scene. Run in batch mode
+/// (<c>-executeMethod Fieldmate.Editor.ProjectSetup.ConfigureQuest</c>) or from the Fieldmate menu; safe to re-run.
 /// </summary>
 public static class ProjectSetup
 {
     private const string SettingsDir = "Assets/_Project/Settings";
+    private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
     private const string MetaFeatureSetId = "com.unity.openxr.featureset.meta";
 
     // Matched by type name so this script does not need a compile-time dependency on every feature assembly.
@@ -39,6 +41,7 @@ public static class ProjectSetup
         ConfigurePlayer();
         ConfigureUrp();
         ConfigureXr();
+        EnsureMainScene();
         AssetDatabase.SaveAssets();
         Debug.Log("[ProjectSetup] Quest configuration applied.");
     }
@@ -164,6 +167,19 @@ public static class ProjectSetup
         {
             Debug.LogWarning($"[ProjectSetup] Features not found: {string.Join(", ", missing)}");
         }
+    }
+
+    private static void EnsureMainScene()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainScenePath) == null)
+        {
+            EnsureFolder(MainScenePath[..MainScenePath.LastIndexOf('/')]);
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            EditorSceneManager.SaveScene(scene, MainScenePath);
+        }
+
+        var others = EditorBuildSettings.scenes.Where(s => s.path != MainScenePath);
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(MainScenePath, true) }.Concat(others).ToArray();
     }
 
     // Creates folders through the AssetDatabase; creating them on disk first makes packages that also call

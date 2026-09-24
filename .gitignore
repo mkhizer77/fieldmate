@@ -1,8 +1,5 @@
-# ---- local-only project context: NEVER commit (published in simplified form at the end) ----
+# ---- local-only project context: NEVER commit ----
 /context/
-/CLAUDE.md
-/CLAUDE.local.md
-/.claude/
 /seed/
 
 # ---- Unity ----
@@ -14,6 +11,7 @@
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 /[Mm]emoryCaptures/
+/.utmp/
 /[Rr]ecordings/
 /TestResults/
 *.pidb.meta
@@ -21,6 +19,12 @@
 *.mdb.meta
 sysinfo.txt
 crashlytics-build.properties
+
+# ---- package-generated settings (per-user prefs; recreated by the packages on import) ----
+/Assets/XR/UserSimulationSettings/
+/Assets/XR/UserSimulationSettings.meta
+/Assets/CompositionLayers/
+/Assets/CompositionLayers.meta
 
 # ---- IDE / OS ----
 .vs/

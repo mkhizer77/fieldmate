@@ -1,7 +1,7 @@
 # .github/workflows/ci.yml
 # Tests on every PR; Android APK on pushes to main and on v* tags (attached to the GitHub Release).
 # Secrets required: UNITY_LICENSE (contents of the .ulf), UNITY_EMAIL, UNITY_PASSWORD.
-# Check current GameCI action versions before first use: https://game.ci/docs
+# UNITY_LICENSE is machine-bound; GameCI falls back to UNITY_EMAIL/UNITY_PASSWORD activation (expected warning).
 
 name: CI
 
@@ -14,6 +14,11 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# Least privilege by default; test-runner needs checks:write to publish the results check.
+permissions:
+  contents: read
+  checks: write
 
 env:
   UNITY_VERSION: 6000.4.9f1    # keep in sync with ProjectSettings/ProjectVersion.txt
@@ -58,6 +63,8 @@ jobs:
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # attach the APK to the GitHub Release on v* tags
     steps:
       - uses: actions/checkout@v4
         with:
