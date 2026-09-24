@@ -1,0 +1,90 @@
+# .github/workflows/ci.yml
+# Tests on every PR; Android APK on pushes to main and on v* tags (attached to the GitHub Release).
+# Secrets required: UNITY_LICENSE (contents of the .ulf), UNITY_EMAIL, UNITY_PASSWORD.
+# Check current GameCI action versions before first use: https://game.ci/docs
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_VERSION: 6000.4.9f1    # keep in sync with ProjectSettings/ProjectVersion.txt
+
+jobs:
+  test:
+    name: Tests (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [editmode, playmode]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-test-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-test-
+      - uses: game-ci/unity-test-runner@v4
+        id: tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: ${{ matrix.mode }}
+          artifactsPath: test-results-${{ matrix.mode }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: Test Results (${{ matrix.mode }})
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.mode }}
+          path: ${{ steps.tests.outputs.artifactsPath }}
+
+  build-android:
+    name: Build APK
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-android-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-android-
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          androidExportType: androidPackage
+          buildName: Fieldmate
+          versioning: Semantic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fieldmate-Android
+          path: build/Android
+      - name: Attach APK to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Android/*.apk
+          generate_release_notes: true

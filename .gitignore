@@ -1,0 +1,44 @@
+# ---- local-only project context: NEVER commit (published in simplified form at the end) ----
+/context/
+/CLAUDE.md
+/CLAUDE.local.md
+/.claude/
+/seed/
+
+# ---- Unity ----
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/TestResults/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+crashlytics-build.properties
+
+# ---- IDE / OS ----
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+.DS_Store
+Thumbs.db
+
+# ---- secrets and paid assets ----
+/Assets/ThirdParty/
+/Assets/ThirdParty.meta
+/Assets/_Project/Secrets/keys.json
+/Assets/_Project/Secrets/keys.json.meta
+
+# ---- generated reports ----
+/docs/eval/
