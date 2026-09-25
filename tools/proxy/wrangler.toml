@@ -12,14 +12,14 @@ CHAT_MODEL = "claude-haiku-4-5"
 MAX_OUTPUT_TOKENS = "600"
 STT_MODEL = "nova-3"
 TTS_MODEL = "eleven_flash_v2_5"
-# ElevenLabs free plan: 10k credits/month (~10-20k characters with Flash). Keep public TTS usage small.
+# ElevenLabs paid plan. Public TTS stays capped so your own (dev-token) use keeps most of the monthly quota.
 # ElevenLabs voice ids, one per language (choose in the ElevenLabs voice library).
 VOICE_EN = "UgBBYS2sOqTuMpoF3BR0"
 VOICE_DE = "fzqS9sNPYJhLlhsfDm0l"
 # Daily caps for requests without the dev token (whole Worker, UTC day).
 DAILY_CHAT_CALLS = "300"
 DAILY_STT_SECONDS = "1800"
-DAILY_TTS_CHARS = "1500"
+DAILY_TTS_CHARS = "5000"
 
 # Daily usage counters. Create with: wrangler kv namespace create USAGE, then paste the id here.
 [[kv_namespaces]]
