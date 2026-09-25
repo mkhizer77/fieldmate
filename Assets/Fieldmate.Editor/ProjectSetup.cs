@@ -11,12 +11,13 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.XR.Management;
 using UnityEngine.XR.OpenXR;
+using UnityEngine.XR.OpenXR.Features.Meta;
 
 namespace Fieldmate.Editor;
 
 /// <summary>
 /// Idempotent project configuration for Quest 3: Android/IL2CPP/ARM64/Vulkan, URP, OpenXR with the Meta Quest
-/// feature group, and Main.unity as the first build scene. Run in batch mode
+/// feature group, and Main.unity enabled in Build Settings. Run in batch mode
 /// (<c>-executeMethod Fieldmate.Editor.ProjectSetup.ConfigureQuest</c>) or from the Fieldmate menu; safe to re-run.
 /// </summary>
 public static class ProjectSetup
@@ -34,6 +35,9 @@ public static class ProjectSetup
         "HandTracking", "MetaHandTrackingAim",
         "OculusTouchControllerProfile", "MetaQuestTouchPlusControllerProfile", "HandInteractionProfile",
     };
+
+    // Enabled by the Meta Quest feature group but not used by Fieldmate (single user, no shared space).
+    private static readonly HashSet<string> UnusedAndroidFeatures = new() { "ColocationDiscoveryFeature" };
 
     [MenuItem("Fieldmate/Configure Project for Quest")]
     public static void ConfigureQuest()
@@ -97,6 +101,13 @@ public static class ProjectSetup
         urp.supportsHDR = false;
         urp.supportsCameraDepthTexture = false;
         urp.supportsCameraOpaqueTexture = false;
+        // Meta OpenXR graphics settings for passthrough: terrain holes off, no post-processing, intermediate texture Auto.
+        var urpSo = new SerializedObject(urp);
+        urpSo.FindProperty("m_SupportsTerrainHoles").boolValue = false;
+        urpSo.ApplyModifiedPropertiesWithoutUndo();
+        renderer.postProcessData = null;
+        renderer.intermediateTextureMode = IntermediateTextureMode.Auto;
+        EditorUtility.SetDirty(renderer);
         EditorUtility.SetDirty(urp);
 
         GraphicsSettings.defaultRenderPipeline = urp;
@@ -149,7 +160,12 @@ public static class ProjectSetup
         var enabled = new List<string>();
         foreach (var feature in settings.GetFeatures())
         {
-            if (AndroidFeatures.Contains(feature.GetType().Name))
+            if (UnusedAndroidFeatures.Contains(feature.GetType().Name))
+            {
+                feature.enabled = false;
+                EditorUtility.SetDirty(feature);
+            }
+            else if (AndroidFeatures.Contains(feature.GetType().Name))
             {
                 feature.enabled = true;
                 EditorUtility.SetDirty(feature);
@@ -159,6 +175,14 @@ public static class ProjectSetup
                 enabled.Add(feature.GetType().Name);
             }
         }
+        // CPU/GPU passthrough camera images (design.md §5.5). Needs HEADSET_CAMERA at runtime, see QuestPermissions.
+        var cameraFeature = settings.GetFeature<ARCameraFeature>();
+        if (cameraFeature != null)
+        {
+            cameraFeature.cameraImageSupportEnabled = true;
+            EditorUtility.SetDirty(cameraFeature);
+        }
+
         EditorUtility.SetDirty(settings);
         Debug.Log($"[ProjectSetup] OpenXR Android features enabled: {string.Join(", ", enabled.OrderBy(n => n))}");
 
@@ -178,13 +202,24 @@ public static class ProjectSetup
             EditorSceneManager.SaveScene(scene, MainScenePath);
         }
 
-        var others = EditorBuildSettings.scenes.Where(s => s.path != MainScenePath);
-        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(MainScenePath, true) }.Concat(others).ToArray();
+        // Main stays enabled; it goes first only when missing, so a spike/demo scene can sit ahead of it.
+        var scenes = EditorBuildSettings.scenes.ToList();
+        var index = scenes.FindIndex(s => s.path == MainScenePath);
+        if (index < 0)
+        {
+            scenes.Insert(0, new EditorBuildSettingsScene(MainScenePath, true));
+        }
+        else
+        {
+            scenes[index] = new EditorBuildSettingsScene(MainScenePath, true);
+        }
+
+        EditorBuildSettings.scenes = scenes.ToArray();
     }
 
     // Creates folders through the AssetDatabase; creating them on disk first makes packages that also call
     // AssetDatabase.CreateFolder produce duplicates ("XR 1").
-    private static void EnsureFolder(string path)
+    internal static void EnsureFolder(string path)
     {
         if (AssetDatabase.IsValidFolder(path))
         {
