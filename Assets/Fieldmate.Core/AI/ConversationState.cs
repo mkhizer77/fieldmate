@@ -119,6 +119,17 @@ public sealed class ConversationState
 
     public void Clear() => messages.Clear();
 
+    /// <summary>Drops every message after the first <paramref name="count"/> (undoing a turn that failed midway).</summary>
+    public void RollbackTo(int count)
+    {
+        if (count < 0 || count > messages.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+
+        messages.RemoveRange(count, messages.Count - count);
+    }
+
     private void Append(ChatMessage message)
     {
         messages.Add(message);
