@@ -34,9 +34,10 @@ export async function handleTts(request: Request, env: Env, dev: boolean, fetchF
     throw new HttpError(502, "upstream_error", "Text-to-speech unreachable.");
   }
 
-  if (upstream.status === 401 || upstream.status === 403) {
-    // ElevenLabs also answers 401 when the monthly quota is used up (free plan).
-    throw new HttpError(429, "tts_quota", "Text-to-speech quota or key rejected; answers continue as text.");
+  if (upstream.status === 401 || upstream.status === 402 || upstream.status === 403) {
+    // 401: key rejected or monthly quota used up. 402: the plan doesn't cover this voice or model
+    // (e.g. Voice Library voices on the free plan). Either way the app continues with text answers.
+    throw new HttpError(429, "tts_quota", "Text-to-speech unavailable on the current plan or quota; answers continue as text.");
   }
   if (upstream.status === 429) {
     throw new HttpError(429, "upstream_rate_limited", "Text-to-speech is busy. Try again shortly.");

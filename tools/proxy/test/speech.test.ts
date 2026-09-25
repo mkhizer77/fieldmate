@@ -81,6 +81,7 @@ describe("POST /v1/tts", () => {
 
   it.each([
     [401, 429, "tts_quota"],
+    [402, 429, "tts_quota"],
     [429, 429, "upstream_rate_limited"],
     [500, 502, "upstream_error"],
   ])("maps ElevenLabs %i to %i", async (upstream, status, type) => {
