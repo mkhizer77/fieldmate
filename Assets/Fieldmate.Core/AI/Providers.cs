@@ -56,3 +56,19 @@ public sealed class Transcript
 
     public bool IsEmpty => string.IsNullOrWhiteSpace(Text);
 }
+
+/// <summary>
+/// Text-to-speech that delivers audio while it is still being generated, so playback can start before the whole
+/// sentence is synthesized (design.md §5.4 latency budget).
+/// </summary>
+public interface IStreamingTextToSpeech : ITextToSpeech
+{
+    /// <summary>Sample rate of the samples passed to <c>onSamples</c>.</summary>
+    int SampleRate { get; }
+
+    /// <summary>
+    /// Streams mono samples in [-1, 1]. <c>onSamples(buffer, count)</c> may reuse <c>buffer</c> between calls, so copy
+    /// what you keep. Completes when the stream ends.
+    /// </summary>
+    Task StreamAsync(string text, string languageCode, Action<float[], int> onSamples, CancellationToken cancellationToken);
+}
