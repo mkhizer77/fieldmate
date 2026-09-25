@@ -7,7 +7,9 @@
     "Unity.XR.Management",
     "Unity.XR.Management.Editor",
     "Unity.XR.OpenXR",
-    "Unity.XR.OpenXR.Editor"
+    "Unity.XR.OpenXR.Editor",
+    "Fieldmate.Unity",
+    "Fieldmate.Core"
   ],
   "includePlatforms": [
     "Editor"

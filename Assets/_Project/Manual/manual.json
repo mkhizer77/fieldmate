@@ -1,0 +1,187 @@
+{
+  "machine": "FM-200 centrifugal pump skid (fictional demo machine)",
+  "parts": [
+    { "id": "electrical_cabinet", "name": "Electrical cabinet", "description": "Houses the motor starter, the main breaker and the lockout point.", "safety": "400 V inside. Only open when the main breaker is locked out." },
+    { "id": "main_breaker", "name": "Main breaker", "description": "Two-hand rotary isolator on the cabinet door. Positions: on, off, locked.", "safety": "Lock it with your personal padlock before any work on the skid." },
+    { "id": "motor", "name": "Drive motor", "description": "7.5 kW electric motor driving the pump through a flexible coupling.", "safety": "Rotating shaft and hot housing. Never reach in while powered." },
+    { "id": "motor_mount", "name": "Motor mount", "description": "Four M12 bolts fixing the motor to the base frame.", "safety": "" },
+    { "id": "cooling_fins", "name": "Motor cooling fins", "description": "Fins on the motor housing, cooled by the rear fan.", "safety": "Can exceed 80 °C after running." },
+    { "id": "pump", "name": "Centrifugal pump", "description": "Single-stage pump, nominal 4 bar discharge pressure.", "safety": "Stored pressure until the inlet is closed and the gauge reads zero." },
+    { "id": "pump_cover", "name": "Pump access cover", "description": "Bolted cover giving access to the relief valve seat.", "safety": "Only remove with the machine locked out and depressurised." },
+    { "id": "inlet_valve", "name": "Inlet valve", "description": "Quarter-turn ball valve on the suction side. Positions: open, closed.", "safety": "" },
+    { "id": "outlet_valve", "name": "Outlet valve", "description": "Gate valve on the discharge side. Throttling it raises line pressure.", "safety": "" },
+    { "id": "pressure_gauge", "name": "Pressure gauge", "description": "Analogue gauge on the discharge line, 0-10 bar. Green band 3-5 bar, red from 6 bar.", "safety": "" },
+    { "id": "pressure_line", "name": "Discharge line", "description": "Steel pipe from the pump to the outlet valve.", "safety": "Pressurised while the pump runs." },
+    { "id": "relief_valve", "name": "Pressure relief valve", "description": "Spring-loaded valve that opens at 5.5 bar to protect the line.", "safety": "Never block or adjust it with the system under pressure." },
+    { "id": "relief_valve_seat", "name": "Relief valve seat", "description": "Socket inside the pump cover that holds the relief cartridge.", "safety": "" },
+    { "id": "relief_cartridge", "name": "Relief valve cartridge", "description": "Replaceable cartridge (spring and poppet). Part no. FM-RV-55.", "safety": "" }
+  ],
+  "faults": [
+    { "id": "overpressure", "name": "Overpressure", "symptoms": "Pressure gauge in the red band (above 6 bar); pressure alarm on the status board; motor current slightly raised.", "cause": "The relief valve cartridge is stuck closed, so the relief valve no longer caps line pressure.", "procedure": "relief_valve_replacement" },
+    { "id": "overheating", "name": "Motor overheating", "symptoms": "Motor temperature above 80 °C and current above 11 A.", "cause": "Dust and debris blocking the cooling fins." },
+    { "id": "loose_mount", "name": "Loose motor mount", "symptoms": "Vibration above 7 mm/s, audible rattle from the base frame.", "cause": "Motor mount bolts have worked loose." }
+  ],
+  "procedures": [
+    {
+      "id": "relief_valve_replacement",
+      "title": "Replace the relief valve cartridge",
+      "steps": [
+        { "id": "inspect", "title": "Inspect the relief valve", "part": "relief_valve" },
+        { "id": "lockout", "title": "Lock out the main breaker", "part": "main_breaker" },
+        { "id": "close_inlet", "title": "Close the inlet valve", "part": "inlet_valve" },
+        { "id": "verify_zero", "title": "Verify zero pressure on the gauge", "part": "pressure_gauge" },
+        { "id": "remove_cover", "title": "Remove the pump access cover", "part": "pump_cover" },
+        { "id": "replace", "title": "Fit the new relief cartridge", "part": "relief_valve_seat" },
+        { "id": "restore", "title": "Restore and return to service" }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "overview.machine", "kind": "overview", "title": "About the FM-200 skid",
+      "text": "The FM-200 is a centrifugal pump skid: a 7.5 kW motor drives a single-stage pump that delivers about 4 bar. Water enters through the inlet valve and leaves through the discharge line and outlet valve. A relief valve on the discharge side opens at 5.5 bar. The motor is fed from the electrical cabinet through the main breaker.",
+      "keywords": ["machine", "skid", "overview", "pump", "how it works"]
+    },
+    {
+      "id": "overview.status_board", "kind": "overview", "title": "Reading the status board",
+      "text": "The status board shows pressure (bar), motor temperature (°C), vibration (mm/s) and motor current (A). Green is normal, amber is a warning, red is an alarm. Normal running values: 4 bar, 40 °C, 2 mm/s, 8 A. Alarm limits: 6 bar, 80 °C, 7.1 mm/s, 13 A.",
+      "keywords": ["status", "board", "telemetry", "reading", "values", "alarm", "limits", "red", "normal"]
+    },
+    {
+      "id": "safety.ppe", "kind": "safety", "title": "Personal protective equipment",
+      "text": "Wear safety glasses and work gloves for any work on the skid. Use insulated gloves when working near the electrical cabinet.",
+      "parts": ["electrical_cabinet", "pump_cover"],
+      "keywords": ["ppe", "gloves", "glasses", "protective", "equipment"]
+    },
+    {
+      "id": "safety.loto", "kind": "safety", "title": "Lockout / tagout",
+      "text": "Before any maintenance: switch the main breaker to off, turn it to locked and fit your personal padlock and tag. Try to start the motor to prove it is dead. Never work on the skid with the breaker on. Only the person who fitted the lock may remove it.",
+      "parts": ["main_breaker", "electrical_cabinet", "motor"],
+      "steps": ["lockout"],
+      "keywords": ["lockout", "tagout", "loto", "isolate", "padlock", "breaker", "lock", "power", "safety"]
+    },
+    {
+      "id": "safety.stored_pressure", "kind": "safety", "title": "Stored pressure",
+      "text": "The pump and discharge line hold pressure after the motor stops. Close the inlet valve and wait until the gauge reads 0 bar (within 0.2 bar) before opening the pump cover or touching the relief valve. Opening a pressurised cover can eject parts and water.",
+      "parts": ["pump", "pump_cover", "relief_valve", "pressure_line", "pressure_gauge", "inlet_valve"],
+      "steps": ["close_inlet", "verify_zero", "remove_cover"],
+      "keywords": ["pressure", "stored", "depressurise", "bleed", "zero", "safety", "cover"]
+    },
+    {
+      "id": "safety.rotating_hot", "kind": "safety", "title": "Rotating and hot parts",
+      "text": "The motor shaft and coupling rotate at 2900 rpm and the motor housing can exceed 80 °C. Keep hands clear while powered and let the motor cool before touching the cooling fins.",
+      "parts": ["motor", "cooling_fins", "motor_mount"],
+      "keywords": ["rotating", "hot", "burn", "shaft", "coupling", "temperature", "safety"]
+    },
+    {
+      "id": "part.main_breaker", "kind": "part", "title": "Main breaker",
+      "text": "Two-hand rotary isolator on the cabinet door with three positions: on, off and locked. Pull it with both hands to move it to locked; the padlock hasp only opens in the locked position.",
+      "parts": ["main_breaker", "electrical_cabinet"],
+      "keywords": ["breaker", "isolator", "switch", "cabinet", "power"]
+    },
+    {
+      "id": "part.valves", "kind": "part", "title": "Inlet and outlet valves",
+      "text": "The inlet valve is a quarter-turn ball valve: handle along the pipe means open, across the pipe means closed. The outlet valve is a gate valve; closing it partly throttles flow and raises line pressure.",
+      "parts": ["inlet_valve", "outlet_valve"],
+      "keywords": ["valve", "inlet", "outlet", "open", "close", "handle", "throttle"]
+    },
+    {
+      "id": "part.pressure_gauge", "kind": "part", "title": "Pressure gauge",
+      "text": "Analogue gauge on the discharge line, 0 to 10 bar. The green band is 3 to 5 bar; the red band starts at 6 bar. After isolation it must read 0 bar before the pump is opened.",
+      "parts": ["pressure_gauge", "pressure_line"],
+      "steps": ["verify_zero"],
+      "keywords": ["gauge", "pressure", "bar", "reading", "dial"]
+    },
+    {
+      "id": "part.relief_valve", "kind": "part", "title": "Pressure relief valve",
+      "text": "Spring-loaded valve on the discharge side that opens at 5.5 bar and returns water to the suction side. Its replaceable cartridge (FM-RV-55) sits in the relief valve seat behind the pump access cover. A stuck cartridge lets pressure rise into the red band.",
+      "parts": ["relief_valve", "relief_valve_seat", "relief_cartridge", "pump_cover"],
+      "keywords": ["relief", "valve", "cartridge", "spring", "seat", "overpressure", "protect"]
+    },
+    {
+      "id": "part.motor", "kind": "part", "title": "Drive motor",
+      "text": "7.5 kW, 400 V motor with a rear cooling fan and finned housing, fixed to the base frame by four M12 mount bolts. Normal current is about 8 A at half load.",
+      "parts": ["motor", "motor_mount", "cooling_fins"],
+      "keywords": ["motor", "current", "amps", "fan", "fins", "mount", "bolts"]
+    },
+    {
+      "id": "part.pump", "kind": "part", "title": "Centrifugal pump",
+      "text": "Single-stage centrifugal pump delivering about 4 bar at full inlet opening. The bolted access cover on its side gives access to the relief valve seat.",
+      "parts": ["pump", "pump_cover"],
+      "keywords": ["pump", "impeller", "cover", "access", "flow"]
+    },
+    {
+      "id": "fault.overpressure", "kind": "fault", "title": "Fault: overpressure",
+      "text": "Symptom: the gauge reads above 6 bar and the status board shows a red pressure alarm, often with slightly raised motor current. Cause: the relief valve cartridge is stuck closed. Fix: replace the relief valve cartridge (procedure relief_valve_replacement). Do not throttle the outlet valve while the fault is active.",
+      "parts": ["relief_valve", "pressure_gauge", "pressure_line"],
+      "keywords": ["overpressure", "high pressure", "pressure", "red", "alarm", "stuck", "why"]
+    },
+    {
+      "id": "fault.overheating", "kind": "fault", "title": "Fault: motor overheating",
+      "text": "Symptom: motor temperature above 80 °C and current above 11 A. Cause: blocked cooling fins. Fix: lock out, let the motor cool, clean the fins with a brush, then restart and watch the temperature fall.",
+      "parts": ["motor", "cooling_fins"],
+      "keywords": ["overheating", "hot", "temperature", "current", "fins", "cooling", "why"]
+    },
+    {
+      "id": "fault.loose_mount", "kind": "fault", "title": "Fault: loose motor mount",
+      "text": "Symptom: vibration above 7 mm/s and a rattle from the base frame. Cause: loose motor mount bolts. Fix: lock out and tighten the four M12 bolts to 60 Nm.",
+      "parts": ["motor_mount", "motor"],
+      "keywords": ["vibration", "rattle", "loose", "mount", "bolts", "shaking", "why"]
+    },
+    {
+      "id": "proc.rv.overview", "kind": "procedure", "title": "Procedure: replace the relief valve cartridge",
+      "text": "Seven steps: inspect the relief valve, lock out the main breaker, close the inlet valve, verify 0 bar on the gauge, remove the pump access cover, fit the new cartridge in the relief valve seat, restore and return to service. Lockout must come before touching the inlet valve or the cover.",
+      "steps": ["inspect", "lockout", "close_inlet", "verify_zero", "remove_cover", "replace", "restore"],
+      "keywords": ["procedure", "steps", "replace", "cartridge", "relief", "repair", "fix", "start"]
+    },
+    {
+      "id": "proc.rv.inspect", "kind": "procedure", "title": "Step 1: inspect the relief valve",
+      "text": "Look at the relief valve on the discharge side for a few seconds. Check for leaks and note the gauge reading.",
+      "parts": ["relief_valve"],
+      "steps": ["inspect"],
+      "keywords": ["inspect", "look", "check"]
+    },
+    {
+      "id": "proc.rv.lockout", "kind": "procedure", "title": "Step 2: lock out the main breaker",
+      "text": "Pull the main breaker to locked with both hands and fit your padlock. See safety.loto.",
+      "parts": ["main_breaker"],
+      "steps": ["lockout"],
+      "keywords": ["lockout", "breaker", "lock", "padlock"]
+    },
+    {
+      "id": "proc.rv.close_inlet", "kind": "procedure", "title": "Step 3: close the inlet valve",
+      "text": "Turn the inlet valve handle a quarter turn until it is across the pipe.",
+      "parts": ["inlet_valve"],
+      "steps": ["close_inlet"],
+      "keywords": ["inlet", "close", "valve", "quarter"]
+    },
+    {
+      "id": "proc.rv.verify_zero", "kind": "procedure", "title": "Step 4: verify zero pressure",
+      "text": "Read the pressure gauge and say or enter the value. It must be 0 bar, within 0.2 bar. If it is higher, wait and read again.",
+      "parts": ["pressure_gauge"],
+      "steps": ["verify_zero"],
+      "keywords": ["verify", "zero", "gauge", "read", "pressure"]
+    },
+    {
+      "id": "proc.rv.remove_cover", "kind": "procedure", "title": "Step 5: remove the pump access cover",
+      "text": "Undo the four cover bolts and lift the pump access cover off. The relief valve seat is now visible.",
+      "parts": ["pump_cover"],
+      "steps": ["remove_cover"],
+      "keywords": ["cover", "remove", "bolts", "open"]
+    },
+    {
+      "id": "proc.rv.replace", "kind": "procedure", "title": "Step 6: fit the new cartridge",
+      "text": "Pull the old cartridge out of the relief valve seat and push the new FM-RV-55 cartridge in until it clicks.",
+      "parts": ["relief_valve_seat", "relief_cartridge"],
+      "steps": ["replace"],
+      "keywords": ["cartridge", "fit", "replace", "seat", "click"]
+    },
+    {
+      "id": "proc.rv.restore", "kind": "procedure", "title": "Step 7: restore and return to service",
+      "text": "Refit the cover, open the inlet valve, remove your padlock, switch the breaker on and confirm the gauge settles around 4 bar.",
+      "parts": ["pump_cover", "inlet_valve", "main_breaker", "pressure_gauge"],
+      "steps": ["restore"],
+      "keywords": ["restore", "restart", "return", "service", "finish", "confirm"]
+    }
+  ]
+}
