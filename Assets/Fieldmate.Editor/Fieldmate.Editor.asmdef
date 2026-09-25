@@ -7,7 +7,13 @@
     "Unity.XR.Management",
     "Unity.XR.Management.Editor",
     "Unity.XR.OpenXR",
-    "Unity.XR.OpenXR.Editor"
+    "Unity.XR.OpenXR.Editor",
+    "Fieldmate.Unity",
+    "Unity.XR.ARFoundation",
+    "Unity.XR.ARSubsystems",
+    "Unity.XR.CoreUtils",
+    "Unity.InputSystem",
+    "Unity.XR.MetaOpenXR"
   ],
   "includePlatforms": [
     "Editor"
