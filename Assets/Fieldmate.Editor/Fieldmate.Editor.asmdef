@@ -13,7 +13,8 @@
     "Unity.XR.ARSubsystems",
     "Unity.XR.CoreUtils",
     "Unity.InputSystem",
-    "Unity.XR.MetaOpenXR"
+    "Unity.XR.MetaOpenXR",
+    "Fieldmate.Core"
   ],
   "includePlatforms": [
     "Editor"
