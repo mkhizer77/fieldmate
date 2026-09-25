@@ -26,15 +26,15 @@ public class RepoHygieneTests
     }
 
     [Test]
-    public void KeysTemplate_ParsesAndContainsNoKeys()
+    public void KeysTemplate_HoldsOnlyAProxyUrl_AndNoToken()
     {
+        // ADR-003: provider keys live in the proxy; keys.json carries the proxy URL and an optional dev token.
         var path = Path.Combine(Application.dataPath, "_Project", "Secrets", "keys.json.template");
         var keys = JsonUtility.FromJson<KeysFile>(File.ReadAllText(path));
 
-        var providers = new[] { keys.chat, keys.stt, keys.tts, keys.vision };
-        Assert.That(providers, Has.None.Null);
-        Assert.That(providers.Select(p => p.provider), Has.None.Empty);
-        Assert.That(providers.Select(p => p.apiKey), Has.All.Empty, "The committed template must never contain a key.");
+        Assert.That(keys.proxyUrl, Does.StartWith("https://"));
+        Assert.That(keys.devToken, Is.Empty, "The committed template must never contain a token.");
+        Assert.That(File.ReadAllText(path), Does.Not.Contain("apiKey"));
     }
 
     [Test]
@@ -49,16 +49,7 @@ public class RepoHygieneTests
     [Serializable]
     private sealed class KeysFile
     {
-        public ProviderKey chat;
-        public ProviderKey stt;
-        public ProviderKey tts;
-        public ProviderKey vision;
-    }
-
-    [Serializable]
-    private sealed class ProviderKey
-    {
-        public string provider;
-        public string apiKey;
+        public string proxyUrl;
+        public string devToken;
     }
 }
