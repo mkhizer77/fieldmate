@@ -117,7 +117,13 @@ namespace Fieldmate.Assistant
             var background = Panel("Background", transform, Vector2.zero, Vector2.one, new Color(0.05f, 0.06f, 0.08f, 0.82f));
             stateDot = Panel("StateDot", background, new Vector2(0.03f, 0.92f), new Vector2(0.06f, 0.96f), Color.grey).GetComponent<Image>();
             stateText = Label("State", background, new Vector2(0.08f, 0.9f), new Vector2(0.97f, 0.98f), 26, TextAnchor.MiddleLeft);
-            transcriptText = Label("Transcript", background, new Vector2(0.03f, 0.36f), new Vector2(0.97f, 0.89f), 21, TextAnchor.LowerLeft);
+            // Bottom-aligned and allowed to overflow upwards inside a clipping viewport: the newest line always shows and
+            // the oldest scroll off the top. (Truncate would drop the newest lines once long answers wrap.)
+            var viewport = new GameObject("TranscriptViewport", typeof(RectTransform), typeof(RectMask2D)).transform;
+            viewport.SetParent(background, false);
+            Stretch((RectTransform)viewport, new Vector2(0.03f, 0.36f), new Vector2(0.97f, 0.89f));
+            transcriptText = Label("Transcript", viewport, Vector2.zero, Vector2.one, 21, TextAnchor.LowerLeft);
+            transcriptText.verticalOverflow = VerticalWrapMode.Overflow;
             detailText = Label("Detail", Panel("DetailBox", background, new Vector2(0.03f, 0.03f), new Vector2(0.97f, 0.34f),
                 new Color(1f, 1f, 1f, 0.06f)), new Vector2(0.03f, 0.05f), new Vector2(0.97f, 0.95f), 19, TextAnchor.UpperLeft);
             var banner = Panel("Banner", transform, new Vector2(0f, 1.01f), new Vector2(1f, 1.1f), new Color(0.55f, 0.15f, 0.1f, 0.9f));

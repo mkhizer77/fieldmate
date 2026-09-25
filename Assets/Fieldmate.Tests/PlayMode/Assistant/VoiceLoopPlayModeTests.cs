@@ -97,6 +97,28 @@ public class VoiceLoopPlayModeTests
         Assert.That(panel.DetailText, Does.Contain("[safety.loto] Lockout / tagout"));
     }
 
+    [UnityTest]
+    public IEnumerator LongAnswers_KeepTheNewestTranscriptLineVisible()
+    {
+        var sentence = "The relief valve cartridge sits under the bolted cover on top of the pump and must be replaced. ";
+        for (var i = 0; i < 6; i++)
+        {
+            chat.Say($"Answer {i}: " + string.Concat(Enumerable.Repeat(sentence, 3)));
+            yield return Await(loop.AskAsync($"Question {i}", speak: false));
+        }
+
+        chat.Say("NEWEST-LINE-MARKER");
+        yield return Await(loop.AskAsync("Last question", speak: false));
+        Canvas.ForceUpdateCanvases();
+
+        var transcript = panel.GetComponentsInChildren<UnityEngine.UI.Text>().Single(t => t.name == "Transcript");
+        Assert.That(transcript.GetComponentInParent<UnityEngine.UI.RectMask2D>(), Is.Not.Null, "overflow must be clipped");
+        var generator = transcript.cachedTextGenerator;
+        var newest = transcript.text.LastIndexOf('\n') + 1;
+        var lastLineStart = generator.lines[generator.lineCount - 1].startCharIdx;
+        Assert.That(lastLineStart, Is.GreaterThanOrEqualTo(newest), "the newest entry is laid out (Truncate drops the bottom lines)");
+    }
+
     private sealed class Scripted : IChatModel
     {
         private readonly Queue<ChatResponse> replies = new();

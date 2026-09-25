@@ -40,6 +40,7 @@ namespace Fieldmate.Assistant
         private CancellationTokenSource turn;
         private string idleHint = "Hold X or pinch (left middle finger) to talk";
         private float releaseAt = -1f;
+        private bool speakingTail; // turn finished, speech still audible
 
         public AssistantSession Session => session;
         public string DisabledReason { get; private set; }
@@ -86,7 +87,7 @@ namespace Fieldmate.Assistant
             session = new AssistantSession(chat, speechToText, textToSpeech, registry, new ConversationState(),
                 language => AssistantPrompt.System(machine.Manual.MachineName, language), BuildContext, () => Time.realtimeSinceStartupAsDouble);
             tools.LanguageChanged += language => session.Language = language;
-            session.StateChanged += state => panel.SetState(state, idleHint);
+            session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
 
             DisabledReason = null;
@@ -130,7 +131,7 @@ namespace Fieldmate.Assistant
                 return;
             }
 
-            if (session.State != AssistantState.Idle && session.State != AssistantState.Listening)
+            if ((session.State != AssistantState.Idle && session.State != AssistantState.Listening) || player.IsPlaying)
             {
                 CancelTurn(); // barge-in: stop thinking or speaking
             }
@@ -152,6 +153,12 @@ namespace Fieldmate.Assistant
 
         private void Update()
         {
+            if (speakingTail && !player.IsPlaying)
+            {
+                speakingTail = false;
+                panel.SetState(session != null ? session.State : AssistantState.Idle, idleHint);
+            }
+
             if (releaseAt >= 0f && Time.unscaledTime >= releaseAt)
             {
                 releaseAt = -1f;
@@ -206,6 +213,13 @@ namespace Fieldmate.Assistant
             turn?.Cancel();
             turn = null;
             player.Stop();
+        }
+
+        // The session is idle once the last audio has arrived; the panel keeps "Speaking…" until it has been heard.
+        private void ShowState(AssistantState state)
+        {
+            speakingTail = state == AssistantState.Idle && player.IsPlaying;
+            panel.SetState(speakingTail ? AssistantState.Speaking : state, idleHint);
         }
 
         private string BuildContext(string userText)
