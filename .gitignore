@@ -46,3 +46,8 @@ Thumbs.db
 
 # ---- generated reports ----
 /docs/eval/
+
+# ---- AI proxy (tools/proxy) ----
+/tools/proxy/node_modules/
+/tools/proxy/.wrangler/
+/tools/proxy/.dev.vars

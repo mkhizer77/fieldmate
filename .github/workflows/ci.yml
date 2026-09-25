@@ -58,6 +58,23 @@ jobs:
           name: test-results-${{ matrix.mode }}
           path: ${{ steps.tests.outputs.artifactsPath }}
 
+  proxy:
+    name: Proxy (tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/proxy/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   build-android:
     name: Build APK
     needs: test

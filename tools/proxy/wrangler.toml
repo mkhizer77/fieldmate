@@ -1,0 +1,36 @@
+# Fieldmate AI proxy. Secrets (never in this file): wrangler secret put ANTHROPIC_API_KEY / DEEPGRAM_API_KEY /
+# ELEVENLABS_API_KEY / DEV_TOKEN. See README.md.
+name = "fieldmate-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+# Public URL: https://fieldmate-proxy.<account>.workers.dev. No per-version preview URLs.
+workers_dev = true
+preview_urls = false
+
+[vars]
+CHAT_MODEL = "claude-haiku-4-5"
+MAX_OUTPUT_TOKENS = "600"
+STT_MODEL = "nova-3"
+TTS_MODEL = "eleven_flash_v2_5"
+# ElevenLabs paid plan. Public TTS stays capped so your own (dev-token) use keeps most of the monthly quota.
+# ElevenLabs voice ids, one per language (choose in the ElevenLabs voice library).
+VOICE_EN = "UgBBYS2sOqTuMpoF3BR0"
+VOICE_DE = "fzqS9sNPYJhLlhsfDm0l"
+# Daily caps for requests without the dev token (whole Worker, UTC day).
+DAILY_CHAT_CALLS = "300"
+DAILY_STT_SECONDS = "1800"
+DAILY_TTS_CHARS = "5000"
+
+# Daily usage counters. Create with: wrangler kv namespace create USAGE, then paste the id here.
+[[kv_namespaces]]
+binding = "USAGE"
+id = "0feae00cc749471f87a40ae15f4a5973"
+
+# Per-IP rate limit (Workers Rate Limiting binding): 20 requests per 60 s.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
