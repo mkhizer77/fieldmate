@@ -171,9 +171,58 @@ public class AssistantSessionTests
         var result = await session.RunTextTurnAsync("What next?", sink, CancellationToken.None);
 
         Assert.That(result.Success, Is.True);
-        Assert.That(sink.Ended, Is.True);
+        Assert.That(sink.Ended, Is.False, "no audio arrived, so the stream never started");
         Assert.That(transcript.Last().Text, Does.Contain("answering in text"));
         Assert.That(session.ConsecutiveFailures, Is.Zero);
+    }
+
+    [Test]
+    public async Task PreambleBeforeTools_IsSpoken_ThenTheAnswer_InOneStream()
+    {
+        chat.Call("t1", "highlight_part", "{\"part_id\":\"relief_valve\"}", "Let me show you [part.relief_valve].")
+            .Say("It's the brass valve on top.");
+        var sink = new RecordingSink();
+
+        await session.RunTextTurnAsync("Where is the relief valve?", sink, CancellationToken.None);
+
+        Assert.That(tts.Spoken, Is.EqualTo(new[] { "Let me show you.", "It's the brass valve on top." }));
+        Assert.That(sink.Samples, Is.EqualTo(6), "both utterances in one stream");
+        Assert.That(sink.Ended, Is.True);
+        Assert.That(transcript.Where(t => t.Kind == TranscriptKind.Assistant).Select(t => t.Text),
+            Is.EqualTo(new[] { "Let me show you [part.relief_valve].", "It's the brass valve on top." }));
+    }
+
+    [Test]
+    public async Task BargeIn_WhileSpeaking_ReturnsToIdle()
+    {
+        chat.Say("A long answer.");
+        using var cts = new CancellationTokenSource();
+        var sink = new CancellingSink(cts);
+
+        // Awaited, not Assert.CatchAsync: blocking on a continuation that needs the main thread deadlocks EditMode.
+        var cancelled = false;
+        try
+        {
+            await session.RunTextTurnAsync("hi", sink, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            cancelled = true;
+        }
+
+        Assert.That(cancelled, Is.True);
+        Assert.That(session.State, Is.EqualTo(AssistantState.Idle));
+        Assert.That(sink.Ended, Is.True);
+    }
+
+    private sealed class CancellingSink : IAudioSink
+    {
+        private readonly CancellationTokenSource cts;
+        public bool Ended;
+        public CancellingSink(CancellationTokenSource cts) => this.cts = cts;
+        public void Begin(int sampleRate) { }
+        public void Write(float[] samples, int count) => cts.Cancel();
+        public void End() => Ended = true;
     }
 
     [Test]

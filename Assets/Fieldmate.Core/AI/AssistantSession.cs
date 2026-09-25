@@ -197,29 +197,43 @@ public sealed class AssistantSession
         var rollback = Conversation.Messages.Count;
         Conversation.AddUser(text);
         var turnContext = context(text);
-        ChatResponse response;
+        var speech = new SpeechChannel(this, sink, result, start, cancellationToken);
         try
         {
-            response = await CompleteWithToolsAsync(turnContext, result, cancellationToken);
+            ChatResponse response;
+            try
+            {
+                response = await CompleteWithToolsAsync(turnContext, result, speech, cancellationToken);
+            }
+            catch (ProviderException e)
+            {
+                Conversation.RollbackTo(rollback);
+                return Fail(result, e, start);
+            }
+            catch (OperationCanceledException)
+            {
+                Conversation.RollbackTo(rollback);
+                SetState(AssistantState.Idle);
+                throw;
+            }
+
+            var answer = response.Text.Trim();
+            result.AssistantText = answer;
+            if (answer.Length > 0)
+            {
+                Add(TranscriptKind.Assistant, answer);
+                speech.Enqueue(answer);
+            }
         }
-        catch (ProviderException e)
+        finally
         {
-            Conversation.RollbackTo(rollback);
-            return Fail(result, e, start);
-        }
-        catch (OperationCanceledException)
-        {
-            Conversation.RollbackTo(rollback);
-            SetState(AssistantState.Idle);
-            throw;
+            await speech.FinishAsync();
         }
 
-        var answer = response.Text.Trim();
-        result.AssistantText = answer;
-        if (answer.Length > 0)
+        if (cancellationToken.IsCancellationRequested)
         {
-            Add(TranscriptKind.Assistant, answer);
-            await SpeakAsync(answer, sink, result, start, cancellationToken);
+            SetState(AssistantState.Idle); // barge-in while speaking
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         if (result.Timings.FirstResponse <= 0)
@@ -234,7 +248,7 @@ public sealed class AssistantSession
         return LastTurn = result;
     }
 
-    private async Task<ChatResponse> CompleteWithToolsAsync(string turnContext, TurnResult result, CancellationToken cancellationToken)
+    private async Task<ChatResponse> CompleteWithToolsAsync(string turnContext, TurnResult result, SpeechChannel speech, CancellationToken cancellationToken)
     {
         for (var round = 0; ; round++)
         {
@@ -248,6 +262,14 @@ public sealed class AssistantSession
             if (response.ToolCalls.Count == 0)
             {
                 return response;
+            }
+
+            // "Let me show you…": said while the tools and the follow-up request run, so the user hears a reply early.
+            var preamble = response.Text.Trim();
+            if (preamble.Length > 0)
+            {
+                Add(TranscriptKind.Assistant, preamble);
+                speech.Enqueue(preamble);
             }
 
             foreach (var call in response.ToolCalls)
@@ -267,54 +289,111 @@ public sealed class AssistantSession
         }
     }
 
-    private async Task SpeakAsync(string answer, IAudioSink sink, TurnResult result, double start, CancellationToken cancellationToken)
+    /// <summary>
+    /// Speech for one turn: utterances play one after another into a single sink stream, started lazily with the first
+    /// audio and ended when the turn finishes. A voice failure leaves the text answer standing.
+    /// </summary>
+    private sealed class SpeechChannel
     {
-        var speech = AssistantPrompt.ForSpeech(answer);
-        if (textToSpeech == null || sink == null || speech.Length == 0)
+        private readonly AssistantSession session;
+        private readonly IAudioSink sink;
+        private readonly TurnResult result;
+        private readonly double start;
+        private readonly CancellationToken cancellationToken;
+        private Task chain = Task.CompletedTask;
+        private bool begun;
+        private bool reportedFailure;
+
+        public SpeechChannel(AssistantSession session, IAudioSink sink, TurnResult result, double start, CancellationToken cancellationToken)
         {
-            return;
+            this.session = session;
+            this.sink = sink;
+            this.result = result;
+            this.start = start;
+            this.cancellationToken = cancellationToken;
         }
 
-        SetState(AssistantState.Speaking);
-        var begun = false;
-        try
+        private bool Enabled => session.textToSpeech != null && sink != null;
+
+        public void Enqueue(string text)
         {
-            if (textToSpeech is IStreamingTextToSpeech streaming)
+            var speech = AssistantPrompt.ForSpeech(text);
+            if (!Enabled || speech.Length == 0)
             {
-                sink.Begin(streaming.SampleRate);
-                begun = true;
-                await streaming.StreamAsync(speech, Language, (samples, count) =>
+                return;
+            }
+
+            var previous = chain;
+            chain = SpeakAfter(previous, speech);
+        }
+
+        public async Task FinishAsync()
+        {
+            try
+            {
+                await chain;
+            }
+            catch (OperationCanceledException)
+            {
+                // the turn itself reports cancellation
+            }
+            finally
+            {
+                if (begun)
                 {
-                    if (result.Timings.FirstResponse <= 0)
-                    {
-                        result.Timings.FirstResponse = clock() - start;
-                    }
+                    sink.End();
+                }
+            }
+        }
 
-                    sink.Write(samples, count);
-                }, cancellationToken);
-            }
-            else
-            {
-                var audio = await textToSpeech.SynthesizeAsync(speech, Language, cancellationToken);
-                sink.Begin(audio.SampleRate);
-                begun = true;
-                result.Timings.FirstResponse = clock() - start;
-                sink.Write(audio.Samples, audio.Samples.Length);
-            }
-        }
-        catch (ProviderException e)
+        private async Task SpeakAfter(Task previous, string speech)
         {
-            // The answer is already on the panel; losing the voice is not a failed turn.
-            Add(TranscriptKind.Info, e.ErrorType == ProviderException.TtsQuota
-                ? "Voice unavailable right now; answering in text."
-                : "Couldn't play the voice; the answer is shown above.");
+            await previous;
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (session.textToSpeech is IStreamingTextToSpeech streaming)
+                {
+                    await streaming.StreamAsync(speech, session.Language, (samples, count) =>
+                    {
+                        EnsureBegun(streaming.SampleRate);
+                        sink.Write(samples, count);
+                    }, cancellationToken);
+                }
+                else
+                {
+                    var audio = await session.textToSpeech.SynthesizeAsync(speech, session.Language, cancellationToken);
+                    EnsureBegun(audio.SampleRate);
+                    sink.Write(audio.Samples, audio.Samples.Length);
+                }
+            }
+            catch (ProviderException e)
+            {
+                if (!reportedFailure)
+                {
+                    reportedFailure = true;
+                    session.Add(TranscriptKind.Info, e.ErrorType == ProviderException.TtsQuota
+                        ? "Voice unavailable right now; answering in text."
+                        : "Couldn't play the voice; the answer is shown above.");
+                }
+            }
         }
-        finally
+
+        private void EnsureBegun(int sampleRate)
         {
             if (begun)
             {
-                sink.End();
+                return;
             }
+
+            begun = true;
+            if (result.Timings.FirstResponse <= 0)
+            {
+                result.Timings.FirstResponse = session.clock() - start;
+            }
+
+            sink.Begin(sampleRate);
+            session.SetState(AssistantState.Speaking);
         }
     }
 

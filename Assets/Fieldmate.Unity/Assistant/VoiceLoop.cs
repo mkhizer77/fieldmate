@@ -24,6 +24,9 @@ namespace Fieldmate.Assistant
     {
         private const float MinRecordingSeconds = 0.35f;
 
+        // Hand-tracking pinches flicker; a release only counts if the button stays up this long.
+        private const float ReleaseGraceSeconds = 0.25f;
+
         [SerializeField] private MachineServices machine;
         [SerializeField] private AssistantPanel panel;
         [SerializeField] private PartHighlighter highlighter;
@@ -36,6 +39,7 @@ namespace Fieldmate.Assistant
         private AssistantSession session;
         private CancellationTokenSource turn;
         private string idleHint = "Hold X or pinch (left middle finger) to talk";
+        private float releaseAt = -1f;
 
         public AssistantSession Session => session;
         public string DisabledReason { get; private set; }
@@ -120,6 +124,12 @@ namespace Fieldmate.Assistant
                 return;
             }
 
+            if (releaseAt >= 0f)
+            {
+                releaseAt = -1f; // re-pressed within the grace period: keep recording
+                return;
+            }
+
             if (session.State != AssistantState.Idle && session.State != AssistantState.Listening)
             {
                 CancelTurn(); // barge-in: stop thinking or speaking
@@ -133,6 +143,23 @@ namespace Fieldmate.Assistant
         }
 
         private void OnTalkReleased()
+        {
+            if (session != null && session.State == AssistantState.Listening)
+            {
+                releaseAt = Time.unscaledTime + ReleaseGraceSeconds;
+            }
+        }
+
+        private void Update()
+        {
+            if (releaseAt >= 0f && Time.unscaledTime >= releaseAt)
+            {
+                releaseAt = -1f;
+                FinishRecording();
+            }
+        }
+
+        private void FinishRecording()
         {
             if (session == null || session.State != AssistantState.Listening)
             {
@@ -155,7 +182,8 @@ namespace Fieldmate.Assistant
             try
             {
                 var result = await running;
-                Debug.Log($"[Assistant] turn ok={result.Success} tools=[{string.Join(",", result.ToolsUsed)}] {result.Timings}");
+                Debug.Log($"[Assistant] turn ok={result.Success} tools=[{string.Join(",", result.ToolsUsed)}] {result.Timings}" +
+                          $" | user: \"{Clip(result.UserText)}\" | answer: \"{Clip(result.AssistantText)}\"");
                 return result;
             }
             catch (OperationCanceledException)
@@ -169,6 +197,9 @@ namespace Fieldmate.Assistant
                 return null;
             }
         }
+
+        private static string Clip(string text) =>
+            string.IsNullOrEmpty(text) ? string.Empty : text.Length <= 140 ? text : text.Substring(0, 140) + "…";
 
         private void CancelTurn()
         {
