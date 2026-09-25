@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/_Project/Scenes/AssistantBench.unity
+    guid: f7ebef2de28164b6e8e6d42c8744259e
+  - enabled: 1
     path: Assets/_Project/Scenes/Spike/PlatformSpike.unity
     guid: 9fecc635ff8f7478fbfd69d579fdb50b
   - enabled: 1
