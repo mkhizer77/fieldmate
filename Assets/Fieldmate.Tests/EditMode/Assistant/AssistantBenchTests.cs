@@ -36,7 +36,7 @@ public class AssistantBenchTests
     [Test]
     public void TaggedParts_HaveCollidersForGaze()
     {
-        Assert.That(All<PartTag>().All(t => t.GetComponent<Collider>() != null), Is.True);
+        Assert.That(All<PartTag>().All(t => t.GetComponentInChildren<Collider>() != null), Is.True);
     }
 
     [Test]

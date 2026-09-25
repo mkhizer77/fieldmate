@@ -15,6 +15,7 @@ public static class QuestPermissions
 {
     public const string Scene = "com.oculus.permission.USE_SCENE";
     public const string HeadsetCamera = "horizonos.permission.HEADSET_CAMERA";
+    public const string Microphone = "android.permission.RECORD_AUDIO";
 
     public static bool IsGranted(string permission)
     {
