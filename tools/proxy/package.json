@@ -1,0 +1,21 @@
+{
+  "name": "fieldmate-proxy",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker that holds Fieldmate's provider keys (Anthropic, Deepgram, ElevenLabs).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260925.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2",
+    "wrangler": "^4.140.0"
+  }
+}
