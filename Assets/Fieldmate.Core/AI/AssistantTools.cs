@@ -80,7 +80,10 @@ public sealed class AssistantTools
         registry.SetExecutor(FieldmateTools.ReadTelemetry, new DelegateToolExecutor(ReadTelemetry));
         registry.SetExecutor(FieldmateTools.LogNote, new DelegateToolExecutor(LogNote));
         registry.SetExecutor(FieldmateTools.SetLanguage, new DelegateToolExecutor(SetLanguage));
-        registry.SetExecutor(FieldmateTools.IdentifyView, new DelegateToolExecutor(IdentifyView));
+        if (registry.TryGetDefinition(FieldmateTools.IdentifyView, out _))
+        {
+            registry.SetExecutor(FieldmateTools.IdentifyView, new DelegateToolExecutor(IdentifyView));
+        }
     }
 
     public ToolResult HighlightPart(ToolCall call, ToolArguments args)
@@ -92,7 +95,7 @@ public sealed class AssistantTools
         }
 
         return scene.TryHighlightPart(id)
-            ? ToolResult.Success(call, $"Highlighted the {part.Name} for the user.")
+            ? ToolResult.Success(call, $"Highlighted the {part.Name} for the user: it pulses cyan and a cyan marker with its name floats above it. {part.Description}")
             : ToolResult.Failure(call, $"The {part.Name} is not placed in the scene yet.");
     }
 

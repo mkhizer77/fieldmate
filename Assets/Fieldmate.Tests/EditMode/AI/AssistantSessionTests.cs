@@ -346,6 +346,24 @@ public class AssistantSessionTests
         Assert.That(session.State, Is.EqualTo(AssistantState.Idle));
     }
 
+    [Test]
+    public async Task ToolRounds_GetAFreshContext_SoTheModelSeesWhatItsToolsChanged()
+    {
+        var procedureStarted = false;
+        registry.SetExecutor(FieldmateTools.StartProcedure, new DelegateToolExecutor((call, _) =>
+        {
+            procedureStarted = true;
+            return ToolResult.Success(call, "started");
+        }));
+        session = new AssistantSession(chat, stt, tts, registry, new ConversationState(), _ => "system",
+            _ => procedureStarted ? "Procedure: running, step 1" : "Procedure: not started", new SteppingClock().Read);
+        chat.Call("c1", "start_procedure", "{\"procedure_id\":\"relief_valve_replacement\"}").Say("Step one.");
+
+        await session.RunTextTurnAsync("Guide me", null, CancellationToken.None);
+
+        Assert.That(chat.Requests.Select(r => r.Context), Is.EqualTo(new[] { "Procedure: not started", "Procedure: running, step 1" }));
+    }
+
     /// <summary>Blocks until cancelled, unless <see cref="Release"/> is set.</summary>
     private sealed class BlockingChat : IChatModel
     {

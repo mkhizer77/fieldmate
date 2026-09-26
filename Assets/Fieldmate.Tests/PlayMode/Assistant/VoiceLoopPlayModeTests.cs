@@ -57,7 +57,15 @@ public class VoiceLoopPlayModeTests
 
         yield return Await(loop.AskAsync("Where is the relief valve?", speak: false));
 
-        Assert.That(UnityEngine.Object.FindAnyObjectByType<PartHighlighter>().ActivePartId, Is.EqualTo("relief_valve"));
+        var highlighter = UnityEngine.Object.FindAnyObjectByType<PartHighlighter>();
+        Assert.That(highlighter.ActivePartId, Is.EqualTo("relief_valve"));
+        yield return null; // marker is placed in Update
+        Assert.That(highlighter.Marker.gameObject.activeSelf, Is.True, "a floating marker points at the part");
+        Assert.That(highlighter.MarkerLabel, Is.EqualTo(machine.Manual.Parts.Single(p => p.Id == "relief_valve").Name));
+        var part = machine.Parts["relief_valve"];
+        var top = part.GetComponentsInChildren<Renderer>().Max(r => r.bounds.max.y);
+        Assert.That(highlighter.Marker.position.y, Is.GreaterThan(top), "marker floats above the part");
+        Assert.That(highlighter.Marker.GetComponentsInChildren<Collider>(), Is.Empty, "marker must not catch gaze rays");
         Assert.That(panel.TranscriptText, Does.Contain("highlight_part(part_id=relief_valve)"));
         Assert.That(panel.TranscriptText, Does.Contain("There it is"));
     }

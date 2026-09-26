@@ -80,12 +80,12 @@ namespace Fieldmate.Assistant
         /// <summary>Builds the session around the given providers (also used by tests with fakes).</summary>
         public void Configure(IChatModel chat, ISpeechToText speechToText, ITextToSpeech textToSpeech)
         {
-            var registry = FieldmateTools.CreateRegistry();
+            var registry = FieldmateTools.CreateRegistry(includeVision: false); // identify_view arrives with M2 vision
             var tools = new AssistantTools(machine.Manual, machine.Runner, machine.Telemetry, this);
             tools.AttachTo(registry);
 
             session = new AssistantSession(chat, speechToText, textToSpeech, registry, new ConversationState(),
-                language => AssistantPrompt.System(machine.Manual.MachineName, language), BuildContext, () => Time.realtimeSinceStartupAsDouble);
+                language => AssistantPrompt.System(machine.Manual.MachineName, language, vision: false), BuildContext, () => Time.realtimeSinceStartupAsDouble);
             tools.LanguageChanged += language => session.Language = language;
             session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
@@ -273,7 +273,7 @@ namespace Fieldmate.Assistant
                 return false;
             }
 
-            highlighter.Highlight(part);
+            highlighter.Highlight(part, machine.Manual.TryGetPart(partId, out var info) ? info.Name : partId);
             return true;
         }
 

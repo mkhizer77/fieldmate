@@ -206,14 +206,13 @@ public sealed class AssistantSession
 
         var rollback = Conversation.Messages.Count;
         Conversation.AddUser(text);
-        var turnContext = context(text);
         var speech = new SpeechChannel(this, sink, result, start, cancellationToken);
         try
         {
             ChatResponse response;
             try
             {
-                response = await CompleteWithToolsAsync(turnContext, result, speech, cancellationToken);
+                response = await CompleteWithToolsAsync(text, result, speech, cancellationToken);
             }
             catch (ProviderException e)
             {
@@ -258,12 +257,14 @@ public sealed class AssistantSession
         return LastTurn = result;
     }
 
-    private async Task<ChatResponse> CompleteWithToolsAsync(string turnContext, TurnResult result, SpeechChannel speech, CancellationToken cancellationToken)
+    private async Task<ChatResponse> CompleteWithToolsAsync(string userText, TurnResult result, SpeechChannel speech, CancellationToken cancellationToken)
     {
         for (var round = 0; ; round++)
         {
             var requestStart = clock();
-            var request = new ChatRequest(systemPrompt(Language), Conversation.Messages, tools.Definitions, turnContext, 300);
+            // Rebuilt every round: tools change the procedure, highlight and telemetry, and a stale context makes the
+            // model think its last tool call didn't work (it called start_procedure twice).
+            var request = new ChatRequest(systemPrompt(Language), Conversation.Messages, tools.Definitions, context(userText), 300);
             var response = await chat.CompleteAsync(request, cancellationToken);
             result.Timings.Chat += clock() - requestStart;
             result.Timings.ChatRequests++;

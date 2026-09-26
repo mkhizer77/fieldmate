@@ -47,7 +47,9 @@ public class AssistantToolsTests
         var unplaced = await Run("highlight_part", "{\"part_id\":\"pump_cover\"}");
         var unknown = await Run("highlight_part", "{\"part_id\":\"flux_capacitor\"}");
 
-        Assert.That((ok.IsError, ok.Content), Is.EqualTo((false, "Highlighted the Pressure relief valve for the user.")));
+        Assert.That(ok.IsError, Is.False);
+        Assert.That(ok.Content, Does.StartWith("Highlighted the Pressure relief valve for the user: it pulses cyan and a cyan marker"));
+        Assert.That(ok.Content, Does.EndWith(manual.Parts.Single(p => p.Id == "relief_valve").Description), "tells the model where the part is");
         Assert.That(scene.Highlighted, Is.EqualTo(new[] { "relief_valve" }));
         Assert.That(unplaced.Content, Is.EqualTo("The Pump access cover is not placed in the scene yet."));
         Assert.That(unknown.IsError, Is.True);
@@ -137,6 +139,27 @@ public class AssistantPromptTests
         Assert.That(en, Is.EqualTo(AssistantPrompt.System("FM-200", "en")));
         Assert.That(en, Does.Contain("FM-200").And.Contain("[fault.overpressure]").And.Contain("Reply in English."));
         Assert.That(AssistantPrompt.System("FM-200", "de"), Does.EndWith("Reply in German."));
+        Assert.That(en, Does.Contain("call highlight_part again"), "can't-see-it complaints re-highlight instead of excuses");
+    }
+
+    [Test]
+    public void System_WithoutVision_NeverMentionsIdentifyView()
+    {
+        Assert.That(AssistantPrompt.System("FM-200", "en", vision: true), Does.Contain("identify_view"));
+        Assert.That(AssistantPrompt.System("FM-200", "en", vision: false), Does.Not.Contain("identify_view"));
+    }
+
+    [Test]
+    public void RegistryWithoutVision_OmitsIdentifyView_AndToolsStillAttach()
+    {
+        var registry = FieldmateTools.CreateRegistry(includeVision: false);
+        var manual = MachineManual.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "_Project", "Manual", "manual.json")));
+        var runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
+        new AssistantTools(manual, runner, new TelemetryModel(FaultModel.CreateDefault()), new FakeScene()).AttachTo(registry);
+
+        Assert.That(registry.Definitions.Select(d => d.Name), Has.No.Member(FieldmateTools.IdentifyView));
+        Assert.That(registry.Definitions, Has.Count.EqualTo(7));
+        Assert.That(registry.Definitions.All(d => registry.HasExecutor(d.Name)), Is.True);
     }
 
     [Test]
