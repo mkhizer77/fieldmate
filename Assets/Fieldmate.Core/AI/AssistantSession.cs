@@ -73,6 +73,9 @@ public sealed class TurnResult
 
     /// <summary><see cref="ProviderException.ErrorType"/> of the failure, if any.</summary>
     public string ErrorType { get; internal set; }
+
+    // Which turn this is; a turn superseded by an interrupt no longer changes the session state.
+    internal int Turn { get; set; }
 }
 
 /// <summary>
@@ -114,17 +117,24 @@ public sealed class AssistantSession
     /// <summary>"en" or "de"; changed by the set_language tool via <see cref="AssistantTools.LanguageChanged"/>.</summary>
     public string Language { get; set; } = "en";
 
+    private int currentTurn;
+
     public int ConsecutiveFailures { get; private set; }
     public TurnResult LastTurn { get; private set; }
 
-    /// <summary>Push-to-talk pressed. Ignored unless idle.</summary>
-    public bool BeginListening()
+    /// <summary>
+    /// Push-to-talk pressed. Ignored unless idle, or when <paramref name="interrupt"/> is set: then any running turn
+    /// (whose cancellation the caller has requested) is superseded at once, so its late completion can't reset
+    /// the state and throw away the new recording.
+    /// </summary>
+    public bool BeginListening(bool interrupt = false)
     {
-        if (State != AssistantState.Idle)
+        if (State == AssistantState.Listening || (State != AssistantState.Idle && !interrupt))
         {
             return false;
         }
 
+        currentTurn++;
         SetState(AssistantState.Listening);
         return true;
     }
@@ -146,9 +156,9 @@ public sealed class AssistantSession
             throw new InvalidOperationException("No speech-to-text provider.");
         }
 
-        var result = new TurnResult();
+        var result = new TurnResult { Turn = ++currentTurn };
         var start = clock();
-        SetState(AssistantState.Transcribing);
+        SetState(result, AssistantState.Transcribing);
         string text;
         try
         {
@@ -161,7 +171,7 @@ public sealed class AssistantSession
         }
         catch (OperationCanceledException)
         {
-            SetState(AssistantState.Idle);
+            SetState(result, AssistantState.Idle);
             throw;
         }
 
@@ -169,7 +179,7 @@ public sealed class AssistantSession
         if (text.Length == 0)
         {
             Add(TranscriptKind.Info, Language == "de" ? "Nicht verstanden. Bitte noch einmal." : "I didn't catch that. Please try again.");
-            SetState(AssistantState.Idle);
+            SetState(result, AssistantState.Idle);
             result.Timings.Total = clock() - start;
             return LastTurn = result;
         }
@@ -185,14 +195,14 @@ public sealed class AssistantSession
             throw new ArgumentException("Text is required.", nameof(text));
         }
 
-        return RunTurnAsync(text.Trim(), sink, new TurnResult(), clock(), cancellationToken);
+        return RunTurnAsync(text.Trim(), sink, new TurnResult { Turn = ++currentTurn }, clock(), cancellationToken);
     }
 
     private async Task<TurnResult> RunTurnAsync(string text, IAudioSink sink, TurnResult result, double start, CancellationToken cancellationToken)
     {
         result.UserText = text;
         Add(TranscriptKind.User, text);
-        SetState(AssistantState.Thinking);
+        SetState(result, AssistantState.Thinking);
 
         var rollback = Conversation.Messages.Count;
         Conversation.AddUser(text);
@@ -213,7 +223,7 @@ public sealed class AssistantSession
             catch (OperationCanceledException)
             {
                 Conversation.RollbackTo(rollback);
-                SetState(AssistantState.Idle);
+                SetState(result, AssistantState.Idle);
                 throw;
             }
 
@@ -232,7 +242,7 @@ public sealed class AssistantSession
 
         if (cancellationToken.IsCancellationRequested)
         {
-            SetState(AssistantState.Idle); // barge-in while speaking
+            SetState(result, AssistantState.Idle); // barge-in while speaking
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -244,7 +254,7 @@ public sealed class AssistantSession
         ConsecutiveFailures = 0;
         result.Success = true;
         result.Timings.Total = clock() - start;
-        SetState(AssistantState.Idle);
+        SetState(result, AssistantState.Idle);
         return LastTurn = result;
     }
 
@@ -393,7 +403,7 @@ public sealed class AssistantSession
             }
 
             sink.Begin(sampleRate);
-            session.SetState(AssistantState.Speaking);
+            session.SetState(result, AssistantState.Speaking);
         }
     }
 
@@ -403,7 +413,7 @@ public sealed class AssistantSession
         result.ErrorType = e.ErrorType;
         result.Timings.Total = clock() - start;
         Add(TranscriptKind.Error, FriendlyError(e));
-        SetState(AssistantState.Idle);
+        SetState(result, AssistantState.Idle);
         return LastTurn = result;
     }
 
@@ -435,6 +445,14 @@ public sealed class AssistantSession
     }
 
     private void Add(TranscriptKind kind, string text) => TranscriptAdded?.Invoke(new TranscriptEntry(kind, text));
+
+    private void SetState(TurnResult turn, AssistantState state)
+    {
+        if (turn.Turn == currentTurn)
+        {
+            SetState(state);
+        }
+    }
 
     private void SetState(AssistantState state)
     {

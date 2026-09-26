@@ -290,4 +290,77 @@ public class AssistantSessionTests
         Assert.ThrowsAsync<InvalidOperationException>(() => noStt.RunAudioTurnAsync(Audio(), null, CancellationToken.None));
         Assert.Throws<ArgumentNullException>(() => new AssistantSession(null, stt, tts, registry, new ConversationState(), _ => "", null, () => 0));
     }
+
+    [Test]
+    public void BeginListening_WhileBusy_IsRefusedWithoutInterrupt()
+    {
+        var blocking = new BlockingChat();
+        session = new AssistantSession(blocking, stt, tts, registry, new ConversationState(), _ => "system", null, new SteppingClock().Read);
+        using var cts = new CancellationTokenSource();
+        _ = session.RunTextTurnAsync("first", null, cts.Token);
+
+        Assert.That(session.State, Is.EqualTo(AssistantState.Thinking));
+        Assert.That(session.BeginListening(), Is.False);
+        cts.Cancel();
+    }
+
+    [Test]
+    public async Task Interrupt_WhileThinking_KeepsListening_AfterTheCancelledTurnFinishes()
+    {
+        var blocking = new BlockingChat();
+        session = new AssistantSession(blocking, stt, tts, registry, new ConversationState(), _ => "system", null, new SteppingClock().Read);
+        using var cts = new CancellationTokenSource();
+        var running = session.RunTextTurnAsync("first", null, cts.Token);
+
+        // Push-to-talk during a turn: the new recording starts before the old turn has unwound (Unity resumes it a frame later).
+        Assert.That(session.BeginListening(interrupt: true), Is.True);
+        cts.Cancel();
+        try
+        {
+            await running;
+            Assert.Fail("the interrupted turn should be cancelled");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        Assert.That(session.State, Is.EqualTo(AssistantState.Listening), "the stale turn must not reset the new recording to Idle");
+        Assert.That(session.Conversation.Messages, Is.Empty, "the interrupted question is rolled back");
+    }
+
+    [Test]
+    public async Task AfterAnInterrupt_TheNextAudioTurnRunsNormally()
+    {
+        var blocking = new BlockingChat();
+        session = new AssistantSession(blocking, stt, tts, registry, new ConversationState(), _ => "system", null, new SteppingClock().Read);
+        using var cts = new CancellationTokenSource();
+        var running = session.RunTextTurnAsync("first", null, cts.Token);
+        session.BeginListening(interrupt: true);
+        cts.Cancel();
+        try { await running; } catch (OperationCanceledException) { }
+
+        blocking.Release = "Here you go.";
+        var result = await session.RunAudioTurnAsync(Audio(), null, CancellationToken.None);
+
+        Assert.That(result.Success, Is.True);
+        Assert.That(session.State, Is.EqualTo(AssistantState.Idle));
+    }
+
+    /// <summary>Blocks until cancelled, unless <see cref="Release"/> is set.</summary>
+    private sealed class BlockingChat : IChatModel
+    {
+        public string Release;
+        public string Name => "blocking";
+
+        public async Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken cancellationToken)
+        {
+            if (Release != null)
+            {
+                return new ChatResponse(Release, null, StopReason.EndTurn);
+            }
+
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException("unreachable");
+        }
+    }
 }

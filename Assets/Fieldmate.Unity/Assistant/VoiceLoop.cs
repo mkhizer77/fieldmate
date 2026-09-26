@@ -131,14 +131,28 @@ namespace Fieldmate.Assistant
                 return;
             }
 
-            if ((session.State != AssistantState.Idle && session.State != AssistantState.Listening) || player.IsPlaying)
+            if (session.State == AssistantState.Listening)
             {
+                return;
+            }
+
+            var interrupt = session.State != AssistantState.Idle || player.IsPlaying;
+            if (interrupt)
+            {
+                Debug.Log($"[Assistant] talk pressed while {session.State} (playing={player.IsPlaying}): interrupting");
                 CancelTurn(); // barge-in: stop thinking or speaking
             }
 
-            if (session.BeginListening() && !recorder.Start())
+            if (!session.BeginListening(interrupt))
+            {
+                Debug.LogWarning($"[Assistant] talk pressed but listening refused in state {session.State}");
+                return;
+            }
+
+            if (!recorder.Start())
             {
                 session.CancelListening();
+                Debug.LogWarning("[Assistant] microphone failed to start");
                 panel.Add(new TranscriptEntry(TranscriptKind.Error, "No microphone available (or permission denied)."));
             }
         }
@@ -170,6 +184,12 @@ namespace Fieldmate.Assistant
         {
             if (session == null || session.State != AssistantState.Listening)
             {
+                if (recorder.IsRecording)
+                {
+                    recorder.Stop(); // never leave the microphone open, or the next press can't start it
+                    Debug.LogWarning($"[Assistant] recording dropped: state changed to {session?.State} while listening");
+                }
+
                 return;
             }
 
@@ -177,8 +197,12 @@ namespace Fieldmate.Assistant
             if (audio == null || audio.DurationSeconds < MinRecordingSeconds)
             {
                 session.CancelListening();
+                Debug.Log($"[Assistant] recording discarded: {(audio == null ? "no audio" : $"{audio.DurationSeconds:0.00}s")} is too short");
+                panel.Add(new TranscriptEntry(TranscriptKind.Info, "Too short. Hold while you speak."));
                 return;
             }
+
+            Debug.Log($"[Assistant] recorded {audio.DurationSeconds:0.00}s");
 
             turn = new CancellationTokenSource();
             _ = RunAndLog(session.RunAudioTurnAsync(audio, player, turn.Token));
