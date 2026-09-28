@@ -42,11 +42,18 @@ public static class FieldmateTools
             "Capture one camera frame of what the user is looking at and identify the part. Only on the user's request."),
     };
 
-    public static ToolRegistry CreateRegistry()
+    /// <param name="includeVision">False until camera identification exists (M2): the model is never offered a tool
+    /// that can only fail.</param>
+    public static ToolRegistry CreateRegistry(bool includeVision = true)
     {
         var registry = new ToolRegistry();
         foreach (var definition in CreateV1())
         {
+            if (!includeVision && definition.Name == IdentifyView)
+            {
+                continue;
+            }
+
             registry.Register(definition);
         }
 
