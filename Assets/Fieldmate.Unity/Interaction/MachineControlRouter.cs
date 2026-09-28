@@ -82,8 +82,12 @@ namespace Fieldmate.Interaction
             }
         }
 
+        private float nextHandLog;
+
         private void Update()
         {
+            LogHands();
+
             // Valve openings follow the handle continuously; struct updates, no allocations.
             var inputs = machine.Telemetry.Inputs;
             for (var i = 0; i < continuous.Count; i++)
@@ -92,6 +96,28 @@ namespace Fieldmate.Interaction
             }
 
             machine.Telemetry.Inputs = inputs;
+        }
+
+        // Every 5 s while the machine is placed: where the grab points are relative to the head, and whether they move.
+        private void LogHands()
+        {
+            if (interactors == null || interactors.Length == 0 || Time.unscaledTime < nextHandLog || Camera.main == null)
+            {
+                return;
+            }
+
+            nextHandLog = Time.unscaledTime + 5f;
+            var head = Camera.main.transform;
+            var sb = new System.Text.StringBuilder("[Interaction] hands");
+            foreach (var interactor in interactors)
+            {
+                if (interactor == null) continue;
+                var local = head.InverseTransformPoint(interactor.transform.position);
+                sb.Append(' ').Append(interactor.name).Append(interactor.enabled ? "" : " (off)")
+                    .Append(" at ").Append(local.ToString("0.00")).Append(" from head");
+            }
+
+            Debug.Log(sb.ToString());
         }
 
         private void OnStateReached(string partId, string state)
