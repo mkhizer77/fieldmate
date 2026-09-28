@@ -1,6 +1,7 @@
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
 using Fieldmate.Twin;
+using Fieldmate.XR;
 using UnityEngine;
 
 namespace Fieldmate.Procedures
@@ -22,6 +23,8 @@ namespace Fieldmate.Procedures
         [SerializeField] private ProcedurePanel panel;
         [SerializeField] private PressButton button;
         [SerializeField] private Transform head;
+        [SerializeField] private MachinePlacement placement;
+        [SerializeField] private ControlGuide guide;
 
         private const float RestartConfirmSeconds = 3f;
 
@@ -29,10 +32,17 @@ namespace Fieldmate.Procedures
         private float restartArmedUntil = -1f;
         private bool dwellReported;
         private bool runsBefore;
+        private bool placementConfirmed;
+
+        /// <summary>Placement is step 0: the procedure can't start until the machine stands where the user wants it.</summary>
+        public bool ReadyToStart => placementConfirmed || placement == null;
 
         public void Configure(MachineServices services, MachineControlRouter router, PartHighlighter partHighlighter,
-            ProcedurePanel procedurePanel, PressButton startButton, Transform headTransform)
+            ProcedurePanel procedurePanel, PressButton startButton, Transform headTransform,
+            MachinePlacement machinePlacement = null, ControlGuide stepGuide = null)
         {
+            placement = machinePlacement;
+            guide = stepGuide;
             machine = services;
             controls = router;
             highlighter = partHighlighter;
@@ -50,13 +60,80 @@ namespace Fieldmate.Procedures
             runner.ErrorRecorded += OnError;
             runner.ProcedureCompleted += OnCompleted;
             button.Pressed += OnButton;
+            InputModalityProbe.Changed += OnModalityChanged;
+            if (placement != null)
+            {
+                placement.StateChanged += OnPlacementChanged;
+            }
+
             panel.SetHead(head);
-            panel.ShowIdle(runner.Definition.Title, "Press Start, or ask Fieldmate to start the procedure.");
-            button.SetLabel("Start");
+            ShowIdle();
+        }
+
+        private void OnPlacementChanged(PlacementState state)
+        {
+            if (state == PlacementState.Placed && !placement.Restored)
+            {
+                placementConfirmed = true; // placed by the user this session
+            }
+
+            if (machine.Runner.State != RunnerState.Running)
+            {
+                ShowIdle();
+            }
+        }
+
+        private void OnModalityChanged(Modality modality)
+        {
+            var runner = machine.Runner;
+            if (runner.State == RunnerState.Running)
+            {
+                OnStepStarted(runner.CurrentStepIndex, runner.CurrentStep, fresh: false);
+            }
+            else
+            {
+                ShowIdle();
+            }
+        }
+
+        // Before a run: step 0 (placement) until the machine is placed, then the Start prompt.
+        private void ShowIdle()
+        {
+            var modality = InputModalityProbe.Current;
+            if (ReadyToStart)
+            {
+                panel.ShowIdle(machine.Runner.Definition.Title,
+                    $"{InputWords.Press(modality)} Start, or ask Fieldmate to start the procedure.");
+                button.SetLabel("Start");
+                return;
+            }
+
+            switch (placement.State)
+            {
+                case PlacementState.Placed:
+                    panel.ShowIdle("Step 0: Place the machine",
+                        $"It is where you left it. {InputWords.Press(modality)} Keep here, or Move machine to place it again.");
+                    button.SetLabel("Keep here");
+                    break;
+                case PlacementState.Placing:
+                    panel.ShowIdle("Step 0: Place the machine", InputWords.Place(modality) + ". Leave room around it.");
+                    button.SetLabel("Place first");
+                    break;
+                default:
+                    panel.ShowIdle("Step 0: Place the machine", "Finding your saved position…");
+                    button.SetLabel("Place first");
+                    break;
+            }
         }
 
         private void OnDestroy()
         {
+            InputModalityProbe.Changed -= OnModalityChanged; // static event: always unsubscribe, even if services are gone
+            if (placement != null)
+            {
+                placement.StateChanged -= OnPlacementChanged;
+            }
+
             if (machine == null || machine.Runner == null)
             {
                 return;
@@ -68,6 +145,7 @@ namespace Fieldmate.Procedures
             runner.ViolationRaised -= OnViolation;
             runner.ErrorRecorded -= OnError;
             runner.ProcedureCompleted -= OnCompleted;
+
             if (button != null)
             {
                 button.Pressed -= OnButton;
@@ -83,6 +161,18 @@ namespace Fieldmate.Procedures
         {
             if (machine.Runner.State != RunnerState.Running)
             {
+                if (!ReadyToStart)
+                {
+                    if (placement.State == PlacementState.Placed)
+                    {
+                        placementConfirmed = true; // "Keep here"
+                        Debug.Log("[Procedure] placement kept");
+                        ShowIdle();
+                    }
+
+                    return;
+                }
+
                 StartProcedure();
                 return;
             }
@@ -156,12 +246,23 @@ namespace Fieldmate.Procedures
         {
             if (step?.PartId != null && highlighter.ActivePartId == null && machine.TryGetPart(step.PartId, out var part))
             {
-                highlighter.Highlight(part, machine.Catalog.DisplayName(step.PartId), float.PositiveInfinity);
+                var label = $"{machine.Catalog.DisplayName(step.PartId)}\n<size=34>{StepInstructions.Short(step, InputModalityProbe.Current)}</size>";
+                highlighter.Highlight(part, label, float.PositiveInfinity);
             }
         }
 
-        private void OnStepStarted(int index, StepDefinition step)
+        private void OnStepStarted(int index, StepDefinition step) => OnStepStarted(index, step, fresh: true);
+
+        private void OnStepStarted(int index, StepDefinition step, bool fresh)
         {
+            placementConfirmed = true; // a run started (e.g. by voice) means the machine is where the user wants it
+            if (!fresh)
+            {
+                panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
+                    StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current));
+                return;
+            }
+
             if (index == 0)
             {
                 // A repeat run, however it was started, begins from the faulty machine again.
@@ -176,7 +277,9 @@ namespace Fieldmate.Procedures
             dwell.Reset();
             dwellReported = false;
             highlighter.Clear();
-            panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title, StepInstructions.For(step, machine.Catalog));
+            panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
+                StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current));
+            ShowGuide(step);
             button.SetLabel("Restart");
             KeepHighlighted(step);
             Debug.Log($"[Procedure] step {index + 1}: {step.Id}");
@@ -200,8 +303,60 @@ namespace Fieldmate.Procedures
             Debug.Log($"[Procedure] error {error}");
         }
 
+        // The way to operate the step's control: arc to the target position, arrow off the machine, or a line to the socket.
+        private void ShowGuide(StepDefinition step)
+        {
+            if (guide == null)
+            {
+                return;
+            }
+
+            guide.Hide();
+            if (step.Kind == StepKind.Tool)
+            {
+                ToolItem tool = null;
+                foreach (var item in FindObjectsByType<ToolItem>(FindObjectsSortMode.None))
+                {
+                    if (item.ToolId == step.ToolId) tool = item;
+                }
+
+                foreach (var socket in controls.Sockets)
+                {
+                    if (socket.SocketId == step.PartId && tool != null)
+                    {
+                        guide.ShowCarry(tool.transform, socket.transform);
+                    }
+                }
+
+                return;
+            }
+
+            if (step.Kind != StepKind.Operate)
+            {
+                return;
+            }
+
+            foreach (var control in controls.Controls)
+            {
+                if (control.PartId != step.PartId)
+                {
+                    continue;
+                }
+
+                if (control is RotaryInteractable rotary && rotary.TryGetDetentAngle(step.TargetState, out var target))
+                {
+                    guide.ShowRotary(rotary, target, rotary.RequiredHands > 1 ? 0.2f : 0.1f);
+                }
+                else if (control is RemovablePart cover && step.TargetState == RemovablePart.Removed)
+                {
+                    guide.ShowPull(cover.transform, cover.transform.parent != null ? cover.transform.parent.forward : cover.transform.forward);
+                }
+            }
+        }
+
         private void OnCompleted(ProcedureResult result)
         {
+            guide?.Hide();
             highlighter.Clear();
             panel.ShowDebrief(result, machine.Runner.Definition.Title);
             button.SetLabel("Run again");

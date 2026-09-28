@@ -168,7 +168,7 @@ namespace Fieldmate.Assistant
             label.localPosition = Vector3.up * 0.09f;
             canvasGo.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             var rect = (RectTransform)label;
-            rect.sizeDelta = new Vector2(600f, 90f);
+            rect.sizeDelta = new Vector2(600f, 150f); // name + a short "what to do" line
             rect.localScale = Vector3.one * 0.001f;
 
             var textGo = new GameObject("Text", typeof(RectTransform), typeof(Text));
@@ -185,6 +185,8 @@ namespace Fieldmate.Assistant
             labelText.alignment = TextAnchor.MiddleCenter;
             labelText.color = highlight;
             labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            labelText.verticalOverflow = VerticalWrapMode.Overflow;
+            labelText.supportRichText = true;
             textGo.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.8f);
 
             marker.gameObject.SetActive(false);

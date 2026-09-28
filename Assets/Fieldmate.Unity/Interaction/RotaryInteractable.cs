@@ -39,6 +39,26 @@ namespace Fieldmate.Interaction
         public float Angle => tracker?.Angle ?? startAngle;
         public int RequiredHands => requiredHands;
         public bool IsTurning => turning;
+        public Vector3 Axis => axis;
+        public Transform Handle => handle;
+        public float MinAngle => minAngle;
+        public float MaxAngle => maxAngle;
+
+        /// <summary>The angle of a named position ("closed", "locked"...), for the step guide.</summary>
+        public bool TryGetDetentAngle(string state, out float angle)
+        {
+            for (var i = 0; i < detentStates.Length; i++)
+            {
+                if (detentStates[i] == state)
+                {
+                    angle = detentAngles[i];
+                    return true;
+                }
+            }
+
+            angle = 0f;
+            return false;
+        }
 
         public event Action<string, string> StateReached;
 

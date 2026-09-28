@@ -38,6 +38,16 @@ public class ProcedurePlayModeTests
     [TearDown]
     public void RestoreTime() => Time.timeScale = 1f;
 
+    /// <summary>Step 0: confirms the machine where it stands (no anchor subsystem in the editor: session placement).</summary>
+    internal static IEnumerator PlaceMachine()
+    {
+        var placement = Object.FindAnyObjectByType<Fieldmate.XR.MachinePlacement>();
+        var machine = Object.FindAnyObjectByType<RemovablePart>().transform.root;
+        yield return new WaitUntil(() => placement.State != Fieldmate.XR.PlacementState.Loading);
+        _ = placement.ConfirmAsync(new Pose(machine.position, machine.rotation));
+        yield return new WaitUntil(() => placement.State == Fieldmate.XR.PlacementState.Placed);
+    }
+
     private static PressButton StartButton() =>
         Object.FindObjectsByType<PressButton>(FindObjectsSortMode.None).Single(b => b.name == "Start Button");
 
@@ -122,6 +132,7 @@ public class ProcedurePlayModeTests
     {
         var runner = machine.Runner;
         var skid = Object.FindAnyObjectByType<RemovablePart>().transform.root;
+        yield return PlaceMachine();
         StartButton().Press();
         yield return null;
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("inspect"));
@@ -170,6 +181,7 @@ public class ProcedurePlayModeTests
     [UnityTest]
     public IEnumerator OpeningTheCoverBeforeLockout_IsASafetyViolation_OnThePanel()
     {
+        yield return PlaceMachine();
         StartButton().Press();
         yield return null;
         var cover = Object.FindAnyObjectByType<RemovablePart>();
@@ -182,6 +194,7 @@ public class ProcedurePlayModeTests
     [UnityTest]
     public IEnumerator RestartDuringARun_NeedsASecondPress()
     {
+        yield return PlaceMachine();
         var button = StartButton();
         button.Press();
         yield return LookAt("relief_valve", 2f);
@@ -225,6 +238,8 @@ public class ProcedurePlayModeTests
         var placement = Object.FindAnyObjectByType<Fieldmate.XR.MachinePlacement>();
         var move = Object.FindObjectsByType<PressButton>(FindObjectsSortMode.None).Single(b => b.name == "Move Button");
         Assert.That(move.Label, Is.EqualTo("Move machine"));
+        yield return PlaceMachine();
+        Assert.That(placement.State, Is.EqualTo(Fieldmate.XR.PlacementState.Placed));
 
         move.Press();
         yield return null;
