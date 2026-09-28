@@ -84,7 +84,7 @@ public static class AssistantBenchBuilder
         pointerPose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
             "<XRController>{RightHand}/pointerRotation", "<MetaAimHand>{RightHand}/deviceRotation"));
 
-        // Grabbing: one direct interactor per hand. Hands pinch (index) or make a fist; controllers use grip. The user sees
+        // Grabbing: one direct interactor per hand. Hands pinch (index finger); controllers use grip. The user sees
         // their real hands in passthrough, so no hand meshes are drawn.
         new GameObject("XR Interaction Manager", typeof(XRInteractionManager));
         var leftHand = HandInteractor(offset, "Left");
@@ -299,7 +299,7 @@ public static class AssistantBenchBuilder
 
     /// <summary>
     /// A hand's grab interactor: follows the controller grip, or the hand's pinch point when hands are tracked; selects on
-    /// controller grip, index pinch or a fist. A 5 cm trigger sphere finds parts; the kinematic body makes triggers fire.
+    /// controller grip or an index pinch. A 5 cm trigger sphere finds parts; the kinematic body makes triggers fire.
     /// </summary>
     private static XRDirectInteractor HandInteractor(Transform parent, string side)
     {
@@ -322,8 +322,9 @@ public static class AssistantBenchBuilder
 
         var interactor = go.GetComponent<XRDirectInteractor>();
         var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/gripPressed");
+        // No fist (graspFirm) binding: a relaxed hand or the left-hand talk pinch reads as a firm grasp and pressed the
+        // Start button over and over in the device test (2026-09-28). Index pinch is reliable on Quest 3.
         select.AddBinding($"<MetaAimHand>{{{side}Hand}}/indexPressed");
-        select.AddBinding($"<HandInteraction>{{{side}Hand}}/graspFirm");
         interactor.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.InputAction;
         interactor.selectInput.inputActionPerformed = select;
         return interactor;
