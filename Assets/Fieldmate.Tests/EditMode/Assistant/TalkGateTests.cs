@@ -25,31 +25,50 @@ public class TalkGateTests
 
         // Device: a pinch flicker 0.08 s after the recording finished, while transcribing.
         Assert.That(gate.Press(2.93f, assistantBusy: true), Is.EqualTo(TalkAction.StartPending));
-        Assert.That(gate.Tick(3.0f), Is.EqualTo(TalkAction.None));
         Assert.That(gate.Release(3.05f), Is.EqualTo(TalkAction.DropStray));
         Assert.That(gate.Tick(10f), Is.EqualTo(TalkAction.None), "nothing is interrupted later either");
         Assert.That(gate.IsRecording, Is.False);
     }
 
     [Test]
-    public void StrayPressMidTurn_DoesNotInterrupt()
+    public void PinchHeldDuringTheReplyWithoutSpeaking_NeverInterrupts()
     {
-        Ask(0f, 3.5f);
+        // Device 11:08:34: a resting pinch held ~0.4 s cut the answer off although the user said nothing.
+        gate.Press(34.19f, assistantBusy: true);
+        for (var t = 34.2f; t < 36f; t += 0.1f)
+        {
+            Assert.That(gate.Tick(t), Is.EqualTo(TalkAction.None), "holding alone never interrupts");
+        }
 
-        // Device: a flicker 2 s later while thinking, recorded as 0.22 s including the old grace.
-        gate.Press(5.8f, assistantBusy: true);
-        Assert.That(gate.Release(5.83f), Is.EqualTo(TalkAction.DropStray));
+        Assert.That(gate.IsPending, Is.True);
     }
 
     [Test]
-    public void HeldPressWhileBusy_InterruptsAfterTheHoldTime_ThenRecordsNormally()
+    public void ShortPendingPress_IsDropped_LongOne_IsCheckedWithSpeechToText()
     {
-        Assert.That(gate.Press(10f, assistantBusy: true), Is.EqualTo(TalkAction.StartPending));
-        Assert.That(gate.Tick(10f + TalkGate.InterruptHoldSeconds - 0.01f), Is.EqualTo(TalkAction.None));
-        Assert.That(gate.Tick(10f + TalkGate.InterruptHoldSeconds), Is.EqualTo(TalkAction.Interrupt));
+        gate.Press(0f, assistantBusy: true);
+        Assert.That(gate.Release(0.4f), Is.EqualTo(TalkAction.DropStray));
+
+        gate.Press(5f, assistantBusy: true);
+        Assert.That(gate.Release(5f + TalkGate.MinSpeechSeconds + 0.01f), Is.EqualTo(TalkAction.CheckSpeech));
+    }
+
+    [Test]
+    public void SpeechDuringAPendingPress_Interrupts_ThenRecordsNormally()
+    {
+        gate.Press(10f, assistantBusy: true);
+        Assert.That(gate.SpeechDetected(), Is.EqualTo(TalkAction.Interrupt));
+        Assert.That(gate.SpeechDetected(), Is.EqualTo(TalkAction.None), "interrupts once");
 
         Assert.That(gate.Release(12f), Is.EqualTo(TalkAction.None));
         Assert.That(gate.Tick(12f + TalkGate.ReleaseGraceSeconds), Is.EqualTo(TalkAction.Finish));
+    }
+
+    [Test]
+    public void SpeechWhileListeningNormally_IsNotAnInterrupt()
+    {
+        gate.Press(0f, assistantBusy: false);
+        Assert.That(gate.SpeechDetected(), Is.EqualTo(TalkAction.None));
     }
 
     [Test]
@@ -63,18 +82,11 @@ public class TalkGateTests
     }
 
     [Test]
-    public void IdlePress_ListensImmediately()
-    {
-        Assert.That(gate.Press(0f, assistantBusy: false), Is.EqualTo(TalkAction.Listen));
-        Assert.That(gate.Press(0.1f, assistantBusy: false), Is.EqualTo(TalkAction.None), "no double start while recording");
-    }
-
-    [Test]
     public void Reset_AllowsANewPress()
     {
         gate.Press(0f, assistantBusy: true);
         gate.Reset();
-        Assert.That(gate.Tick(5f), Is.EqualTo(TalkAction.None));
+        Assert.That(gate.IsPending, Is.False);
         Assert.That(gate.Press(6f, assistantBusy: false), Is.EqualTo(TalkAction.Listen));
     }
 }

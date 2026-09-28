@@ -22,7 +22,6 @@ namespace Fieldmate.Assistant
     /// </summary>
     public sealed class VoiceLoop : MonoBehaviour, IAssistantScene
     {
-        private const float MinRecordingSeconds = 0.35f;
 
         [SerializeField] private MachineServices machine;
         [SerializeField] private AssistantPanel panel;
@@ -36,7 +35,8 @@ namespace Fieldmate.Assistant
         private AssistantSession session;
         private CancellationTokenSource turn;
         private string idleHint = "Hold X or pinch (left middle finger) to talk";
-        private readonly TalkGate gate = new(); // press/release timing: flicker grace and hold-to-interrupt
+        private readonly TalkGate gate = new(); // press/release decisions: flicker grace, interrupt only on speech
+        private readonly SpeechDetector speech = new();
         private bool speakingTail; // turn finished, speech still audible
 
         public AssistantSession Session => session;
@@ -126,6 +126,7 @@ namespace Fieldmate.Assistant
             switch (gate.Press(Time.unscaledTime, busy))
             {
                 case TalkAction.Listen:
+                    speech.Reset();
                     if (!session.BeginListening() || !StartMicrophone())
                     {
                         session.CancelListening();
@@ -134,8 +135,13 @@ namespace Fieldmate.Assistant
 
                     break;
                 case TalkAction.StartPending:
-                    // Record straight away so a real interrupt keeps its first words; interrupt only once held.
-                    if (!StartMicrophone())
+                    // Pressing isn't speaking: open the microphone, lower the reply, and interrupt only once speech is heard.
+                    speech.Reset();
+                    if (StartMicrophone())
+                    {
+                        player.Duck(true);
+                    }
+                    else
                     {
                         gate.Reset();
                     }
@@ -146,10 +152,19 @@ namespace Fieldmate.Assistant
 
         private void OnTalkReleased()
         {
-            if (gate.Release(Time.unscaledTime) == TalkAction.DropStray)
+            switch (gate.Release(Time.unscaledTime))
             {
-                recorder.Stop();
-                Debug.Log($"[Assistant] ignored short press while {session?.State}");
+                case TalkAction.DropStray:
+                    recorder.Stop();
+                    player.Duck(false);
+                    Debug.Log($"[Assistant] press without speech ignored while {session?.State} (peak level {speech.Peak:0.000})");
+                    break;
+                case TalkAction.CheckSpeech:
+                    var audio = recorder.Stop();
+                    player.Duck(false);
+                    Debug.Log($"[Assistant] press without detected speech ({audio?.DurationSeconds:0.00}s, peak level {speech.Peak:0.000}): checking with speech-to-text");
+                    _ = InterruptIfSpokenAsync(audio);
+                    break;
             }
         }
 
@@ -161,14 +176,16 @@ namespace Fieldmate.Assistant
                 panel.SetState(session != null ? session.State : AssistantState.Idle, idleHint);
             }
 
-            switch (gate.Tick(Time.unscaledTime))
+            if (gate.IsRecording && recorder.IsRecording &&
+                speech.Add(recorder.Level(), Time.unscaledDeltaTime) &&
+                gate.SpeechDetected() == TalkAction.Interrupt)
             {
-                case TalkAction.Interrupt:
-                    Interrupt();
-                    break;
-                case TalkAction.Finish:
-                    FinishRecording();
-                    break;
+                Interrupt();
+            }
+
+            if (gate.Tick(Time.unscaledTime) == TalkAction.Finish)
+            {
+                FinishRecording();
             }
         }
 
@@ -186,7 +203,7 @@ namespace Fieldmate.Assistant
 
         private void Interrupt()
         {
-            Debug.Log($"[Assistant] held while {session.State} (playing={player.IsPlaying}): interrupting");
+            Debug.Log($"[Assistant] speech while {session.State} (playing={player.IsPlaying}, level {speech.Peak:0.000}): interrupting");
             CancelTurn(); // barge-in: stop thinking or speaking
             if (!session.BeginListening(interrupt: true))
             {
@@ -194,6 +211,27 @@ namespace Fieldmate.Assistant
                 gate.Reset();
                 Debug.LogWarning($"[Assistant] interrupt refused in state {session.State}");
             }
+        }
+
+        // A long press during a reply whose speech the level check missed (quiet voice): interrupt only if words come back.
+        private async Task InterruptIfSpokenAsync(AudioData audio)
+        {
+            var text = await session.TranscribeOnlyAsync(audio, CancellationToken.None);
+            if (string.IsNullOrEmpty(text))
+            {
+                Debug.Log("[Assistant] no speech in that press; the reply continues");
+                return;
+            }
+
+            if (gate.IsRecording)
+            {
+                return; // the user has started another press meanwhile; that one wins
+            }
+
+            Debug.Log($"[Assistant] speech-to-text heard \"{Clip(text)}\": interrupting");
+            CancelTurn();
+            turn = new CancellationTokenSource();
+            _ = RunAndLog(session.RunTextTurnAsync(text, player, turn.Token));
         }
 
         private void FinishRecording()
@@ -210,15 +248,14 @@ namespace Fieldmate.Assistant
             }
 
             var audio = recorder.Stop();
-            if (audio == null || audio.DurationSeconds < MinRecordingSeconds)
+            if (audio == null || audio.DurationSeconds < TalkGate.MinSpeechSeconds)
             {
                 session.CancelListening();
-                Debug.Log($"[Assistant] recording discarded: {(audio == null ? "no audio" : $"{audio.DurationSeconds:0.00}s")} is too short");
-                panel.Add(new TranscriptEntry(TranscriptKind.Info, "Too short. Hold while you speak."));
+                Debug.Log($"[Assistant] recording dropped: {(audio == null ? "no audio" : $"{audio.DurationSeconds:0.00}s")} is too short (peak level {speech.Peak:0.000})");
                 return;
             }
 
-            Debug.Log($"[Assistant] recorded {audio.DurationSeconds:0.00}s");
+            Debug.Log($"[Assistant] recorded {audio.DurationSeconds:0.00}s (peak level {speech.Peak:0.000})");
 
             turn = new CancellationTokenSource();
             _ = RunAndLog(session.RunAudioTurnAsync(audio, player, turn.Token));

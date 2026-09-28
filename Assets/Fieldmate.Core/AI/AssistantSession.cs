@@ -148,6 +148,28 @@ public sealed class AssistantSession
         }
     }
 
+    /// <summary>
+    /// Transcribes without starting a turn or changing state: used to check whether a press made during a reply held
+    /// speech before interrupting it. Empty when nothing was said or transcription failed.
+    /// </summary>
+    public async Task<string> TranscribeOnlyAsync(AudioData audio, CancellationToken cancellationToken)
+    {
+        if (speechToText == null || audio == null)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var transcript = await speechToText.TranscribeAsync(audio, Language, cancellationToken);
+            return transcript.Text?.Trim() ?? string.Empty;
+        }
+        catch (ProviderException)
+        {
+            return string.Empty;
+        }
+    }
+
     /// <summary>Transcribes the recording, then runs the turn.</summary>
     public async Task<TurnResult> RunAudioTurnAsync(AudioData audio, IAudioSink sink, CancellationToken cancellationToken)
     {

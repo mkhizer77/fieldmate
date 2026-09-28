@@ -13,6 +13,7 @@ namespace Fieldmate.Assistant
     public sealed class StreamingAudioPlayer : MonoBehaviour, IAudioSink
     {
         private const int BufferSeconds = 60;
+        private const float DuckedVolume = 0.3f;
 
         // After End(), with audio still buffered: stop if the audio thread stops reading for this long (dead device).
         private const float StallTimeoutSeconds = 1.5f;
@@ -58,10 +59,20 @@ namespace Fieldmate.Assistant
             AudioSettings.GetDSPBufferSize(out var bufferLength, out var bufferCount);
             outputLatency = (double)bufferLength * bufferCount / AudioSettings.outputSampleRate;
             playStartDsp = AudioSettings.dspTime;
+            source.volume = 1f;
             source.Play();
         }
 
         public void Write(float[] samples, int count) => ring?.Write(samples, count);
+
+        /// <summary>Lowers the reply while the user may be about to speak, so they know they're heard.</summary>
+        public void Duck(bool ducked)
+        {
+            if (source != null)
+            {
+                source.volume = ducked ? DuckedVolume : 1f;
+            }
+        }
 
         public void End() => ended = true;
 

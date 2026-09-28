@@ -364,6 +364,26 @@ public class AssistantSessionTests
         Assert.That(chat.Requests.Select(r => r.Context), Is.EqualTo(new[] { "Procedure: not started", "Procedure: running, step 1" }));
     }
 
+    [Test]
+    public async Task TranscribeOnly_ReturnsTextWithoutStartingATurn()
+    {
+        stt.Text = "  stop, what about the valve?  ";
+
+        var text = await session.TranscribeOnlyAsync(Audio(), CancellationToken.None);
+
+        Assert.That(text, Is.EqualTo("stop, what about the valve?"));
+        Assert.That(states, Is.Empty, "no state change: the running reply is untouched");
+        Assert.That(chat.Requests, Is.Empty);
+    }
+
+    [Test]
+    public async Task TranscribeOnly_FailureIsEmpty()
+    {
+        stt.Error = new ProviderException(ProviderException.Network, "offline");
+
+        Assert.That(await session.TranscribeOnlyAsync(Audio(), CancellationToken.None), Is.Empty);
+    }
+
     /// <summary>Blocks until cancelled, unless <see cref="Release"/> is set.</summary>
     private sealed class BlockingChat : IChatModel
     {

@@ -7,34 +7,44 @@ public enum TalkAction
     /// <summary>Idle press: start listening and recording.</summary>
     Listen,
 
-    /// <summary>Press while the assistant is busy: start recording, interrupt only if the press is held.</summary>
+    /// <summary>Press while the assistant is busy: record, but leave the reply running until the user speaks.</summary>
     StartPending,
 
-    /// <summary>A busy-time press was held long enough: cancel the running turn and listen.</summary>
+    /// <summary>Speech was heard during a pending press: stop the reply and listen.</summary>
     Interrupt,
 
-    /// <summary>A busy-time press was released early: a stray press. Drop the recording, leave the turn alone.</summary>
+    /// <summary>A pending press ended without speech and too short to hold any: drop it, the reply continues.</summary>
     DropStray,
+
+    /// <summary>A pending press ended without detected speech but long enough to hold some: let speech-to-text decide.</summary>
+    CheckSpeech,
 
     /// <summary>The release grace ran out: the recording is finished.</summary>
     Finish,
 }
 
 /// <summary>
-/// Push-to-talk timing, kept free of Unity so it can be tested. Hand-tracking pinches flicker in two ways seen on
-/// device: a release of a few frames mid-sentence (bridged by <see cref="ReleaseGraceSeconds"/>) and stray presses of
-/// a few frames while the assistant works (they must be held <see cref="InterruptHoldSeconds"/> to interrupt).
+/// Push-to-talk decisions, kept free of Unity so they can be tested. Pressing and speaking are separate: a press only
+/// opens the microphone; while the assistant is busy, its reply is interrupted only once speech is heard
+/// (<see cref="SpeechDetected"/>). Hand-tracking pinches flicker, so a release shorter than
+/// <see cref="ReleaseGraceSeconds"/> is bridged, and pending presses shorter than <see cref="MinSpeechSeconds"/> are
+/// dropped without interrupting anything.
 /// </summary>
 public sealed class TalkGate
 {
     public const float ReleaseGraceSeconds = 0.25f;
-    public const float InterruptHoldSeconds = 0.35f;
+
+    /// <summary>Shorter recordings can't hold a question (seen on device: 0.1–0.4 s pinch flickers).</summary>
+    public const float MinSpeechSeconds = 0.6f;
 
     private float releaseAt = -1f;
-    private float interruptAt = -1f;
+    private float pendingSince = -1f;
     private bool recording;
 
     public bool IsRecording => recording;
+
+    /// <summary>A press while busy is open and no speech has been heard yet.</summary>
+    public bool IsPending => pendingSince >= 0f;
 
     public TalkAction Press(float now, bool assistantBusy)
     {
@@ -52,19 +62,32 @@ public sealed class TalkGate
         recording = true;
         if (assistantBusy)
         {
-            interruptAt = now + InterruptHoldSeconds;
+            pendingSince = now;
             return TalkAction.StartPending;
         }
 
         return TalkAction.Listen;
     }
 
+    /// <summary>The microphone picked up speech.</summary>
+    public TalkAction SpeechDetected()
+    {
+        if (!IsPending)
+        {
+            return TalkAction.None;
+        }
+
+        pendingSince = -1f;
+        return TalkAction.Interrupt;
+    }
+
     public TalkAction Release(float now)
     {
-        if (interruptAt >= 0f)
+        if (IsPending)
         {
+            var held = now - pendingSince;
             Reset();
-            return TalkAction.DropStray;
+            return held >= MinSpeechSeconds ? TalkAction.CheckSpeech : TalkAction.DropStray;
         }
 
         if (recording)
@@ -77,12 +100,6 @@ public sealed class TalkGate
 
     public TalkAction Tick(float now)
     {
-        if (interruptAt >= 0f && now >= interruptAt)
-        {
-            interruptAt = -1f;
-            return TalkAction.Interrupt;
-        }
-
         if (releaseAt >= 0f && now >= releaseAt)
         {
             Reset();
@@ -96,7 +113,7 @@ public sealed class TalkGate
     public void Reset()
     {
         releaseAt = -1f;
-        interruptAt = -1f;
+        pendingSince = -1f;
         recording = false;
     }
 }
