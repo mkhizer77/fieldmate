@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Fieldmate.Assistant;
 using Fieldmate.Procedures;
+using Fieldmate.Twin;
 using Fieldmate.XR;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
@@ -147,7 +148,33 @@ namespace Fieldmate.Interaction
         private void OnToolSocketed(string socketId, string toolId)
         {
             Debug.Log($"[Interaction] {toolId} seated in {socketId}");
+            if (socketId == "relief_valve_seat" && toolId == "relief_cartridge")
+            {
+                // The new cartridge fixes the stuck relief valve, but only on an isolated machine (FaultModel rule).
+                Debug.Log($"[Interaction] repair: {machine.Telemetry.TryRepair("replace_relief_cartridge")}");
+            }
+
             machine.Runner.Handle(InteractionEvent.Socketed(machine.Now, socketId, toolId));
+        }
+
+        /// <summary>
+        /// Back to the demo's starting condition for another run: the old (stuck) cartridge fault returns and the spare
+        /// goes back on its tray. Controls stay where the user left them (a completed run leaves them in service).
+        /// </summary>
+        public void ResetForNewRun()
+        {
+            foreach (var socket in sockets)
+            {
+                var seated = socket.Seated;
+                if (seated != null)
+                {
+                    socket.interactionManager.SelectExit((IXRSelectInteractor)socket, seated);
+                    seated.ReturnHome();
+                }
+            }
+
+            machine.Telemetry.Faults.Inject(FaultModel.Overpressure);
+            Debug.Log("[Interaction] reset for a new run: overpressure fault injected, cartridge back on the tray");
         }
 
         private void OnPlacementChanged(PlacementState state)

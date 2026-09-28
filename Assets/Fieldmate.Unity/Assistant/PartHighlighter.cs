@@ -44,7 +44,8 @@ namespace Fieldmate.Assistant
             BuildMarker();
         }
 
-        public void Highlight(PartTag part, string displayName = null)
+        /// <param name="duration">Seconds to keep it; defaults to the configured time. Use infinity for a step's part.</param>
+        public void Highlight(PartTag part, string displayName = null, float duration = -1f)
         {
             Clear();
             ActivePartId = part.PartId;
@@ -68,7 +69,7 @@ namespace Fieldmate.Assistant
             partTop = new Vector3(bounds.center.x, bounds.max.y, bounds.center.z);
             labelText.text = string.IsNullOrEmpty(displayName) ? part.PartId : displayName;
             marker.gameObject.SetActive(true);
-            until = Time.time + seconds;
+            until = Time.time + (duration > 0f ? duration : seconds);
         }
 
         public void Clear()

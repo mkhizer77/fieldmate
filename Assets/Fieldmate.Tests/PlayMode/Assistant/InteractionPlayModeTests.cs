@@ -8,7 +8,6 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.XR.Interaction.Toolkit;
-using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
@@ -19,6 +18,7 @@ public class InteractionPlayModeTests
 {
     private MachineServices machine;
     private XRInteractionManager manager;
+    private ScriptedHands hands;
 
     [UnitySetUp]
     public IEnumerator LoadBench()
@@ -27,45 +27,23 @@ public class InteractionPlayModeTests
         yield return null; // Start: router discovers the controls
         machine = Object.FindAnyObjectByType<MachineServices>();
         manager = Object.FindAnyObjectByType<XRInteractionManager>();
+        hands = new ScriptedHands(manager);
     }
 
     private static RotaryInteractable Rotary(string partId) =>
         Object.FindObjectsByType<RotaryInteractable>(FindObjectsSortMode.None).Single(r => r.PartId == partId);
 
-    /// <summary>A scripted hand: a direct interactor whose select button is held.</summary>
-    private XRDirectInteractor Hand(Vector3 position)
-    {
-        var go = new GameObject("Test Hand", typeof(SphereCollider), typeof(Rigidbody));
-        go.GetComponent<SphereCollider>().isTrigger = true;
-        go.GetComponent<SphereCollider>().radius = 0.01f;
-        go.GetComponent<Rigidbody>().isKinematic = true;
-        go.transform.position = position;
-        var hand = go.AddComponent<XRDirectInteractor>();
-        hand.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.ManualValue;
-        hand.selectInput.manualPerformed = true;
-        hand.selectInput.manualValue = 1f;
-        return hand;
-    }
-
-    private void Grab(XRBaseInteractor hand, IXRSelectInteractable target) => manager.SelectEnter((IXRSelectInteractor)hand, target);
-
-    private static Vector3 AroundAxis(Transform pivot, Vector3 localAxis, Vector3 localRadius, float degrees)
-    {
-        var space = pivot.parent;
-        return space.TransformPoint(pivot.localPosition + Quaternion.AngleAxis(degrees, localAxis) * localRadius);
-    }
-
     [UnityTest]
     public IEnumerator Handwheel_ThreeTurnsClockwise_ClosesTheOutlet()
     {
         var wheel = Rotary("outlet_valve");
-        var hand = Hand(AroundAxis(wheel.transform, Vector3.up, new Vector3(0.08f, 0f, 0f), 0f));
-        Grab(hand, wheel);
+        var hand = hands.Hand(ScriptedHands.AroundAxis(wheel.transform, Vector3.up, new Vector3(0.08f, 0f, 0f), 0f));
+        hands.Grab(hand, wheel);
         yield return null;
 
         for (var a = 0f; a <= 1090f; a += 15f)
         {
-            hand.transform.position = AroundAxis(wheel.transform, Vector3.up, new Vector3(0.08f, 0f, 0f), a);
+            hand.transform.position = ScriptedHands.AroundAxis(wheel.transform, Vector3.up, new Vector3(0.08f, 0f, 0f), a);
             yield return null;
         }
 
@@ -79,24 +57,24 @@ public class InteractionPlayModeTests
     {
         var breaker = Rotary("main_breaker");
         var radius = new Vector3(0.12f, 0f, 0f);
-        var left = Hand(AroundAxis(breaker.transform, Vector3.back, -radius, 0f));
-        Grab(left, breaker);
+        var left = hands.Hand(ScriptedHands.AroundAxis(breaker.transform, Vector3.back, -radius, 0f));
+        hands.Grab(left, breaker);
         for (var a = 0f; a <= 90f; a += 10f)
         {
-            left.transform.position = AroundAxis(breaker.transform, Vector3.back, -radius, a);
+            left.transform.position = ScriptedHands.AroundAxis(breaker.transform, Vector3.back, -radius, a);
             yield return null;
         }
 
         Assert.That(breaker.Angle, Is.EqualTo(0f), "one hand does nothing on a two-hand isolator");
-        left.transform.position = AroundAxis(breaker.transform, Vector3.back, -radius, 0f);
+        left.transform.position = ScriptedHands.AroundAxis(breaker.transform, Vector3.back, -radius, 0f);
 
-        var right = Hand(AroundAxis(breaker.transform, Vector3.back, radius, 0f));
-        Grab(right, breaker);
+        var right = hands.Hand(ScriptedHands.AroundAxis(breaker.transform, Vector3.back, radius, 0f));
+        hands.Grab(right, breaker);
         yield return null;
         for (var a = 0f; a <= 135f; a += 5f)
         {
-            left.transform.position = AroundAxis(breaker.transform, Vector3.back, -radius, a);
-            right.transform.position = AroundAxis(breaker.transform, Vector3.back, radius, a);
+            left.transform.position = ScriptedHands.AroundAxis(breaker.transform, Vector3.back, -radius, a);
+            right.transform.position = ScriptedHands.AroundAxis(breaker.transform, Vector3.back, radius, a);
             yield return null;
         }
 
@@ -110,16 +88,16 @@ public class InteractionPlayModeTests
     {
         var lever = Rotary("inlet_valve");
         var radius = new Vector3(0.1f, 0f, 0f);
-        var hand = Hand(AroundAxis(lever.transform, Vector3.down, radius, 0f));
-        Grab(hand, lever);
+        var hand = hands.Hand(ScriptedHands.AroundAxis(lever.transform, Vector3.down, radius, 0f));
+        hands.Grab(hand, lever);
         yield return null;
         for (var a = 0f; a <= 75f; a += 5f)
         {
-            hand.transform.position = AroundAxis(lever.transform, Vector3.down, radius, a);
+            hand.transform.position = ScriptedHands.AroundAxis(lever.transform, Vector3.down, radius, a);
             yield return null;
         }
 
-        manager.SelectExit((IXRSelectInteractor)hand, lever);
+        hands.Release(hand, lever);
         yield return null;
 
         Assert.That(lever.Angle, Is.EqualTo(90f), "released 15° short: snaps into the closed detent");
@@ -136,8 +114,8 @@ public class InteractionPlayModeTests
 
         var start = cover.transform.position;
         var away = cover.transform.parent.forward; // the skid's front; read before the grab (XRI unparents held objects)
-        var hand = Hand(start);
-        Grab(hand, cover);
+        var hand = hands.Hand(start);
+        hands.Grab(hand, cover);
         yield return null;
         for (var d = 0f; d <= 0.25f; d += 0.02f)
         {
@@ -166,7 +144,7 @@ public class InteractionPlayModeTests
         var socket = Object.FindAnyObjectByType<ToolSocket>();
         socket.socketActive = true;
         var cartridge = Object.FindAnyObjectByType<ToolItem>();
-        manager.SelectEnter((IXRSelectInteractor)socket, cartridge);
+        hands.Seat(socket, cartridge);
         yield return null;
 
         Assert.That(socket.Seated, Is.SameAs(cartridge));

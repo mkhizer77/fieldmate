@@ -63,7 +63,7 @@ public class AssistantToolsTests
         var again = await Run("start_procedure", "{\"procedure_id\":\"relief_valve_replacement\"}");
         var unknown = await Run("start_procedure", "{\"procedure_id\":\"make_coffee\"}");
 
-        Assert.That(started.Content, Is.EqualTo("Started 'Replace the relief valve cartridge'. Step 1 of 7: Inspect the relief valve."));
+        Assert.That(started.Content, Is.EqualTo("Started 'Replace the relief valve cartridge'. Step 1 of 8: Inspect the relief valve."));
         Assert.That(runner.State, Is.EqualTo(RunnerState.Running));
         Assert.That(scene.ShownStep, Is.EqualTo(1));
         Assert.That(again.Content, Does.Contain("already running at step 1"));
@@ -79,10 +79,10 @@ public class AssistantToolsTests
         var shown = await Run("go_to_step", "{\"index\":3}");
         var outOfRange = await Run("go_to_step", "{\"index\":9}");
 
-        Assert.That(shown.Content, Is.EqualTo("Showing step 3 of 7: Close the inlet valve. The current step is still 1."));
+        Assert.That(shown.Content, Is.EqualTo("Showing step 3 of 8: Close the inlet valve. The current step is still 1."));
         Assert.That(scene.ShownStep, Is.EqualTo(3));
         Assert.That(runner.CurrentStepIndex, Is.Zero, "showing a step never completes one");
-        Assert.That(outOfRange.Content, Is.EqualTo("'Replace the relief valve cartridge' has steps 1 to 7."));
+        Assert.That(outOfRange.Content, Is.EqualTo("'Replace the relief valve cartridge' has steps 1 to 8."));
     }
 
     [Test]
@@ -175,7 +175,7 @@ public class AssistantPromptTests
 
         var context = AssistantPrompt.Context(runner, new TelemetryModel(FaultModel.CreateDefault()), gaze, slice);
 
-        Assert.That(context, Does.StartWith("Procedure: 'Replace the relief valve cartridge', step 1 of 7: Inspect the relief valve."));
+        Assert.That(context, Does.StartWith("Procedure: 'Replace the relief valve cartridge', step 1 of 8: Inspect the relief valve."));
         Assert.That(context, Does.Contain("Telemetry: pressure 4.0 bar (normal)"));
         Assert.That(context, Does.Contain("Looking at: Pressure relief valve (relief_valve)"));
         Assert.That(context, Does.Contain("[part.relief_valve] Pressure relief valve"));

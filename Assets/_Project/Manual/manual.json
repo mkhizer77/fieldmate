@@ -32,7 +32,8 @@
         { "id": "verify_zero", "title": "Verify zero pressure on the gauge", "part": "pressure_gauge" },
         { "id": "remove_cover", "title": "Remove the pump access cover", "part": "pump_cover" },
         { "id": "replace", "title": "Fit the new relief cartridge", "part": "relief_valve_seat" },
-        { "id": "restore", "title": "Restore and return to service" }
+        { "id": "restore", "title": "Refit the cover, open the inlet and switch the breaker on", "part": "main_breaker" },
+        { "id": "verify_running", "title": "Verify running pressure is back in the green band", "part": "pressure_gauge" }
       ]
     }
   ],
@@ -58,7 +59,7 @@
       "text": "Before any maintenance: switch the main breaker to off, turn it to locked and fit your personal padlock and tag. Try to start the motor to prove it is dead. Never work on the skid with the breaker on. Only the person who fitted the lock may remove it.",
       "parts": ["main_breaker", "electrical_cabinet", "motor"],
       "steps": ["lockout"],
-      "keywords": ["lockout", "tagout", "loto", "isolate", "padlock", "breaker", "lock", "power", "safety"]
+      "keywords": ["lockout", "tagout", "loto", "isolate", "padlock", "breaker", "lock", "power", "safety", "stop", "motor", "off", "shut", "switch"]
     },
     {
       "id": "safety.stored_pressure", "kind": "safety", "title": "Stored pressure",
@@ -130,8 +131,8 @@
     },
     {
       "id": "proc.rv.overview", "kind": "procedure", "title": "Procedure: replace the relief valve cartridge",
-      "text": "Seven steps: inspect the relief valve, lock out the main breaker, close the inlet valve, verify 0 bar on the gauge, remove the pump access cover, fit the new cartridge in the relief valve seat, restore and return to service. Lockout must come before touching the inlet valve or the cover.",
-      "steps": ["inspect", "lockout", "close_inlet", "verify_zero", "remove_cover", "replace", "restore"],
+      "text": "Eight steps: inspect the relief valve, lock out the main breaker, close the inlet valve, verify 0 bar on the gauge, remove the pump access cover, fit the new cartridge in the relief valve seat, restore (refit the cover, open the inlet, breaker on), and verify the running pressure is back at 3 to 5 bar. Lockout must come before touching the inlet valve or the cover; the cover must be back on before the breaker is switched.",
+      "steps": ["inspect", "lockout", "close_inlet", "verify_zero", "remove_cover", "replace", "restore", "verify_running"],
       "keywords": ["procedure", "steps", "replace", "cartridge", "relief", "repair", "fix", "start"]
     },
     {
@@ -146,7 +147,7 @@
       "text": "Pull the main breaker to locked with both hands and fit your padlock. See safety.loto.",
       "parts": ["main_breaker"],
       "steps": ["lockout"],
-      "keywords": ["lockout", "breaker", "lock", "padlock"]
+      "keywords": ["lockout", "breaker", "lock", "padlock", "stop", "motor", "off", "shut", "switch"]
     },
     {
       "id": "proc.rv.close_inlet", "kind": "procedure", "title": "Step 3: close the inlet valve",
@@ -178,10 +179,17 @@
     },
     {
       "id": "proc.rv.restore", "kind": "procedure", "title": "Step 7: restore and return to service",
-      "text": "Refit the cover, open the inlet valve, remove your padlock, switch the breaker on and confirm the gauge settles around 4 bar.",
-      "parts": ["pump_cover", "inlet_valve", "main_breaker", "pressure_gauge"],
+      "text": "Refit the cover, open the inlet valve, remove your padlock and switch the breaker back on with both hands. The breaker must not be switched while the cover is off.",
+      "parts": ["pump_cover", "inlet_valve", "main_breaker"],
       "steps": ["restore"],
-      "keywords": ["restore", "restart", "return", "service", "finish", "confirm"]
+      "keywords": ["restore", "restart", "return", "service", "finish", "switch", "on", "power"]
+    },
+    {
+      "id": "proc.rv.verify", "kind": "procedure", "title": "Step 8: verify running pressure",
+      "text": "Look at the gauge for a moment: with the new cartridge the pressure settles between 3 and 5 bar, the green band. If it stays at 0, the inlet is still closed.",
+      "parts": ["pressure_gauge"],
+      "steps": ["verify_running"],
+      "keywords": ["verify", "check", "gauge", "pressure", "running", "green", "finish", "done"]
     }
   ]
 }

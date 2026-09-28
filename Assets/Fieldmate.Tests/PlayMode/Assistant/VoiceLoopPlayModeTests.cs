@@ -78,7 +78,7 @@ public class VoiceLoopPlayModeTests
         yield return Await(loop.AskAsync("Start the repair", speak: false));
 
         Assert.That(machine.Runner.State, Is.EqualTo(RunnerState.Running));
-        Assert.That(panel.DetailText, Does.Contain("Step 1 of 7: Inspect the relief valve"));
+        Assert.That(panel.DetailText, Does.Contain("Step 1 of 8: Inspect the relief valve"));
     }
 
     [UnityTest]
