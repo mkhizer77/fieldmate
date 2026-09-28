@@ -162,7 +162,7 @@ public class InteractionPlayModeTests
         }
 
         var wheel = Rotary("outlet_valve");
-        var hand = Hand(wheel.transform.position);
+        var hand = hands.Hand(wheel.transform.position);
         manager.HoverEnter((IXRHoverInteractor)hand, wheel); // events are synchronous; XRI re-validates hovers next frame
         Assert.That(wheel.GetComponent<HoverTint>().IsTinted, Is.True);
         manager.HoverExit((IXRHoverInteractor)hand, wheel);

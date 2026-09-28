@@ -12,6 +12,7 @@ namespace Fieldmate.Procedures
     /// cap is a child (<see cref="CapSize"/>). The label is a small world-space canvas on the cap's front, built at runtime.
     /// Presses are debounced so a flickering pinch doesn't press twice.
     /// </summary>
+    [RequireComponent(typeof(HoverTint))]
     public sealed class PressButton : XRSimpleInteractable
     {
         private const float DebounceSeconds = 0.6f;

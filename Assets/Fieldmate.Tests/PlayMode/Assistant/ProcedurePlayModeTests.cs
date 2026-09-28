@@ -218,4 +218,16 @@ public class ProcedurePlayModeTests
         var seen = machine.PartAlong(new Ray(eye, (center - eye).normalized));
         Assert.That(seen?.Id, Is.EqualTo("relief_valve"));
     }
+
+    [UnityTest]
+    public IEnumerator MoveMachineButton_StartsPlacementAgain_WithoutControllers()
+    {
+        var placement = Object.FindAnyObjectByType<Fieldmate.XR.MachinePlacement>();
+        var move = Object.FindObjectsByType<PressButton>(FindObjectsSortMode.None).Single(b => b.name == "Move Button");
+        Assert.That(move.Label, Is.EqualTo("Move machine"));
+
+        move.Press();
+        yield return null;
+        Assert.That(placement.State, Is.EqualTo(Fieldmate.XR.PlacementState.Placing));
+    }
 }
