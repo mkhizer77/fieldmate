@@ -24,9 +24,6 @@ namespace Fieldmate.Assistant
     {
         private const float MinRecordingSeconds = 0.35f;
 
-        // Hand-tracking pinches flicker; a release only counts if the button stays up this long.
-        private const float ReleaseGraceSeconds = 0.25f;
-
         [SerializeField] private MachineServices machine;
         [SerializeField] private AssistantPanel panel;
         [SerializeField] private PartHighlighter highlighter;
@@ -39,7 +36,7 @@ namespace Fieldmate.Assistant
         private AssistantSession session;
         private CancellationTokenSource turn;
         private string idleHint = "Hold X or pinch (left middle finger) to talk";
-        private float releaseAt = -1f;
+        private readonly TalkGate gate = new(); // press/release timing: flicker grace and hold-to-interrupt
         private bool speakingTail; // turn finished, speech still audible
 
         public AssistantSession Session => session;
@@ -125,43 +122,34 @@ namespace Fieldmate.Assistant
                 return;
             }
 
-            if (releaseAt >= 0f)
+            var busy = session.State != AssistantState.Idle || player.IsPlaying;
+            switch (gate.Press(Time.unscaledTime, busy))
             {
-                releaseAt = -1f; // re-pressed within the grace period: keep recording
-                return;
-            }
+                case TalkAction.Listen:
+                    if (!session.BeginListening() || !StartMicrophone())
+                    {
+                        session.CancelListening();
+                        gate.Reset();
+                    }
 
-            if (session.State == AssistantState.Listening)
-            {
-                return;
-            }
+                    break;
+                case TalkAction.StartPending:
+                    // Record straight away so a real interrupt keeps its first words; interrupt only once held.
+                    if (!StartMicrophone())
+                    {
+                        gate.Reset();
+                    }
 
-            var interrupt = session.State != AssistantState.Idle || player.IsPlaying;
-            if (interrupt)
-            {
-                Debug.Log($"[Assistant] talk pressed while {session.State} (playing={player.IsPlaying}): interrupting");
-                CancelTurn(); // barge-in: stop thinking or speaking
-            }
-
-            if (!session.BeginListening(interrupt))
-            {
-                Debug.LogWarning($"[Assistant] talk pressed but listening refused in state {session.State}");
-                return;
-            }
-
-            if (!recorder.Start())
-            {
-                session.CancelListening();
-                Debug.LogWarning("[Assistant] microphone failed to start");
-                panel.Add(new TranscriptEntry(TranscriptKind.Error, "No microphone available (or permission denied)."));
+                    break;
             }
         }
 
         private void OnTalkReleased()
         {
-            if (session != null && session.State == AssistantState.Listening)
+            if (gate.Release(Time.unscaledTime) == TalkAction.DropStray)
             {
-                releaseAt = Time.unscaledTime + ReleaseGraceSeconds;
+                recorder.Stop();
+                Debug.Log($"[Assistant] ignored short press while {session?.State}");
             }
         }
 
@@ -173,10 +161,38 @@ namespace Fieldmate.Assistant
                 panel.SetState(session != null ? session.State : AssistantState.Idle, idleHint);
             }
 
-            if (releaseAt >= 0f && Time.unscaledTime >= releaseAt)
+            switch (gate.Tick(Time.unscaledTime))
             {
-                releaseAt = -1f;
-                FinishRecording();
+                case TalkAction.Interrupt:
+                    Interrupt();
+                    break;
+                case TalkAction.Finish:
+                    FinishRecording();
+                    break;
+            }
+        }
+
+        private bool StartMicrophone()
+        {
+            if (recorder.Start())
+            {
+                return true;
+            }
+
+            Debug.LogWarning("[Assistant] microphone failed to start");
+            panel.Add(new TranscriptEntry(TranscriptKind.Error, "No microphone available (or permission denied)."));
+            return false;
+        }
+
+        private void Interrupt()
+        {
+            Debug.Log($"[Assistant] held while {session.State} (playing={player.IsPlaying}): interrupting");
+            CancelTurn(); // barge-in: stop thinking or speaking
+            if (!session.BeginListening(interrupt: true))
+            {
+                recorder.Stop();
+                gate.Reset();
+                Debug.LogWarning($"[Assistant] interrupt refused in state {session.State}");
             }
         }
 

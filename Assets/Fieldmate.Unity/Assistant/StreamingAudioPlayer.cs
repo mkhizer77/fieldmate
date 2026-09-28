@@ -5,17 +5,20 @@ namespace Fieldmate.Assistant
 {
     /// <summary>
     /// Plays streamed TTS through a streaming AudioClip that pulls from an <see cref="AudioRingBuffer"/>, so speech starts
-    /// with the first chunk (design.md §5.4). The clip is created per sample rate and reused. Playback stops only after
-    /// the playhead has passed the last real sample (<see cref="PlaybackCursor"/>), never when the ring merely runs dry.
+    /// with the first chunk (design.md §5.4). The clip is created per sample rate and reused. Playback stops on the audio
+    /// clock once the last real sample has been heard (<see cref="PlaybackCursor"/>), never when the ring merely runs dry:
+    /// Unity reads streaming clips ahead by an unreported amount, which cut the end of every answer.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
     public sealed class StreamingAudioPlayer : MonoBehaviour, IAudioSink
     {
         private const int BufferSeconds = 60;
 
-        // After End(): stop if neither the ring nor the playhead moves for this long (dead audio device, or a playhead
-        // that doesn't report). Unity reads at most one clip length (1 s) ahead, so no real audio is lost.
+        // After End(), with audio still buffered: stop if the audio thread stops reading for this long (dead device).
         private const float StallTimeoutSeconds = 1.5f;
+
+        // Heard-time margin on top of the DSP buffer latency.
+        private const double TailMarginSeconds = 0.15;
 
         private AudioSource source;
         private AudioRingBuffer ring;
@@ -24,6 +27,8 @@ namespace Fieldmate.Assistant
         private bool ended;
         private float lastProgressAt;
         private int lastRingCount;
+        private double playStartDsp;
+        private double outputLatency;
 
         /// <summary>True from <see cref="Begin"/> until the last sample has been heard (or <see cref="Stop"/>).</summary>
         public bool IsPlaying => source != null && source.isPlaying;
@@ -42,7 +47,7 @@ namespace Fieldmate.Assistant
             {
                 sampleRate = rate;
                 ring = new AudioRingBuffer(rate * BufferSeconds);
-                cursor = new PlaybackCursor(rate);
+                cursor = new PlaybackCursor();
                 source.clip = AudioClip.Create("Fieldmate TTS", rate, 1, rate, true, OnAudioRead);
             }
 
@@ -50,6 +55,9 @@ namespace Fieldmate.Assistant
             ring.Clear();
             cursor.Reset();
             ended = false;
+            AudioSettings.GetDSPBufferSize(out var bufferLength, out var bufferCount);
+            outputLatency = (double)bufferLength * bufferCount / AudioSettings.outputSampleRate;
+            playStartDsp = AudioSettings.dspTime;
             source.Play();
         }
 
@@ -75,17 +83,28 @@ namespace Fieldmate.Assistant
                 return;
             }
 
-            var playedBefore = cursor.Played;
-            cursor.Advance(source.timeSamples);
             var ringCount = ring.Count;
-            if (!ended || ringCount != lastRingCount || cursor.Played != playedBefore)
+            if (!ended || ringCount != lastRingCount)
             {
                 lastProgressAt = Time.unscaledTime;
             }
 
             lastRingCount = ringCount;
-            if (ended && ((ringCount == 0 && cursor.Drained) || Time.unscaledTime - lastProgressAt >= StallTimeoutSeconds))
+            if (!ended)
             {
+                return;
+            }
+
+            var audioSeconds = cursor.LastRealEndSeconds(sampleRate);
+            var elapsed = AudioSettings.dspTime - playStartDsp;
+            if (ringCount == 0 && elapsed >= audioSeconds + outputLatency + TailMarginSeconds)
+            {
+                Debug.Log($"[Assistant] speech done: {audioSeconds:0.00}s of audio, stopped after {elapsed:0.00}s");
+                source.Stop();
+            }
+            else if (ringCount > 0 && Time.unscaledTime - lastProgressAt >= StallTimeoutSeconds)
+            {
+                Debug.LogWarning($"[Assistant] speech stalled: audio device stopped reading ({ringCount} samples left)");
                 source.Stop();
             }
         }
