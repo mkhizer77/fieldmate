@@ -1,5 +1,6 @@
 using System.Linq;
 using Fieldmate.Assistant;
+using Fieldmate.Interaction;
 using Fieldmate.Twin;
 using Fieldmate.XR;
 using Unity.XR.CoreUtils;
@@ -8,6 +9,9 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 using TrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 
 namespace Fieldmate.Editor;
@@ -30,7 +34,8 @@ public static class AssistantBenchBuilder
         // Scripts created in this session must be imported assets, or the saved scene references in-memory scripts
         // that don't survive a reload (seen when the builder ran right after the scripts were first compiled).
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap) })
+        foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
+                     typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -79,6 +84,12 @@ public static class AssistantBenchBuilder
         pointerPose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
             "<XRController>{RightHand}/pointerRotation", "<MetaAimHand>{RightHand}/deviceRotation"));
 
+        // Grabbing: one direct interactor per hand. Hands pinch (index) or make a fist; controllers use grip. The user sees
+        // their real hands in passthrough, so no hand meshes are drawn.
+        new GameObject("XR Interaction Manager", typeof(XRInteractionManager));
+        var leftHand = HandInteractor(offset, "Left");
+        var rightHand = HandInteractor(offset, "Right");
+
         // Room-scan mesh as invisible colliders, so placement snaps to the real floor (child of the origin, scale = volume).
         var meshingGo = new GameObject("Scene Mesh", typeof(ARMeshManager));
         meshingGo.transform.SetParent(originGo.transform, false);
@@ -114,6 +125,9 @@ public static class AssistantBenchBuilder
         Set(placement, "meshManager", meshingGo.GetComponent<ARMeshManager>());
         Set(placement, "services", services.GetComponent<MachineServices>());
         Set(placement, "pointerMaterial", GuideMaterial());
+
+        var router = new GameObject("Machine Controls", typeof(MachineControlRouter)).GetComponent<MachineControlRouter>();
+        router.Configure(services.GetComponent<MachineServices>(), placement, new XRBaseInteractor[] { leftHand, rightHand });
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
@@ -185,6 +199,7 @@ public static class AssistantBenchBuilder
         Shape(pump, PrimitiveType.Cube, new Vector3(0.18f, 0.18f, 0f), new Vector3(0.3f, 0.1f, 0.24f), pumpRed);
         Shape(pump, PrimitiveType.Cylinder, new Vector3(0.02f, 0.37f, 0f), new Vector3(0.14f, 0.05f, 0.14f), pumpRed, rot90Z);
 
+        // Removable: pull it off towards you; it opens the relief seat behind it.
         var cover = Group(root, "Pump access cover", "pump_cover");
         Shape(cover, PrimitiveType.Cylinder, new Vector3(0.18f, 0.37f, 0.115f), new Vector3(0.3f, 0.015f, 0.3f), pumpRed, rot90X);
         for (var i = 0; i < 6; i++)
@@ -194,14 +209,31 @@ public static class AssistantBenchBuilder
                 new Vector3(0.025f, 0.01f, 0.025f), dark, rot90X);
         }
 
+        cover.AddComponent<RemovablePart>().Configure("pump_cover");
+        cover.GetComponent<Rigidbody>().isKinematic = true;
+        cover.GetComponent<Rigidbody>().useGravity = false;
+
+        // Behind the cover; the socket takes the new cartridge once the cover is off.
         var seat = Group(root, "Relief valve seat", "relief_valve_seat");
-        Shape(seat, PrimitiveType.Cylinder, new Vector3(0.18f, 0.37f, 0.14f), new Vector3(0.08f, 0.02f, 0.08f), steel, rot90X);
+        Shape(seat, PrimitiveType.Cylinder, new Vector3(0.18f, 0.37f, 0.1f), new Vector3(0.08f, 0.01f, 0.08f), steel, rot90X);
+        var socketGo = new GameObject("Socket", typeof(SphereCollider), typeof(ToolSocket));
+        socketGo.transform.SetParent(seat.transform, false);
+        socketGo.transform.localPosition = new Vector3(0.18f, 0.37f, 0.13f);
+        socketGo.GetComponent<SphereCollider>().isTrigger = true;
+        socketGo.GetComponent<SphereCollider>().radius = 0.07f;
+        socketGo.GetComponent<ToolSocket>().Configure("relief_valve_seat");
 
         var inlet = Group(root, "Inlet valve", "inlet_valve");
         Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.58f, 0.37f, 0f), new Vector3(0.09f, 0.18f, 0.09f), steel, rot90Z);
         Shape(inlet, PrimitiveType.Sphere, new Vector3(0.58f, 0.37f, 0f), new Vector3(0.13f, 0.13f, 0.13f), safety);
-        Shape(inlet, PrimitiveType.Cube, new Vector3(0.58f, 0.46f, 0.05f), new Vector3(0.03f, 0.02f, 0.18f), safety);
+        Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.58f, 0.43f, 0f), new Vector3(0.02f, 0.03f, 0.02f), steel);
         Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.36f, 0.37f, 0f), new Vector3(0.09f, 0.08f, 0.09f), steel, rot90Z);
+
+        // Quarter-turn lever: along the pipe is open; pull it a quarter turn towards you to close.
+        var lever = Pivot(inlet, "Lever", new Vector3(0.58f, 0.46f, 0f));
+        Shape(lever, PrimitiveType.Cube, new Vector3(0.07f, 0f, 0f), new Vector3(0.18f, 0.025f, 0.035f), safety);
+        lever.AddComponent<RotaryInteractable>().Configure("inlet_valve", lever.transform, Vector3.down, 0f, 90f, 0f,
+            new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1);
 
         var line = Group(root, "Discharge line", "pressure_line");
         Shape(line, PrimitiveType.Cylinder, new Vector3(0.18f, 0.8f, 0f), new Vector3(0.07f, 0.23f, 0.07f), steel);
@@ -221,7 +253,15 @@ public static class AssistantBenchBuilder
         var outlet = Group(root, "Outlet valve", "outlet_valve");
         Shape(outlet, PrimitiveType.Cube, new Vector3(0.66f, 1.03f, 0f), new Vector3(0.11f, 0.12f, 0.1f), dark);
         Shape(outlet, PrimitiveType.Cylinder, new Vector3(0.66f, 1.15f, 0f), new Vector3(0.02f, 0.06f, 0.02f), steel);
-        Shape(outlet, PrimitiveType.Cylinder, new Vector3(0.66f, 1.21f, 0f), new Vector3(0.16f, 0.008f, 0.16f), breakerRed);
+
+        // Gate valve handwheel: three turns clockwise (seen from above) to close, a tick every eighth of a turn.
+        var wheel = Pivot(outlet, "Handwheel", new Vector3(0.66f, 1.21f, 0f));
+        Shape(wheel, PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.16f, 0.008f, 0.16f), breakerRed);
+        Shape(wheel, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0f), new Vector3(0.15f, 0.01f, 0.012f), dark);
+        Shape(wheel, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0f), new Vector3(0.012f, 0.01f, 0.15f), dark);
+        Shape(wheel, PrimitiveType.Cylinder, new Vector3(0.065f, 0.03f, 0f), new Vector3(0.02f, 0.025f, 0.02f), dark);
+        wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 1080f, 0f,
+            new[] { 0f, 1080f }, new[] { "open", "closed" }, 45f, 1);
 
         var cabinet = Group(root, "Electrical cabinet", "electrical_cabinet");
         Shape(cabinet, PrimitiveType.Cube, new Vector3(-1.2f, 0.62f, 0f), new Vector3(0.5f, 0.9f, 0.28f), cabinetGrey);
@@ -234,15 +274,68 @@ public static class AssistantBenchBuilder
         var breaker = Group(root, "Main breaker", "main_breaker");
         Shape(breaker, PrimitiveType.Cube, new Vector3(-1.2f, 0.82f, 0.145f), new Vector3(0.16f, 0.16f, 0.01f), safety);
         Shape(breaker, PrimitiveType.Cylinder, new Vector3(-1.2f, 0.82f, 0.16f), new Vector3(0.11f, 0.015f, 0.11f), breakerRed, rot90X);
-        Shape(breaker, PrimitiveType.Cube, new Vector3(-1.2f, 0.82f, 0.18f), new Vector3(0.14f, 0.03f, 0.03f), breakerRed);
 
+        // Two-hand rotary isolator: bar horizontal is on; turn it clockwise with both hands to off (90°), then locked (135°).
+        var handle = Pivot(breaker, "Handle", new Vector3(-1.2f, 0.82f, 0.18f));
+        Shape(handle, PrimitiveType.Cube, Vector3.zero, new Vector3(0.3f, 0.04f, 0.04f), breakerRed);
+        handle.AddComponent<RotaryInteractable>().Configure("main_breaker", handle.transform, Vector3.back, 0f, 135f, 0f,
+            new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2);
+
+        var tray = Group(root, "Parts tray", null);
+        Shape(tray, PrimitiveType.Cube, new Vector3(0.7f, 0.13f, 0.26f), new Vector3(0.2f, 0.02f, 0.12f), dark);
+
+        // The new cartridge: carry it to the seat behind the pump cover.
         var spare = Group(root, "Spare relief cartridge", "relief_cartridge");
-        Shape(spare, PrimitiveType.Cube, new Vector3(0.7f, 0.13f, 0.26f), new Vector3(0.2f, 0.02f, 0.12f), dark);
-        Shape(spare, PrimitiveType.Cylinder, new Vector3(0.7f, 0.17f, 0.26f), new Vector3(0.05f, 0.06f, 0.05f), brass, rot90Z);
+        spare.transform.localPosition = new Vector3(0.7f, 0.17f, 0.26f);
+        Shape(spare, PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.05f, 0.06f, 0.05f), brass, rot90X);
+        spare.AddComponent<ToolItem>().Configure("relief_cartridge");
+        spare.GetComponent<Rigidbody>().isKinematic = true;
+        spare.GetComponent<Rigidbody>().useGravity = false;
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, SkidPrefabPath);
         Object.DestroyImmediate(root);
         return prefab;
+    }
+
+    /// <summary>
+    /// A hand's grab interactor: follows the controller grip, or the hand's pinch point when hands are tracked; selects on
+    /// controller grip, index pinch or a fist. A 5 cm trigger sphere finds parts; the kinematic body makes triggers fire.
+    /// </summary>
+    private static XRDirectInteractor HandInteractor(Transform parent, string side)
+    {
+        var go = new GameObject($"{side} Hand", typeof(TrackedPoseDriver), typeof(SphereCollider), typeof(Rigidbody), typeof(XRDirectInteractor));
+        go.transform.SetParent(parent, false);
+        var pose = go.GetComponent<TrackedPoseDriver>();
+        pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
+            $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition",
+            $"<HandInteraction>{{{side}Hand}}/pinchPosition"));
+        pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
+            $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation",
+            $"<HandInteraction>{{{side}Hand}}/pinchRotation"));
+
+        var sphere = go.GetComponent<SphereCollider>();
+        sphere.isTrigger = true;
+        sphere.radius = 0.05f;
+        var body = go.GetComponent<Rigidbody>();
+        body.isKinematic = true;
+        body.useGravity = false;
+
+        var interactor = go.GetComponent<XRDirectInteractor>();
+        var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/gripPressed");
+        select.AddBinding($"<MetaAimHand>{{{side}Hand}}/indexPressed");
+        select.AddBinding($"<HandInteraction>{{{side}Hand}}/graspFirm");
+        interactor.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.InputAction;
+        interactor.selectInput.inputActionPerformed = select;
+        return interactor;
+    }
+
+    /// <summary>An untagged child the moving part of a control rotates about.</summary>
+    private static GameObject Pivot(GameObject parent, string name, Vector3 localPosition)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent.transform, false);
+        go.transform.localPosition = localPosition;
+        return go;
     }
 
     /// <summary>An unscaled group; tagged with a manual part id when <paramref name="partId"/> is set.</summary>

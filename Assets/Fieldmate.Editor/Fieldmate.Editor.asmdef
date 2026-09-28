@@ -9,6 +9,7 @@
     "Unity.XR.OpenXR",
     "Unity.XR.OpenXR.Editor",
     "Fieldmate.Unity",
+    "Unity.XR.Interaction.Toolkit",
     "Unity.XR.ARFoundation",
     "Unity.XR.ARSubsystems",
     "Unity.XR.CoreUtils",

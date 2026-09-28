@@ -4,7 +4,8 @@
   "references": [
     "UnityEngine.TestRunner",
     "Fieldmate.Core",
-    "Fieldmate.Unity"
+    "Fieldmate.Unity",
+    "Unity.XR.Interaction.Toolkit"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
