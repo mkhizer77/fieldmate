@@ -7,11 +7,15 @@ namespace Fieldmate.Assistant;
 /// been above <see cref="Threshold"/> for <see cref="MinVoicedSeconds"/> (quiet frames decay it slowly, so short gaps
 /// between syllables don't reset it). Deliberately conservative: the assistant's own voice leaks into the microphone
 /// (reply is ducked while listening), and a missed detection only costs latency, because a long press still goes to
-/// speech-to-text. Threshold is a first estimate; recorded levels are logged to tune it on device.
+/// speech-to-text. Tuned on Quest 3 (2026-09-28): silence and the assistant's own voice read 0.000 (the headset
+/// cancels its echo), calm speech peaks 0.033–0.054, raised speech 0.083.
 /// </summary>
 public sealed class SpeechDetector
 {
-    public const float Threshold = 0.04f;
+    public const float Threshold = 0.012f;
+
+    /// <summary>Below this peak a recording is silence (device reads 0.000); it isn't sent to speech-to-text.</summary>
+    public const float SilencePeak = 0.005f;
     public const float MinVoicedSeconds = 0.2f;
 
     private float voiced;

@@ -76,7 +76,7 @@ public class AssistantSessionTests
         Assert.That(request.SystemPrompt, Is.EqualTo("system-de"));
         Assert.That(request.Context, Is.EqualTo("context for: Hallo"));
         Assert.That(request.Tools, Has.Count.EqualTo(8));
-        Assert.That(request.MaxOutputTokens, Is.EqualTo(300));
+        Assert.That(request.MaxOutputTokens, Is.EqualTo(AssistantSession.MaxReplyTokens));
     }
 
     [Test]
@@ -362,6 +362,7 @@ public class AssistantSessionTests
         await session.RunTextTurnAsync("Guide me", null, CancellationToken.None);
 
         Assert.That(chat.Requests.Select(r => r.Context), Is.EqualTo(new[] { "Procedure: not started", "Procedure: running, step 1" }));
+        Assert.That(chat.Requests.Select(r => r.MaxOutputTokens), Is.All.EqualTo(AssistantSession.MaxReplyTokens));
     }
 
     [Test]

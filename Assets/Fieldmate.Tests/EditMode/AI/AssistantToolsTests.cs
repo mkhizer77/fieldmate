@@ -140,6 +140,8 @@ public class AssistantPromptTests
         Assert.That(en, Does.Contain("FM-200").And.Contain("[fault.overpressure]").And.Contain("Reply in English."));
         Assert.That(AssistantPrompt.System("FM-200", "de"), Does.EndWith("Reply in German."));
         Assert.That(en, Does.Contain("call highlight_part again"), "can't-see-it complaints re-highlight instead of excuses");
+        Assert.That(en, Does.Contain("at most about 30 words"), "device test: a broad question got a 25 s spoken answer");
+        Assert.That(en, Does.Contain("ALARM means too high"), "device test: the model once called 6.8 bar ALARM 'too low'");
     }
 
     [Test]

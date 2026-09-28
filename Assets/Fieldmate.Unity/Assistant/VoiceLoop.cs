@@ -162,6 +162,12 @@ namespace Fieldmate.Assistant
                 case TalkAction.CheckSpeech:
                     var audio = recorder.Stop();
                     player.Duck(false);
+                    if (speech.Peak < SpeechDetector.SilencePeak)
+                    {
+                        Debug.Log($"[Assistant] press without speech ignored while {session?.State} ({audio?.DurationSeconds:0.00}s of silence)");
+                        break;
+                    }
+
                     Debug.Log($"[Assistant] press without detected speech ({audio?.DurationSeconds:0.00}s, peak level {speech.Peak:0.000}): checking with speech-to-text");
                     _ = InterruptIfSpokenAsync(audio);
                     break;
@@ -252,6 +258,13 @@ namespace Fieldmate.Assistant
             {
                 session.CancelListening();
                 Debug.Log($"[Assistant] recording dropped: {(audio == null ? "no audio" : $"{audio.DurationSeconds:0.00}s")} is too short (peak level {speech.Peak:0.000})");
+                return;
+            }
+
+            if (speech.Peak < SpeechDetector.SilencePeak)
+            {
+                session.CancelListening();
+                Debug.Log($"[Assistant] recording dropped: {audio.DurationSeconds:0.00}s of silence (peak level {speech.Peak:0.000})");
                 return;
             }
 

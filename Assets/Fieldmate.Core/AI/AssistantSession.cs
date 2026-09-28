@@ -87,6 +87,9 @@ public sealed class AssistantSession
 {
     public const int MaxToolRounds = 3;
 
+    /// <summary>Output cap per request: replies are asked to stay near 30 words; this leaves room for tool calls.</summary>
+    public const int MaxReplyTokens = 200;
+
     private readonly IChatModel chat;
     private readonly ISpeechToText speechToText;
     private readonly ITextToSpeech textToSpeech;
@@ -286,7 +289,7 @@ public sealed class AssistantSession
             var requestStart = clock();
             // Rebuilt every round: tools change the procedure, highlight and telemetry, and a stale context makes the
             // model think its last tool call didn't work (it called start_procedure twice).
-            var request = new ChatRequest(systemPrompt(Language), Conversation.Messages, tools.Definitions, context(userText), 300);
+            var request = new ChatRequest(systemPrompt(Language), Conversation.Messages, tools.Definitions, context(userText), MaxReplyTokens);
             var response = await chat.CompleteAsync(request, cancellationToken);
             result.Timings.Chat += clock() - requestStart;
             result.Timings.ChatRequests++;
