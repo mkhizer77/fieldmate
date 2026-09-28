@@ -11,6 +11,7 @@ namespace Fieldmate.Interaction
     /// released elsewhere, it stays there (kinematic, no gravity), still parented to the machine.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
+    [RequireComponent(typeof(HoverTint))]
     public sealed class RemovablePart : XRGrabInteractable, IMachineControl
     {
         public const string Fitted = "fitted";

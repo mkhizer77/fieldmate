@@ -35,7 +35,7 @@ public static class AssistantBenchBuilder
         // that don't survive a reload (seen when the builder ran right after the scripts were first compiled).
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
-                     typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter) })
+                     typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter), typeof(HoverTint) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -298,7 +298,8 @@ public static class AssistantBenchBuilder
     }
 
     /// <summary>
-    /// A hand's grab interactor: follows the controller grip, or the hand's pinch point when hands are tracked; selects on
+    /// A hand's grab interactor: follows the controller grip, or the Meta aim-hand pose when hands are tracked (the pose
+    /// the placement pointer proved on device; the OpenXR hand-interaction pose never moved the grab spheres); selects on
     /// controller grip or an index pinch. A 5 cm trigger sphere finds parts; the kinematic body makes triggers fire.
     /// </summary>
     private static XRDirectInteractor HandInteractor(Transform parent, string side)
@@ -308,10 +309,10 @@ public static class AssistantBenchBuilder
         var pose = go.GetComponent<TrackedPoseDriver>();
         pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
             $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition",
-            $"<HandInteraction>{{{side}Hand}}/pinchPosition"));
+            $"<MetaAimHand>{{{side}Hand}}/devicePosition"));
         pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
             $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation",
-            $"<HandInteraction>{{{side}Hand}}/pinchRotation"));
+            $"<MetaAimHand>{{{side}Hand}}/deviceRotation"));
 
         var sphere = go.GetComponent<SphereCollider>();
         sphere.isTrigger = true;

@@ -13,6 +13,7 @@ namespace Fieldmate.Interaction
     /// turns while both hands hold it, following the line between them (like a steering wheel). On release it snaps to a
     /// nearby detent. No per-frame allocations.
     /// </summary>
+    [RequireComponent(typeof(HoverTint))]
     public sealed class RotaryInteractable : XRBaseInteractable, IMachineControl
     {
         [SerializeField] private string partId;

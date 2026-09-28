@@ -5,6 +5,7 @@ namespace Fieldmate.Interaction
 {
     /// <summary>A loose tool or spare part the user carries to a <see cref="ToolSocket"/> (e.g. the relief cartridge).</summary>
     [RequireComponent(typeof(Rigidbody))]
+    [RequireComponent(typeof(HoverTint))]
     public sealed class ToolItem : XRGrabInteractable
     {
         [SerializeField] private string toolId;

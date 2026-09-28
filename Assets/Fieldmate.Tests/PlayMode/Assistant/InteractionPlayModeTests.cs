@@ -172,4 +172,23 @@ public class InteractionPlayModeTests
         Assert.That(socket.Seated, Is.SameAs(cartridge));
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("restore"), "socketing the new cartridge completes 'replace'");
     }
+
+    [UnityTest]
+    public IEnumerator EveryControl_BrightensWhenAHandIsInReach()
+    {
+        var controls = Object.FindObjectsByType<XRBaseInteractable>(FindObjectsSortMode.None);
+        Assert.That(controls.Length, Is.GreaterThanOrEqualTo(5), "lever, handwheel, breaker, cover, cartridge");
+        foreach (var control in controls)
+        {
+            Assert.That(control.GetComponent<HoverTint>(), Is.Not.Null, $"{control.name} shows it can be grabbed");
+        }
+
+        var wheel = Rotary("outlet_valve");
+        var hand = Hand(wheel.transform.position);
+        manager.HoverEnter((IXRHoverInteractor)hand, wheel); // events are synchronous; XRI re-validates hovers next frame
+        Assert.That(wheel.GetComponent<HoverTint>().IsTinted, Is.True);
+        manager.HoverExit((IXRHoverInteractor)hand, wheel);
+        Assert.That(wheel.GetComponent<HoverTint>().IsTinted, Is.False);
+        yield break;
+    }
 }
