@@ -37,7 +37,8 @@ public static class AssistantBenchBuilder
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
-                     typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton) })
+                     typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
+                     typeof(OcclusionSettings), typeof(FrameTimeProbe) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -64,7 +65,10 @@ public static class AssistantBenchBuilder
         offset.SetParent(originGo.transform, false);
         origin.CameraFloorOffsetObject = offset.gameObject;
 
-        var cameraGo = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(TrackedPoseDriver), typeof(ARCameraManager));
+        var cameraGo = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(TrackedPoseDriver), typeof(ARCameraManager),
+            typeof(AROcclusionManager), typeof(ARShaderOcclusion));
+        cameraGo.GetComponent<AROcclusionManager>().enabled = false; // OcclusionSettings turns it on after the scene permission
+        cameraGo.GetComponent<ARShaderOcclusion>().enabled = false;
         cameraGo.tag = "MainCamera";
         cameraGo.transform.SetParent(offset, false);
         cameraGo.transform.localPosition = new Vector3(0f, 1.6f, 0f); // editor preview height; tracking overrides on device
@@ -136,6 +140,11 @@ public static class AssistantBenchBuilder
             skid.GetComponentInChildren<ProcedurePanel>(), Button(skid, "Start Button"), cameraGo.transform);
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
             .Configure(Button(skid, "Move Button"), placement);
+
+        var occlusion = new GameObject("Occlusion Settings", typeof(OcclusionSettings), typeof(FrameTimeProbe));
+        occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
+            cameraGo.GetComponent<ARShaderOcclusion>(), Button(skid, "Occlusion Button"));
+        occlusion.GetComponent<FrameTimeProbe>().Configure(occlusion.GetComponent<OcclusionSettings>());
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
@@ -312,6 +321,10 @@ public static class AssistantBenchBuilder
         moveButton.transform.SetParent(root.transform, false);
         moveButton.transform.localPosition = new Vector3(-0.2f, 1.22f, 0.34f);
         Shape(moveButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, dark);
+        var occlusionButton = new GameObject("Occlusion Button", typeof(PressButton));
+        occlusionButton.transform.SetParent(root.transform, false);
+        occlusionButton.transform.localPosition = new Vector3(-0.4f, 1.13f, 0.34f);
+        Shape(occlusionButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, dark);
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, SkidPrefabPath);
         Object.DestroyImmediate(root);
@@ -426,15 +439,20 @@ public static class AssistantBenchBuilder
         return material;
     }
 
+    private static Shader OccludedLit => Shader.Find("Fieldmate/OccludedLit")
+        ?? throw new System.InvalidOperationException("Shader Fieldmate/OccludedLit not found (Assets/_Project/Shaders).");
+
     private static Material Mat(string name, Color color, float metallic = 0f, float smoothness = 0.5f)
     {
         var path = $"{MaterialsDir}/{name}.mat";
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (material == null)
         {
-            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material = new Material(OccludedLit);
             AssetDatabase.CreateAsset(material, path);
         }
+
+        material.shader = OccludedLit; // real furniture hides the machine (#6)
 
         material.SetColor("_BaseColor", color);
         material.SetFloat("_Metallic", metallic);
