@@ -23,7 +23,10 @@ namespace Fieldmate.Procedures
         [SerializeField] private PressButton button;
         [SerializeField] private Transform head;
 
+        private const float RestartConfirmSeconds = 3f;
+
         private readonly DwellTracker dwell = new();
+        private float restartArmedUntil = -1f;
         private bool dwellReported;
         private bool runsBefore;
 
@@ -74,10 +77,36 @@ namespace Fieldmate.Procedures
         /// <summary>Starts or restarts the procedure (the button; the assistant's tool restarts the runner directly).</summary>
         public void StartProcedure() => machine.Runner.Restart(machine.Now);
 
-        private void OnButton() => StartProcedure();
+        // During a run, one press only arms a restart and a second press confirms it: stray pinches near the button
+        // restarted the procedure a dozen times in the first device test.
+        private void OnButton()
+        {
+            if (machine.Runner.State != RunnerState.Running)
+            {
+                StartProcedure();
+                return;
+            }
+
+            if (Time.unscaledTime <= restartArmedUntil)
+            {
+                restartArmedUntil = -1f;
+                StartProcedure();
+                return;
+            }
+
+            restartArmedUntil = Time.unscaledTime + RestartConfirmSeconds;
+            button.SetLabel("Confirm restart");
+            panel.ShowStatus("Press again to restart the procedure from step 1.", ProcedurePanel.Hint, RestartConfirmSeconds);
+        }
 
         private void Update()
         {
+            if (restartArmedUntil > 0f && Time.unscaledTime > restartArmedUntil)
+            {
+                restartArmedUntil = -1f;
+                button.SetLabel("Restart");
+            }
+
             var runner = machine.Runner;
             if (runner.State != RunnerState.Running || head == null)
             {
@@ -86,7 +115,13 @@ namespace Fieldmate.Procedures
 
             var step = runner.CurrentStep;
             var gazed = machine.PartAlong(new Ray(head.position, head.forward), GazeRange);
+            var previous = dwell.PartId;
             var seconds = dwell.Update(gazed?.Id, Time.deltaTime);
+            if (dwell.PartId != previous)
+            {
+                Debug.Log($"[Procedure] gaze {dwell.PartId ?? "none"}"); // only on change
+            }
+
             if (dwell.PartId == null || dwell.PartId != step.PartId)
             {
                 dwellReported = false;

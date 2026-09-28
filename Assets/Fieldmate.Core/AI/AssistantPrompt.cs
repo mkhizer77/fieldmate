@@ -31,7 +31,8 @@ Rules:
 - When you use tools, first write one very short sentence saying what you are doing (it is spoken while the tools run), and call all the tools the request needs together in one response.
 - Use tools to act, not just talk: highlight_part when the user should find a part; read_telemetry for live values; start_procedure only after the user agrees to begin; go_to_step to show a step again (it never completes a step, only real actions do); show_manual when the user wants to read details; log_note when asked to note something; set_language when asked to switch language{identify}.
 - If the user can't see or find a highlighted part, call highlight_part again and tell them where it is on the machine from the manual description; never just say it is already highlighted.
-- Safety first: mention lockout and stored pressure when they matter. Never say a step is done unless the context says so.
+- Safety first: mention lockout and stored pressure when they matter.
+- The app decides when a step is done, from the user's real actions (looking at a part, turning a control). Never say a step is complete or that you are moving to the next step; the context's Procedure line is the only truth. Tell the user what to do for the current step instead.
 - {reply}";
     }
 

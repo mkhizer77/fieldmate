@@ -38,6 +38,9 @@ public class ProcedurePlayModeTests
     [TearDown]
     public void RestoreTime() => Time.timeScale = 1f;
 
+    private static PressButton StartButton() =>
+        Object.FindObjectsByType<PressButton>(FindObjectsSortMode.None).Single(b => b.name == "Start Button");
+
     private static RotaryInteractable Rotary(string partId) =>
         Object.FindObjectsByType<RotaryInteractable>(FindObjectsSortMode.None).Single(r => r.PartId == partId);
 
@@ -119,7 +122,7 @@ public class ProcedurePlayModeTests
     {
         var runner = machine.Runner;
         var skid = Object.FindAnyObjectByType<RemovablePart>().transform.root;
-        Object.FindAnyObjectByType<PressButton>().Press();
+        StartButton().Press();
         yield return null;
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("inspect"));
         Assert.That(panel.TitleText, Is.EqualTo("Step 1 of 8: Inspect the relief valve"));
@@ -167,12 +170,52 @@ public class ProcedurePlayModeTests
     [UnityTest]
     public IEnumerator OpeningTheCoverBeforeLockout_IsASafetyViolation_OnThePanel()
     {
-        Object.FindAnyObjectByType<PressButton>().Press();
+        StartButton().Press();
         yield return null;
         var cover = Object.FindAnyObjectByType<RemovablePart>();
         yield return MoveCover(cover, cover.transform.position + cover.transform.root.forward * 0.3f);
 
         Assert.That(machine.Runner.Violations.Select(v => v.Id), Does.Contain("loto_cover"));
         Assert.That(panel.StatusText, Does.StartWith("Safety: Lock out the breaker before opening the pump."));
+    }
+
+    [UnityTest]
+    public IEnumerator RestartDuringARun_NeedsASecondPress()
+    {
+        var button = StartButton();
+        button.Press();
+        yield return LookAt("relief_valve", 2f);
+        Assert.That(machine.Runner.CurrentStep.Id, Is.EqualTo("lockout"));
+
+        yield return new WaitForSecondsRealtime(0.7f); // past the button's debounce
+        button.Press();
+        yield return null;
+        Assert.That(machine.Runner.CurrentStep.Id, Is.EqualTo("lockout"), "one stray press never restarts a run");
+        Assert.That(button.Label, Is.EqualTo("Confirm restart"));
+
+        yield return new WaitForSecondsRealtime(0.7f);
+        button.Press();
+        yield return null;
+        Assert.That(machine.Runner.CurrentStep.Id, Is.EqualTo("inspect"), "a confirming press restarts");
+    }
+
+    [UnityTest]
+    public IEnumerator Gaze_SeesThePartThroughTriggersAndUntaggedColliders()
+    {
+        machine.TryGetPart("relief_valve", out var valve);
+        var center = valve.GetComponentsInChildren<Renderer>().Select(r => r.bounds).Aggregate((a, b) => { a.Encapsulate(b); return a; }).center;
+        var eye = center + valve.transform.root.forward * 0.8f;
+
+        var trigger = GameObject.CreatePrimitive(PrimitiveType.Sphere); // like a hand's grab sphere
+        trigger.GetComponent<Collider>().isTrigger = true;
+        trigger.transform.position = Vector3.Lerp(eye, center, 0.3f);
+        trigger.transform.localScale = Vector3.one * 0.1f;
+        var roomMesh = GameObject.CreatePrimitive(PrimitiveType.Cube); // like a room-scan chunk in front of the part
+        roomMesh.transform.position = Vector3.Lerp(eye, center, 0.6f);
+        roomMesh.transform.localScale = new Vector3(0.3f, 0.3f, 0.01f);
+        yield return new WaitForFixedUpdate();
+
+        var seen = machine.PartAlong(new Ray(eye, (center - eye).normalized));
+        Assert.That(seen?.Id, Is.EqualTo("relief_valve"));
     }
 }
