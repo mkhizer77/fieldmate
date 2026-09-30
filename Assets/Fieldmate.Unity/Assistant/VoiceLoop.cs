@@ -25,6 +25,7 @@ namespace Fieldmate.Assistant
         [SerializeField] private AssistantPanel panel;
         [SerializeField] private PartHighlighter highlighter;
         [SerializeField] private StreamingAudioPlayer player;
+        [SerializeField] private UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor leftHand;
         [SerializeField] private Transform head;
 
         private readonly List<string> notes = new();
@@ -98,6 +99,12 @@ namespace Fieldmate.Assistant
             tools.LanguageChanged += language => session.Language = language;
             session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
+            session.Fallback = new FallbackResponses(machine.Manual, machine.Runner, machine.Telemetry);
+            session.OfflineChanged += offline =>
+            {
+                panel.ShowBanner(offline ? "Offline: scripted answers from the manual until the service is back." : null);
+                Debug.Log(offline ? "[Assistant] offline: scripted answers" : "[Assistant] back online");
+            };
 
             DisabledReason = null;
             panel.ShowBanner(null);
@@ -130,6 +137,12 @@ namespace Fieldmate.Assistant
         private void OnTalkPressed()
         {
             if (session == null)
+            {
+                return;
+            }
+
+            // Grabbing a control with the left hand also closes the middle finger: not a talk press (device 2026-09-30).
+            if (leftHand != null && leftHand.hasSelection)
             {
                 return;
             }

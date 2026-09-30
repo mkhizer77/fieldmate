@@ -23,7 +23,10 @@ public class PresenceTests
         Assert.That(glow.r, Is.GreaterThan(0.9f).And.GreaterThan(glow.b), "light yellow");
         Assert.That(material.HasProperty("_Fill"), Is.False, "no glowing fill any more: a stencil-masked silhouette band (device test 2026-09-30)");
         Assert.That(material.GetFloat("_OutlineWidth"), Is.EqualTo(0.004f).Within(1e-4f));
-        Assert.That(material.shader.passCount, Is.EqualTo(3), "stencil mask, outline, stencil clear");
+        Assert.That(material.shader.passCount, Is.EqualTo(2), "stencil mask, outline");
+        var lightMode = new UnityEngine.Rendering.ShaderTagId("LightMode");
+        Assert.That(material.shader.FindPassTagValue(0, lightMode).name, Is.EqualTo("SRPDefaultUnlit").IgnoreCase, "URP draws it first");
+        Assert.That(material.shader.FindPassTagValue(1, lightMode).name, Is.EqualTo("UniversalForward").IgnoreCase, "then the outline (untagged extra passes never draw on device)");
     }
 
     [TestCase(PresenceBuilder.LeftHandPrefabPath, Handedness.Left)]

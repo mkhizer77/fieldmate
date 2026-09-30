@@ -1,7 +1,9 @@
-// Light-yellow outline for the tracked hands and controllers (#55): a true silhouette band, not a rim glow. Pass 1
-// stamps the mesh into the stencil, pass 2 draws the mesh inflated along its normals only where the stencil is clear
-// (outside the silhouette), pass 3 clears the stencil. All passes ignore depth so the outline still shows where a hand
-// reaches into the machine. _Intensity (per renderer) brightens the band while hovering and grabbing.
+// Light-yellow outline for the tracked hands and controllers (#55): a true silhouette band, not a rim glow. The first
+// pass stamps the mesh into the stencil, the second draws the mesh inflated along its normals only where the stencil
+// is clear (outside the silhouette). URP draws one pass per LightMode tag, in the order SRPDefaultUnlit then
+// UniversalForward, so the passes are tagged that way (untagged multi-pass shaders draw only their first pass on
+// device, seen 2026-09-30). Both ignore depth so the outline still shows where a hand reaches into the machine.
+// The stencil is left set inside the silhouette; nothing else tests it and it clears with the next frame.
 Shader "Fieldmate/PresenceGlow"
 {
     Properties
@@ -73,6 +75,7 @@ Shader "Fieldmate/PresenceGlow"
         Pass
         {
             Name "StencilMask"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
             Cull Off
             ZWrite Off
             ZTest Always
@@ -88,6 +91,7 @@ Shader "Fieldmate/PresenceGlow"
         Pass
         {
             Name "Outline"
+            Tags { "LightMode" = "UniversalForward" }
             Cull Off
             ZWrite Off
             ZTest Always
@@ -96,21 +100,6 @@ Shader "Fieldmate/PresenceGlow"
             HLSLPROGRAM
             #pragma vertex VertInflated
             #pragma fragment FragOutline
-            #pragma multi_compile_instancing
-            ENDHLSL
-        }
-
-        Pass
-        {
-            Name "StencilClear"
-            Cull Off
-            ZWrite Off
-            ZTest Always
-            ColorMask 0
-            Stencil { Ref 0 Comp Always Pass Replace }
-            HLSLPROGRAM
-            #pragma vertex VertPlain
-            #pragma fragment FragNone
             #pragma multi_compile_instancing
             ENDHLSL
         }

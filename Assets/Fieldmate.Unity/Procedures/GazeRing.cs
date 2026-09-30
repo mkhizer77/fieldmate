@@ -11,7 +11,8 @@ namespace Fieldmate.Procedures
     /// </summary>
     public sealed class GazeRing : MonoBehaviour
     {
-        private const float SizeMm = 110f;
+        private const float SizeMm = 64f;
+        private const float StandOff = 0.06f; // metres in front of the part, toward the viewer
 
         private Transform head;
         private Image fill;
@@ -27,6 +28,13 @@ namespace Fieldmate.Procedures
             ringUi.head = headTransform;
             ringUi.Build();
             return ringUi;
+        }
+
+        /// <summary>Floats the ring just in front of a part (its bounds centre and radius) toward the viewer.</summary>
+        public void ShowInFront(Vector3 partCenter, float partRadius, float progress)
+        {
+            var toViewer = head != null ? (head.position - partCenter).normalized : Vector3.back;
+            Show(partCenter + toViewer * (partRadius + StandOff), progress);
         }
 
         /// <summary>Places the ring at <paramref name="worldPosition"/> with <paramref name="progress"/> (0–1) filled.</summary>
@@ -56,7 +64,7 @@ namespace Fieldmate.Procedures
             UiKit.WorldCanvas(gameObject, SizeMm, SizeMm);
             group = GetComponent<CanvasGroup>();
             var track = UiKit.Rect("Track", transform, Vector2.zero, Vector2.one).gameObject.AddComponent<Image>();
-            RingImage(track, new Color(1f, 1f, 1f, 0.25f));
+            RingImage(track, new Color(1f, 1f, 1f, 0.18f));
             fill = UiKit.Rect("Fill", transform, Vector2.zero, Vector2.one).gameObject.AddComponent<Image>();
             RingImage(fill, Theme.Accent);
             fill.type = Image.Type.Filled;
