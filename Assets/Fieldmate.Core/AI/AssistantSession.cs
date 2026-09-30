@@ -281,6 +281,39 @@ public sealed class AssistantSession
         return await RunTurnAsync(text, sink, result, start, cancellationToken);
     }
 
+    /// <summary>What happened on the machine recently; the context builder puts it in every request (#61).</summary>
+    public SceneEventLog SceneEvents { get; } = new();
+
+    /// <summary>
+    /// Says <paramref name="text"/> without a model round trip (the narrator's step, violation and debrief lines): on the
+    /// transcript as the assistant, spoken through the sink when a voice provider exists. Not a conversation turn.
+    /// </summary>
+    public async Task SpeakAsync(string text, IAudioSink sink, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var result = new TurnResult { Turn = ++currentTurn, AssistantText = text.Trim() };
+        var start = clock();
+        Add(TranscriptKind.Assistant, result.AssistantText);
+        var speech = new SpeechChannel(this, sink, result, start, cancellationToken);
+        try
+        {
+            speech.Enqueue(result.AssistantText);
+        }
+        finally
+        {
+            await speech.FinishAsync();
+        }
+
+        result.Success = true;
+        result.Timings.Total = clock() - start;
+        SetState(result, AssistantState.Idle);
+        LastTurn = result;
+    }
+
     /// <summary>Runs a turn from typed or scripted text (debug panel, AI eval).</summary>
     public Task<TurnResult> RunTextTurnAsync(string text, IAudioSink sink, CancellationToken cancellationToken)
     {

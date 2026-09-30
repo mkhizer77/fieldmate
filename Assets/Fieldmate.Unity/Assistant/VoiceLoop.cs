@@ -207,6 +207,13 @@ namespace Fieldmate.Assistant
                 panel.SetState(session != null ? session.State : AssistantState.Idle, idleHint);
             }
 
+            if (pendingNarration != null && session != null && session.State == AssistantState.Idle && !player.IsPlaying && !gate.IsRecording)
+            {
+                var text = pendingNarration;
+                pendingNarration = null;
+                Narrate(text, interrupt: false);
+            }
+
             if (gate.IsRecording && recorder.IsRecording &&
                 speech.Add(recorder.Level(), Time.unscaledDeltaTime) &&
                 gate.SpeechDetected() == TalkAction.Interrupt)
@@ -332,12 +339,68 @@ namespace Fieldmate.Assistant
         {
             turn?.Cancel();
             turn = null;
-            player.Stop();
+            if (player != null)
+            {
+                player.Stop();
+            }
+        }
+
+        private string pendingNarration;
+
+        /// <summary>Records a machine event for the model's context (#61).</summary>
+        public void RecordEvent(string text) => session?.SceneEvents.Add(Time.realtimeSinceStartupAsDouble, text);
+
+        /// <summary>
+        /// Speaks a line without being asked (#61). <paramref name="interrupt"/> stops whatever is playing first (violations,
+        /// wrong order); otherwise a line waits until the assistant is idle so it never talks over an answer.
+        /// </summary>
+        public void Narrate(string text, bool interrupt)
+        {
+            if (session == null)
+            {
+                panel.Add(new TranscriptEntry(TranscriptKind.Assistant, text));
+                return;
+            }
+
+            if (player == null)
+            {
+                return; // scene torn down
+            }
+
+            var busy = session.State != AssistantState.Idle || player.IsPlaying || gate.IsRecording;
+            if (busy && !interrupt)
+            {
+                pendingNarration = text; // the newest wins; the step card shows the rest
+                return;
+            }
+
+            if (interrupt)
+            {
+                CancelTurn();
+                gate.Reset();
+                recorder.Stop();
+            }
+
+            pendingNarration = null;
+            turn = new CancellationTokenSource();
+            Debug.Log($"[Assistant] narrate{(interrupt ? " (interrupt)" : "")}: \"{Clip(text)}\"");
+            _ = RunAndLog(NarrateAsync(text, turn.Token));
+        }
+
+        private async Task<TurnResult> NarrateAsync(string text, CancellationToken token)
+        {
+            await session.SpeakAsync(text, player, token);
+            return session.LastTurn;
         }
 
         // The session is idle once the last audio has arrived; the panel keeps "Speaking…" until it has been heard.
         private void ShowState(AssistantState state)
         {
+            if (player == null || panel == null)
+            {
+                return; // a narration finishing after the scene was torn down (tests)
+            }
+
             speakingTail = state == AssistantState.Idle && player.IsPlaying;
             panel.SetState(speakingTail ? AssistantState.Speaking : state, idleHint);
         }
@@ -347,7 +410,8 @@ namespace Fieldmate.Assistant
             var gaze = head != null ? machine.PartAlong(new Ray(head.position, head.forward)) : null;
             var step = machine.Runner.State == RunnerState.Running ? machine.Runner.CurrentStep.Id : null;
             var slice = machine.Retriever.Retrieve(new RetrievalQuery(gaze?.Id, step, userText));
-            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice);
+            var events = session != null ? session.SceneEvents.ToPromptText(Time.realtimeSinceStartupAsDouble) : null;
+            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice, events);
         }
 
         // ---------- IAssistantScene ----------
