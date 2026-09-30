@@ -10,6 +10,10 @@ namespace Fieldmate.Interaction
     {
         [SerializeField] private string toolId;
 
+        private Transform home;
+        private Vector3 homePosition;
+        private Quaternion homeRotation;
+
         public string ToolId => toolId;
 
         public void Configure(string tool) => toolId = tool;
@@ -22,6 +26,21 @@ namespace Fieldmate.Interaction
             body.useGravity = false;
             movementType = MovementType.Instantaneous;
             throwOnDetach = false;
+            home = transform.parent;
+            homePosition = transform.localPosition;
+            homeRotation = transform.localRotation;
+        }
+
+        /// <summary>Puts the tool back where it started (a new run of the procedure).</summary>
+        public void ReturnHome()
+        {
+            if (transform.parent != home)
+            {
+                transform.SetParent(home, false);
+            }
+
+            transform.localPosition = homePosition;
+            transform.localRotation = homeRotation;
         }
     }
 }

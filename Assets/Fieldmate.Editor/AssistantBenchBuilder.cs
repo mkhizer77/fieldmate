@@ -1,6 +1,7 @@
 using System.Linq;
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
+using Fieldmate.Procedures;
 using Fieldmate.Twin;
 using Fieldmate.XR;
 using Unity.XR.CoreUtils;
@@ -35,7 +36,8 @@ public static class AssistantBenchBuilder
         // that don't survive a reload (seen when the builder ran right after the scripts were first compiled).
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
-                     typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter), typeof(HoverTint) })
+                     typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
+                     typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -128,6 +130,12 @@ public static class AssistantBenchBuilder
 
         var router = new GameObject("Machine Controls", typeof(MachineControlRouter)).GetComponent<MachineControlRouter>();
         router.Configure(services.GetComponent<MachineServices>(), placement, new XRBaseInteractor[] { leftHand, rightHand });
+
+        var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
+        director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),
+            skid.GetComponentInChildren<ProcedurePanel>(), Button(skid, "Start Button"), cameraGo.transform);
+        new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
+            .Configure(Button(skid, "Move Button"), placement);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
@@ -292,6 +300,19 @@ public static class AssistantBenchBuilder
         spare.GetComponent<Rigidbody>().isKinematic = true;
         spare.GetComponent<Rigidbody>().useGravity = false;
 
+        // Step card above the machine and the Start / Restart button below it, within reach.
+        var stepPanel = new GameObject("Procedure Panel", typeof(RectTransform), typeof(ProcedurePanel));
+        stepPanel.transform.SetParent(root.transform, false);
+        stepPanel.transform.localPosition = new Vector3(-0.4f, 1.55f, 0.3f);
+        var startButton = new GameObject("Start Button", typeof(PressButton));
+        startButton.transform.SetParent(root.transform, false);
+        startButton.transform.localPosition = new Vector3(-0.4f, 1.22f, 0.34f);
+        Shape(startButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, safety);
+        var moveButton = new GameObject("Move Button", typeof(PressButton));
+        moveButton.transform.SetParent(root.transform, false);
+        moveButton.transform.localPosition = new Vector3(-0.2f, 1.22f, 0.34f);
+        Shape(moveButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, dark);
+
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, SkidPrefabPath);
         Object.DestroyImmediate(root);
         return prefab;
@@ -330,6 +351,9 @@ public static class AssistantBenchBuilder
         interactor.selectInput.inputActionPerformed = select;
         return interactor;
     }
+
+    private static PressButton Button(GameObject skid, string name) =>
+        skid.GetComponentsInChildren<PressButton>().Single(b => b.name == name);
 
     /// <summary>An untagged child the moving part of a control rotates about.</summary>
     private static GameObject Pivot(GameObject parent, string name, Vector3 localPosition)

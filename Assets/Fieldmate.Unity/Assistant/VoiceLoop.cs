@@ -271,6 +271,11 @@ namespace Fieldmate.Assistant
 
         private async Task<TurnResult> RunAndLog(Task<TurnResult> running)
         {
+            if (machine.Runner.State == RunnerState.Running)
+            {
+                machine.Runner.Handle(InteractionEvent.Help(machine.Now)); // debrief: assistant reliance
+            }
+
             try
             {
                 var result = await running;
