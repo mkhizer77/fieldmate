@@ -411,7 +411,41 @@ namespace Fieldmate.Assistant
             var step = machine.Runner.State == RunnerState.Running ? machine.Runner.CurrentStep.Id : null;
             var slice = machine.Retriever.Retrieve(new RetrievalQuery(gaze?.Id, step, userText));
             var events = session != null ? session.SceneEvents.ToPromptText(Time.realtimeSinceStartupAsDouble) : null;
-            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice, events);
+            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice, events, WhereLine(step));
+        }
+
+        // The step's part and the highlighted part relative to the head, so "where is it" gets a direction, not a shrug.
+        private string WhereLine(string stepPartId)
+        {
+            if (head == null)
+            {
+                return null;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var id in new[] { stepPartId, highlighter != null ? highlighter.ActivePartId : null })
+            {
+                if (id == null || (sb.Length > 0 && sb.ToString().Contains(id)) || !machine.TryGetPart(id, out var part))
+                {
+                    continue;
+                }
+
+                var bounds = new Bounds(part.transform.position, Vector3.zero);
+                foreach (var r in part.GetComponentsInChildren<Renderer>())
+                {
+                    bounds.Encapsulate(r.bounds);
+                }
+
+                if (sb.Length > 0)
+                {
+                    sb.Append("; ");
+                }
+
+                sb.Append(machine.Catalog.DisplayName(id)).Append(" (").Append(id).Append("): ")
+                  .Append(SpatialHints.Describe(head.position, head.forward, bounds.center));
+            }
+
+            return sb.Length > 0 ? sb.ToString() : null;
         }
 
         // ---------- IAssistantScene ----------

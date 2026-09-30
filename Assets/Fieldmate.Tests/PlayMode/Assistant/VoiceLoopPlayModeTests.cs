@@ -60,7 +60,7 @@ public class VoiceLoopPlayModeTests
         var highlighter = UnityEngine.Object.FindAnyObjectByType<PartHighlighter>();
         Assert.That(highlighter.ActivePartId, Is.EqualTo("relief_valve"));
         yield return null; // marker is placed in Update
-        Assert.That(highlighter.Marker.gameObject.activeSelf, Is.True, "a floating marker points at the part");
+        Assert.That(highlighter.Marker.gameObject.activeSelf, Is.True, "a callout pill points at the part");
         Assert.That(highlighter.MarkerLabel, Is.EqualTo(machine.Manual.Parts.Single(p => p.Id == "relief_valve").Name));
         var part = machine.Parts["relief_valve"];
         var top = part.GetComponentsInChildren<Renderer>().Max(r => r.bounds.max.y);

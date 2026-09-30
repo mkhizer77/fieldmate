@@ -66,6 +66,9 @@ public class PresenceTests
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PresenceBuilder.ControllerPrefabPath);
         Assert.That(prefab, Is.Not.Null);
         Assert.That(prefab.GetComponent<ModalityVisibility>().ShownFor, Is.EqualTo(Modality.Controllers));
-        Assert.That(prefab.GetComponentInChildren<MeshRenderer>().sharedMaterial.shader.name, Is.EqualTo(PresenceBuilder.ShaderName));
+        var ring = prefab.GetComponentInChildren<MeshRenderer>();
+        Assert.That(ring.name, Is.EqualTo("Grip Ring"), "a ring around the grip, not a model that never fitted");
+        Assert.That(ring.sharedMaterial.shader.name, Is.EqualTo("Fieldmate/UnlitOverlay"));
+        Assert.That(ring.GetComponent<MeshFilter>().sharedMesh.bounds.extents.x, Is.EqualTo(0.037f).Within(0.002f), "34 mm radius + 3 mm tube");
     }
 }
