@@ -34,6 +34,7 @@ namespace Fieldmate.Procedures
         private RotaryInteractable watched;
         private GazeRing gazeRing;
         private Vector3 gazeTarget;
+        private float gazeRadius;
         private string gazeTargetPart;
         private float restartArmedUntil = -1f;
         private bool dwellReported;
@@ -104,10 +105,11 @@ namespace Fieldmate.Procedures
                 }
 
                 gazeTarget = bounds.center;
+                gazeRadius = bounds.extents.magnitude;
             }
 
             var cycle = step.Kind == StepKind.Measure ? seconds % needed : seconds; // a reading repeats every ReadSeconds
-            gazeRing.Show(gazeTarget, cycle / needed);
+            gazeRing.ShowInFront(gazeTarget, gazeRadius, cycle / needed);
         }
 
         // The step's two-hand control, watched while its step runs (controls register in their own Start, so this is
