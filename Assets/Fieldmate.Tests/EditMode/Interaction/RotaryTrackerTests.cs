@@ -107,4 +107,17 @@ public class RotaryTrackerTests
 
         Assert.That(tracker.Angle, Is.EqualTo(90f).Within(0.01f));
     }
+
+    [Test]
+    public void Gain_scales_hand_travel_into_handle_degrees()
+    {
+        var plain = new RotaryTracker(Vector3.up, 0f, 720f, 0f);
+        var geared = new RotaryTracker(Vector3.up, 0f, 720f, 0f, turnGain: 1.5f);
+        plain.Begin(Vector3.right);
+        geared.Begin(Vector3.right);
+        plain.Update(Quaternion.AngleAxis(60f, Vector3.up) * Vector3.right);
+        geared.Update(Quaternion.AngleAxis(60f, Vector3.up) * Vector3.right);
+        Assert.That(plain.Angle, Is.EqualTo(60f).Within(0.01f));
+        Assert.That(geared.Angle, Is.EqualTo(90f).Within(0.01f), "1.5 handle degrees per hand degree");
+    }
 }

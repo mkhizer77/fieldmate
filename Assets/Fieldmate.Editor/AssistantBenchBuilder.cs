@@ -40,7 +40,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -59,6 +59,7 @@ public static class AssistantBenchBuilder
         light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
         new GameObject("Permissions", typeof(PermissionsBootstrap));
+        new GameObject("Boundary", typeof(BoundaryControl)); // keep the app visible outside the Guardian circle
 
         var originGo = new GameObject("XR Origin", typeof(XROrigin), typeof(ARAnchorManager));
         var origin = originGo.GetComponent<XROrigin>();
@@ -259,7 +260,7 @@ public static class AssistantBenchBuilder
         var lever = Pivot(inlet, "Lever", new Vector3(0.58f, 0.46f, 0f));
         Shape(lever, PrimitiveType.Cube, new Vector3(0.07f, 0f, 0f), new Vector3(0.18f, 0.025f, 0.035f), safety);
         lever.AddComponent<RotaryInteractable>().Configure("inlet_valve", lever.transform, Vector3.down, 0f, 90f, 0f,
-            new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1);
+            new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1, gain: 1.25f);
         lever.AddComponent<ControlTag>().Configure("Inlet valve", "pump suction", new Vector3(0.05f, 0.12f, 0f));
 
         var line = Group(root, "Discharge line", "pressure_line");
@@ -281,14 +282,15 @@ public static class AssistantBenchBuilder
         Shape(outlet, PrimitiveType.Cube, new Vector3(0.66f, 1.03f, 0f), new Vector3(0.11f, 0.12f, 0.1f), dark);
         Shape(outlet, PrimitiveType.Cylinder, new Vector3(0.66f, 1.15f, 0f), new Vector3(0.02f, 0.06f, 0.02f), steel);
 
-        // Gate valve handwheel: three turns clockwise (seen from above) to close, a tick every eighth of a turn.
+        // Gate valve handwheel: two turns clockwise (seen from above) to close, a tick every eighth of a turn; the hand's
+        // travel counts 1.5× (device test 2026-09-30: three turns at 1:1 were tiring).
         var wheel = Pivot(outlet, "Handwheel", new Vector3(0.66f, 1.21f, 0f));
         Shape(wheel, PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.16f, 0.008f, 0.16f), breakerRed);
         Shape(wheel, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0f), new Vector3(0.15f, 0.01f, 0.012f), dark);
         Shape(wheel, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0f), new Vector3(0.012f, 0.01f, 0.15f), dark);
         Shape(wheel, PrimitiveType.Cylinder, new Vector3(0.065f, 0.03f, 0f), new Vector3(0.02f, 0.025f, 0.02f), dark);
-        wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 1080f, 0f,
-            new[] { 0f, 1080f }, new[] { "open", "closed" }, 45f, 1);
+        wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 720f, 0f,
+            new[] { 0f, 720f }, new[] { "open", "closed" }, 45f, 1, gain: 1.5f);
         wheel.AddComponent<ControlTag>().Configure("Outlet valve", "discharge", new Vector3(0f, 0.12f, 0f));
 
         var cabinet = Group(root, "Electrical cabinet", "electrical_cabinet");
@@ -307,7 +309,7 @@ public static class AssistantBenchBuilder
         var handle = Pivot(breaker, "Handle", new Vector3(-1.2f, 0.82f, 0.18f));
         Shape(handle, PrimitiveType.Cube, Vector3.zero, new Vector3(0.3f, 0.04f, 0.04f), breakerRed);
         handle.AddComponent<RotaryInteractable>().Configure("main_breaker", handle.transform, Vector3.back, 0f, 135f, 0f,
-            new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2);
+            new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2, gain: 1.25f);
         handle.AddComponent<ControlTag>().Configure("Main breaker", "pump motor power", new Vector3(0f, 0.2f, 0f));
 
         var tray = Group(root, "Parts tray", null);
@@ -358,7 +360,7 @@ public static class AssistantBenchBuilder
 
         var sphere = go.GetComponent<SphereCollider>();
         sphere.isTrigger = true;
-        sphere.radius = 0.05f;
+        sphere.radius = 0.07f; // 7 cm: a pinch near the handle counts (device test 2026-09-30: 5 cm missed often)
         var body = go.GetComponent<Rigidbody>();
         body.isKinematic = true;
         body.useGravity = false;

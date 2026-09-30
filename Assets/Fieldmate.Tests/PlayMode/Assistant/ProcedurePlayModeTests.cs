@@ -115,6 +115,18 @@ public class ProcedurePlayModeTests
         Object.Destroy(hand.gameObject);
     }
 
+    /// <summary>Keeps the head where LookAt left it (on the gauge) until the runner reaches <paramref name="stepId"/>.</summary>
+    private IEnumerator WatchGaugeUntil(string stepId, float timeout)
+    {
+        for (var t = 0f; t < timeout; t += Time.deltaTime)
+        {
+            if (machine.Runner.CurrentStep.Id == stepId) yield break;
+            yield return null;
+        }
+
+        Assert.Fail($"still on {machine.Runner.CurrentStep.Id} after {timeout}s of watching the gauge (pressure {machine.Telemetry[TelemetryChannel.Pressure]:0.00})");
+    }
+
     private IEnumerator WaitForPressure(float min, float max)
     {
         for (var t = 0f; t < 30f; t += Time.deltaTime)
@@ -147,10 +159,9 @@ public class ProcedurePlayModeTests
         yield return Turn(Rotary("inlet_valve"), Vector3.down, 0f, 90f, twoHands: false);
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_zero"));
 
-        yield return LookAt("pressure_gauge", 0.1f); // too early: a hint, not an error
-        yield return WaitForPressure(0f, 0.15f);
-        yield return LookAt("pump", 0.1f);           // look away and back to read again
-        yield return LookAt("pressure_gauge", 2f);
+        yield return LookAt("pressure_gauge", 1.5f); // too early: a hint, not an error
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_zero"));
+        yield return WatchGaugeUntil("remove_cover", 30f); // keep watching the needle fall: no need to look away and back
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("remove_cover"));
 
         var cover = Object.FindAnyObjectByType<RemovablePart>();

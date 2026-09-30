@@ -10,7 +10,9 @@
     "UnityEngine.UI",
     "Unity.XR.Interaction.Toolkit",
     "Unity.TextMeshPro",
-    "Unity.XR.Hands"
+    "Unity.XR.Hands",
+    "Unity.XR.OpenXR",
+    "Unity.XR.MetaOpenXR"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

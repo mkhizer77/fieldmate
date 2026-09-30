@@ -1,6 +1,7 @@
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
 using Fieldmate.Twin;
+using Fieldmate.UI;
 using Fieldmate.XR;
 using UnityEngine;
 
@@ -29,8 +30,10 @@ namespace Fieldmate.Procedures
         private const float RestartConfirmSeconds = 3f;
 
         private readonly DwellTracker dwell = new();
+        private readonly System.Collections.Generic.HashSet<string> shownTips = new();
         private float restartArmedUntil = -1f;
         private bool dwellReported;
+        private int readsTaken;
         private bool runsBefore;
         private bool placementConfirmed;
 
@@ -221,6 +224,7 @@ namespace Fieldmate.Procedures
             if (dwell.PartId == null || dwell.PartId != step.PartId)
             {
                 dwellReported = false;
+                readsTaken = 0;
                 KeepHighlighted(step);
                 return;
             }
@@ -230,9 +234,11 @@ namespace Fieldmate.Procedures
                 dwellReported = true;
                 runner.Handle(InteractionEvent.Gaze(machine.Now, step.PartId, seconds));
             }
-            else if (step.Kind == StepKind.Measure && !dwellReported && seconds >= GaugeCheck.ReadSeconds)
+            else if (step.Kind == StepKind.Measure && seconds >= (readsTaken + 1) * GaugeCheck.ReadSeconds)
             {
-                dwellReported = true; // one reading per look: look away and back to read again
+                // A fresh reading every ReadSeconds while the gaze stays on the gauge: watching the needle fall to zero
+                // completes the step by itself (device test 2026-09-30: one reading per look left the user stuck).
+                readsTaken++;
                 var reading = machine.Telemetry[TelemetryChannel.Pressure];
                 if (GaugeCheck.TryRead(step, reading, out var hint))
                 {
@@ -282,10 +288,12 @@ namespace Fieldmate.Procedures
 
             dwell.Reset();
             dwellReported = false;
+            readsTaken = 0;
             highlighter.Clear();
             panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
                 StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), machine.Runner.Definition.Title);
             ShowGuide(step);
+            ShowTip(step);
             button.SetLabel("Restart");
             button.SetStyle(ButtonStyle.Secondary);
             KeepHighlighted(step);
@@ -308,6 +316,30 @@ namespace Fieldmate.Procedures
         {
             panel.ShowStatus(error.Message, ProcedurePanel.Hint, 6f);
             Debug.Log($"[Procedure] error {error}");
+        }
+
+        // Once per kind of interaction per session: how to hold and move the hand for this kind of step.
+        private void ShowTip(StepDefinition step)
+        {
+            var hands = 1;
+            if (step.Kind == StepKind.Operate && controls != null)
+            {
+                foreach (var control in controls.Controls)
+                {
+                    if (control.PartId == step.PartId && control is RotaryInteractable rotary)
+                    {
+                        hands = rotary.RequiredHands;
+                    }
+                }
+            }
+
+            var key = InteractionTips.Key(step, hands);
+            if (key == null || !shownTips.Add(key))
+            {
+                return;
+            }
+
+            panel.ShowStatus(InteractionTips.For(step, hands, InputModalityProbe.Current), Theme.Accent, InteractionTips.Seconds);
         }
 
         // The way to operate the step's control: arc to the target position, arrow off the machine, or a line to the socket.

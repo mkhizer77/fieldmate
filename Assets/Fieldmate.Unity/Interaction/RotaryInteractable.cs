@@ -26,6 +26,7 @@ namespace Fieldmate.Interaction
         [SerializeField] private string[] detentStates = { "open", "closed" };
         [SerializeField] private float tickDegrees = 30f;
         [SerializeField, Range(1, 2)] private int requiredHands = 1;
+        [SerializeField, Range(0.5f, 3f)] private float turnGain = 1f;
 
         private RotaryTracker tracker;
         private Detents detents;
@@ -38,6 +39,7 @@ namespace Fieldmate.Interaction
         public float Normalized => tracker?.Normalized ?? 0f;
         public float Angle => tracker?.Angle ?? startAngle;
         public int RequiredHands => requiredHands;
+        public float TurnGain => turnGain;
         public bool IsTurning => turning;
         public Vector3 Axis => axis;
         public Transform Handle => handle;
@@ -64,8 +66,9 @@ namespace Fieldmate.Interaction
 
         /// <summary>Sets up the control in code (the scene builder and tests); call before the first frame.</summary>
         public void Configure(string part, Transform turningHandle, Vector3 turnAxis, float min, float max, float start,
-            float[] angles, string[] states, float tick, int hands)
+            float[] angles, string[] states, float tick, int hands, float gain = 1f)
         {
+            turnGain = gain;
             partId = part;
             handle = turningHandle;
             axis = turnAxis;
@@ -94,7 +97,7 @@ namespace Fieldmate.Interaction
 
             selectMode = requiredHands > 1 ? InteractableSelectMode.Multiple : InteractableSelectMode.Single;
             baseRotation = handle.localRotation;
-            tracker = new RotaryTracker(axis, minAngle, maxAngle, startAngle);
+            tracker = new RotaryTracker(axis, minAngle, maxAngle, startAngle, turnGain);
             detents = new Detents(detentAngles, detentStates, tickDegrees, startAngle);
             if (clickSource == null)
             {

@@ -16,12 +16,15 @@ public sealed class RotaryTracker
     private readonly Vector3 axis;
     private readonly float min;
     private readonly float max;
+    private readonly float gain;
     private Vector3 previous;
     private bool hasPrevious;
 
-    public RotaryTracker(Vector3 axis, float minDegrees, float maxDegrees, float startDegrees)
+    /// <param name="turnGain">Handle degrees per degree of hand travel; above 1 makes long turns easier.</param>
+    public RotaryTracker(Vector3 axis, float minDegrees, float maxDegrees, float startDegrees, float turnGain = 1f)
     {
         this.axis = axis.normalized;
+        gain = Mathf.Max(0.1f, turnGain);
         min = Mathf.Min(minDegrees, maxDegrees);
         max = Mathf.Max(minDegrees, maxDegrees);
         Angle = Mathf.Clamp(startDegrees, min, max);
@@ -47,7 +50,7 @@ public sealed class RotaryTracker
 
         if (hasPrevious)
         {
-            Angle = Mathf.Clamp(Angle + Vector3.SignedAngle(previous, current, axis), min, max);
+            Angle = Mathf.Clamp(Angle + gain * Vector3.SignedAngle(previous, current, axis), min, max);
         }
 
         previous = current;
