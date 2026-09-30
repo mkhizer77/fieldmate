@@ -81,7 +81,7 @@ public static class ProjectSetup
     /// Android build strips them and the kit silently falls back to depth-tested materials (device test 2026-09-30).</summary>
     public static readonly string[] RuntimeShaders =
     {
-        "Fieldmate/UIOverlay", "Fieldmate/UnlitOverlay", "Fieldmate/PresenceGlow",
+        "Fieldmate/UIOverlay", "Fieldmate/UnlitOverlay", "Fieldmate/PresenceGlow", "Fieldmate/Hologram",
         "TextMeshPro/Mobile/Distance Field", "TextMeshPro/Mobile/Distance Field Overlay",
     };
 
