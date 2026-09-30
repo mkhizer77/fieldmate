@@ -116,6 +116,9 @@ public static class PresenceBuilder
         var root = new GameObject("Controller Presence", typeof(ModalityVisibility), typeof(PresenceGlow));
         var visual = (GameObject)PrefabUtility.InstantiatePrefab(model);
         visual.transform.SetParent(root.transform, false);
+        // The XRI model's handle points -Z; the OpenXR grip pose runs +Z along the handle. Same offset as XRI's own rig
+        // (XR Origin (XR Rig): model turned 180° about Y and 5 cm back), confirmed against the device test 2026-09-30.
+        visual.transform.SetLocalPositionAndRotation(new Vector3(0f, 0f, -0.05f), Quaternion.Euler(0f, 180f, 0f));
         foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>())
         {
             renderer.sharedMaterial = material;

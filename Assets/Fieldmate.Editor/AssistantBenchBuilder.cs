@@ -13,6 +13,7 @@ using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 using TrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 
 namespace Fieldmate.Editor;
@@ -82,20 +83,19 @@ public static class AssistantBenchBuilder
         pose.positionInput = new InputActionProperty(new InputAction("Position", binding: "<XRHMD>/centerEyePosition", expectedControlType: "Vector3"));
         pose.rotationInput = new InputActionProperty(new InputAction("Rotation", binding: "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion"));
 
-        // Right controller pointer, or the right hand's Meta aim pose when hands are tracked.
-        var pointerGo = new GameObject("Right Pointer", typeof(TrackedPoseDriver));
-        pointerGo.transform.SetParent(offset, false);
-        var pointerPose = pointerGo.GetComponent<TrackedPoseDriver>();
-        pointerPose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            "<XRController>{RightHand}/pointerPosition", "<MetaAimHand>{RightHand}/devicePosition"));
-        pointerPose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            "<XRController>{RightHand}/pointerRotation", "<MetaAimHand>{RightHand}/deviceRotation"));
+        // One pointer per side: the controller's aim pose, or the hand's Meta aim pose when hands are tracked. The right
+        // one places the machine; both carry a ray that presses the machine's buttons from a distance (#58).
+        var leftPointer = Pointer(offset, "Left");
+        var pointerGo = Pointer(offset, "Right");
 
         // Grabbing: one direct interactor per hand. Hands pinch (index finger); controllers use grip. The user sees
         // their real hands in passthrough, so no hand meshes are drawn.
         new GameObject("XR Interaction Manager", typeof(XRInteractionManager));
         var leftHand = HandInteractor(offset, "Left");
         var rightHand = HandInteractor(offset, "Right");
+        NameButtonLayer();
+        RayInteractor(leftPointer, "Left");
+        RayInteractor(pointerGo, "Right");
         PresenceBuilder.AddToScene(offset, leftHand, rightHand); // light-yellow glow around hands / controllers (#55)
 
         // Room-scan mesh as invisible colliders, so placement snaps to the real floor (child of the origin, scale = volume).
@@ -380,6 +380,77 @@ public static class AssistantBenchBuilder
         go.transform.SetParent(root.transform, false);
         go.transform.localPosition = localPosition;
         Set(go.GetComponent<PressButton>(), "style", style);
+        // Pressed by a hand in the cap (Default layer) or by a pointer ray (Buttons layer); machine controls stay hands-only.
+        go.GetComponent<PressButton>().interactionLayers = InteractionLayerMask.GetMask("Default") | ButtonLayer;
+    }
+
+    private const int ButtonLayerIndex = 1;
+    private static InteractionLayerMask ButtonLayer => 1 << ButtonLayerIndex;
+
+    private static void NameButtonLayer()
+    {
+        // InteractionLayerSettings is internal to XRI; its asset is plain YAML we can edit through a SerializedObject.
+        var asset = AssetDatabase.LoadMainAssetAtPath("Assets/XRI/Settings/Resources/InteractionLayerSettings.asset")
+            ?? throw new System.InvalidOperationException("XRI InteractionLayerSettings asset missing.");
+        var so = new SerializedObject(asset);
+        var names = so.FindProperty("m_LayerNames");
+        names.GetArrayElementAtIndex(ButtonLayerIndex).stringValue = "Buttons";
+        so.ApplyModifiedPropertiesWithoutUndo();
+        AssetDatabase.SaveAssets();
+    }
+
+    /// <summary>The aim pose of one side: controller pointer pose, or the Meta aim-hand pose when hands are tracked.</summary>
+    private static GameObject Pointer(Transform parent, string side)
+    {
+        var go = new GameObject($"{side} Pointer", typeof(TrackedPoseDriver));
+        go.transform.SetParent(parent, false);
+        var pose = go.GetComponent<TrackedPoseDriver>();
+        pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
+            $"<XRController>{{{side}Hand}}/pointerPosition", $"<MetaAimHand>{{{side}Hand}}/devicePosition"));
+        pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
+            $"<XRController>{{{side}Hand}}/pointerRotation", $"<MetaAimHand>{{{side}Hand}}/deviceRotation"));
+        return go;
+    }
+
+    /// <summary>
+    /// A pointer ray that only sees the machine's buttons (Buttons interaction layer): trigger or index pinch presses the
+    /// button it points at, so Start, Move machine and the occlusion setting work without walking up to them. Machine
+    /// controls are not on that layer: they are still operated by hand, at the part.
+    /// </summary>
+    private static void RayInteractor(GameObject pointer, string side)
+    {
+        var ray = pointer.AddComponent<XRRayInteractor>();
+        ray.lineType = XRRayInteractor.LineType.StraightLine;
+        ray.maxRaycastDistance = 3f;
+        ray.hitClosestOnly = true;
+        ray.enableUIInteraction = false;
+        ray.interactionLayers = ButtonLayer;
+        var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/triggerPressed");
+        select.AddBinding($"<MetaAimHand>{{{side}Hand}}/indexPressed");
+        ray.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.InputAction;
+        ray.selectInput.inputActionPerformed = select;
+
+        var line = pointer.AddComponent<LineRenderer>();
+        line.sharedMaterial = GuideMaterial();
+        line.widthMultiplier = 0.004f;
+        line.numCapVertices = 2;
+        var visual = pointer.AddComponent<XRInteractorLineVisual>();
+        visual.lineWidth = 0.004f;
+        visual.overrideInteractorLineLength = true;
+        visual.lineLength = 3f;
+        visual.stopLineAtFirstRaycastHit = true;
+        visual.smoothMovement = true;
+        visual.setLineColorGradient = true;
+        visual.validColorGradient = Gradient(new Color(0.21f, 0.82f, 1f, 0.9f), new Color(0.21f, 0.82f, 1f, 0.9f));
+        visual.invalidColorGradient = Gradient(new Color(1f, 1f, 1f, 0.35f), new Color(1f, 1f, 1f, 0f));
+    }
+
+    private static Gradient Gradient(Color start, Color end)
+    {
+        var g = new Gradient();
+        g.SetKeys(new[] { new GradientColorKey(start, 0f), new GradientColorKey(end, 1f) },
+            new[] { new GradientAlphaKey(start.a, 0f), new GradientAlphaKey(end.a, 1f) });
+        return g;
     }
 
     private static PressButton Button(GameObject skid, string name) =>
