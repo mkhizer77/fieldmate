@@ -65,6 +65,9 @@ public sealed class TurnTimings
 
 public sealed class TurnResult
 {
+    /// <summary>Answered by the scripted fallback (model unreachable).</summary>
+    public bool UsedFallback { get; set; }
+
     public bool Success { get; internal set; }
     public string UserText { get; internal set; }
     public string AssistantText { get; internal set; }
@@ -124,6 +127,50 @@ public sealed class AssistantSession
 
     public int ConsecutiveFailures { get; private set; }
     public TurnResult LastTurn { get; private set; }
+
+    /// <summary>Scripted answers used while the model is unreachable; null keeps the plain error behaviour.</summary>
+    public FallbackResponses Fallback { get; set; }
+
+    /// <summary>Provider failures in a row before the session switches to scripted answers.</summary>
+    public int OfflineThreshold { get; set; } = 2;
+
+    /// <summary>Every n-th offline turn tries the real model again; success switches back online.</summary>
+    public int OfflineRetryEvery { get; set; } = 3;
+
+    public bool Offline { get; private set; }
+    public event Action<bool> OfflineChanged;
+
+    private int offlineTurns;
+
+    private void SetOffline(bool offline)
+    {
+        if (Offline == offline)
+        {
+            return;
+        }
+
+        Offline = offline;
+        offlineTurns = 0;
+        OfflineChanged?.Invoke(offline);
+    }
+
+    // Answers from the scripted table: text on the panel and in speech, the part highlighted through the real tool.
+    private async Task AnswerOfflineAsync(string text, TurnResult result, SpeechChannel speech, CancellationToken cancellationToken)
+    {
+        var reply = Fallback.Answer(text);
+        result.UsedFallback = true;
+        result.AssistantText = reply.Text;
+        if (reply.HighlightPartId != null && tools.HasExecutor(FieldmateTools.HighlightPart))
+        {
+            var call = new ToolCall($"offline-{result.Turn}", FieldmateTools.HighlightPart, "{\"part_id\":\"" + reply.HighlightPartId + "\"}");
+            var toolResult = await tools.ExecuteAsync(call, cancellationToken);
+            result.ToolsUsed.Add(call.Name);
+            Add(TranscriptKind.Tool, $"{call.Name}(part_id={reply.HighlightPartId}) → {toolResult.Content}");
+        }
+
+        Add(TranscriptKind.Assistant, reply.Text);
+        speech?.Enqueue(reply.Text);
+    }
 
     /// <summary>
     /// Push-to-talk pressed. Ignored unless idle, or when <paramref name="interrupt"/> is set: then any running turn
@@ -192,6 +239,28 @@ public sealed class AssistantSession
         }
         catch (ProviderException e)
         {
+            if (Fallback != null && (Offline || ConsecutiveFailures + 1 >= OfflineThreshold))
+            {
+                ConsecutiveFailures++;
+                result.ErrorType = e.ErrorType;
+                SetOffline(true);
+                var speech = new SpeechChannel(this, sink, result, start, cancellationToken);
+                try
+                {
+                    Add(TranscriptKind.Info, "I can't hear you while offline; here is the current step.");
+                    await AnswerOfflineAsync(string.Empty, result, speech, cancellationToken);
+                }
+                finally
+                {
+                    await speech.FinishAsync();
+                }
+
+                result.Success = true;
+                result.Timings.Total = clock() - start;
+                SetState(result, AssistantState.Idle);
+                return LastTurn = result;
+            }
+
             return Fail(result, e, start);
         }
         catch (OperationCanceledException)
@@ -212,6 +281,39 @@ public sealed class AssistantSession
         return await RunTurnAsync(text, sink, result, start, cancellationToken);
     }
 
+    /// <summary>What happened on the machine recently; the context builder puts it in every request (#61).</summary>
+    public SceneEventLog SceneEvents { get; } = new();
+
+    /// <summary>
+    /// Says <paramref name="text"/> without a model round trip (the narrator's step, violation and debrief lines): on the
+    /// transcript as the assistant, spoken through the sink when a voice provider exists. Not a conversation turn.
+    /// </summary>
+    public async Task SpeakAsync(string text, IAudioSink sink, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var result = new TurnResult { Turn = ++currentTurn, AssistantText = text.Trim() };
+        var start = clock();
+        Add(TranscriptKind.Assistant, result.AssistantText);
+        var speech = new SpeechChannel(this, sink, result, start, cancellationToken);
+        try
+        {
+            speech.Enqueue(result.AssistantText);
+        }
+        finally
+        {
+            await speech.FinishAsync();
+        }
+
+        result.Success = true;
+        result.Timings.Total = clock() - start;
+        SetState(result, AssistantState.Idle);
+        LastTurn = result;
+    }
+
     /// <summary>Runs a turn from typed or scripted text (debug panel, AI eval).</summary>
     public Task<TurnResult> RunTextTurnAsync(string text, IAudioSink sink, CancellationToken cancellationToken)
     {
@@ -230,34 +332,55 @@ public sealed class AssistantSession
         SetState(result, AssistantState.Thinking);
 
         var rollback = Conversation.Messages.Count;
-        Conversation.AddUser(text);
         var speech = new SpeechChannel(this, sink, result, start, cancellationToken);
         try
         {
-            ChatResponse response;
-            try
+            // Offline: scripted answers, with a real attempt every few turns so a returning network is noticed.
+            var retry = Offline && Fallback != null && ++offlineTurns % OfflineRetryEvery == 0;
+            if (Offline && Fallback != null && !retry)
             {
-                response = await CompleteWithToolsAsync(text, result, speech, cancellationToken);
+                await AnswerOfflineAsync(text, result, speech, cancellationToken);
             }
-            catch (ProviderException e)
+            else
             {
-                Conversation.RollbackTo(rollback);
-                return Fail(result, e, start);
-            }
-            catch (OperationCanceledException)
-            {
-                Conversation.RollbackTo(rollback);
-                SetState(result, AssistantState.Idle);
-                throw;
+                Conversation.AddUser(text);
+                ChatResponse response;
+                try
+                {
+                    response = await CompleteWithToolsAsync(text, result, speech, cancellationToken);
+                    SetOffline(false);
+                }
+                catch (ProviderException e)
+                {
+                    Conversation.RollbackTo(rollback);
+                    if (Fallback != null && (Offline || ConsecutiveFailures + 1 >= OfflineThreshold))
+                    {
+                        ConsecutiveFailures++;
+                        result.ErrorType = e.ErrorType;
+                        SetOffline(true);
+                        await AnswerOfflineAsync(text, result, speech, cancellationToken);
+                        goto Spoken;
+                    }
+
+                    return Fail(result, e, start);
+                }
+                catch (OperationCanceledException)
+                {
+                    Conversation.RollbackTo(rollback);
+                    SetState(result, AssistantState.Idle);
+                    throw;
+                }
+
+                var answer = response.Text.Trim();
+                result.AssistantText = answer;
+                if (answer.Length > 0)
+                {
+                    Add(TranscriptKind.Assistant, answer);
+                    speech.Enqueue(answer);
+                }
             }
 
-            var answer = response.Text.Trim();
-            result.AssistantText = answer;
-            if (answer.Length > 0)
-            {
-                Add(TranscriptKind.Assistant, answer);
-                speech.Enqueue(answer);
-            }
+            Spoken: ;
         }
         finally
         {

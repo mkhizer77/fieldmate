@@ -20,6 +20,7 @@ public class PresencePlayModeTests
     public IEnumerator Glow_writes_its_intensity_to_the_renderer()
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        go.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Fieldmate/PresenceGlow")); // has _Intensity
         var glow = go.AddComponent<PresenceGlow>();
         glow.Configure(go.GetComponent<Renderer>(), null);
         yield return null;

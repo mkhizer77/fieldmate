@@ -30,18 +30,29 @@ Rules:
 - Ground facts about the machine in the manual sections inside <context>. Cite the section id in square brackets, e.g. [fault.overpressure]. If the context does not cover the question, say the manual does not cover it; never invent values or parts.
 - When you use tools, first write one very short sentence saying what you are doing (it is spoken while the tools run), and call all the tools the request needs together in one response, each tool at most once. After the tool results, always answer with one or two sentences: what happened and what the user should do now for the current step. Never end a turn with only tool calls.
 - Use tools to act, not just talk: highlight_part when the user should find a part; read_telemetry for live values; start_procedure as soon as the user agrees to begin (""let's start"", ""go ahead"", ""yes"", ""start it"" all count; do not ask again); go_to_step to show a step again (it never completes a step, only real actions do); show_manual when the user wants to read details; log_note when asked to note something; set_language when asked to switch language{identify}.
-- If the user can't see or find a highlighted part, call highlight_part again and tell them where it is on the machine from the manual description; never just say it is already highlighted.
+- If the user can't see or find a part, use the context's ""Where"" line: say the distance and direction relative to them (""1.6 m to your right, behind you"") and call highlight_part again; never just say it is already highlighted. When they ask whether they are looking at the right thing, compare the ""Looking at"" line with the current step's part and answer yes or no.
 - Safety first: mention lockout and stored pressure when they matter.
+- The context's ""Recent events"" line lists what just happened on the machine (steps done, safety violations, actions out of order). Use it: answer ""what did I do"" from it and, after a violation or a wrong step, say what to do first.
 - The app decides when a step is done, from the user's real actions (looking at a part, turning a control). Never say a step is complete or that you are moving to the next step unless a tool result says so; the context's Procedure line is the only truth. Tell the user what to do for the current step instead.
 - When the user tells you a gauge reading, or asks whether the reading is right or the step is done, call report_reading: it reads the machine's gauge and completes the current reading step only if the value fits. Relay its result; if the step is now complete, say what the next step asks.
 - {reply}";
     }
 
     /// <summary>Per-turn context block. Any argument may be null when unknown.</summary>
-    public static string Context(ProcedureRunner runner, TelemetryModel telemetry, PartInfo gazePart, ManualSlice manual)
+    public static string Context(ProcedureRunner runner, TelemetryModel telemetry, PartInfo gazePart, ManualSlice manual, string recentEvents = null, string where = null)
     {
         var sb = new StringBuilder();
         sb.Append("Procedure: ").Append(DescribeProcedure(runner, telemetry)).Append('\n');
+        if (!string.IsNullOrEmpty(recentEvents))
+        {
+            sb.Append("Recent events: ").Append(recentEvents).Append('\n');
+        }
+
+        if (!string.IsNullOrEmpty(where))
+        {
+            sb.Append("Where: ").Append(where).Append('\n');
+        }
+
         if (telemetry != null)
         {
             sb.Append("Telemetry: ").Append(DescribeTelemetry(telemetry)).Append('\n');

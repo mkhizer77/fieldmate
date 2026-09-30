@@ -78,8 +78,12 @@ namespace Fieldmate.Assistant
         /// <summary>Radius of the second, thicker cast that catches small parts (a gauge face) the thin ray just misses.</summary>
         public const float GazeRadius = 0.04f;
 
-        public PartInfo PartAlong(Ray ray, float maxDistance = 5f)
+        public PartInfo PartAlong(Ray ray, float maxDistance = 5f) => PartAlong(ray, out _, maxDistance);
+
+        /// <summary>The part under the ray and where the ray meets it (for the gaze ring).</summary>
+        public PartInfo PartAlong(Ray ray, out Vector3 hitPoint, float maxDistance = 5f)
         {
+            hitPoint = ray.origin + ray.direction * maxDistance;
             var count = Physics.RaycastNonAlloc(ray, RayHits, maxDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
             if (count == 0)
             {
@@ -94,6 +98,7 @@ namespace Fieldmate.Assistant
                 {
                     nearest = tag;
                     nearestDistance = RayHits[i].distance;
+                    hitPoint = RayHits[i].point;
                 }
             }
 

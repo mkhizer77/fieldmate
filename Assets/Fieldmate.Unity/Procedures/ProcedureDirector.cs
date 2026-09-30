@@ -33,8 +33,7 @@ namespace Fieldmate.Procedures
         private readonly System.Collections.Generic.HashSet<string> shownTips = new();
         private RotaryInteractable watched;
         private GazeRing gazeRing;
-        private Vector3 gazeTarget;
-        private string gazeTargetPart;
+        private Vector3 gazePoint;
         private float restartArmedUntil = -1f;
         private bool dwellReported;
         private int readsTaken;
@@ -95,20 +94,10 @@ namespace Fieldmate.Procedures
                 return;
             }
 
-            if (gazeTargetPart != step.PartId && machine.TryGetPart(step.PartId, out var part))
-            {
-                gazeTargetPart = step.PartId;
-                var bounds = new Bounds(part.transform.position, Vector3.zero);
-                foreach (var renderer in part.GetComponentsInChildren<Renderer>())
-                {
-                    bounds.Encapsulate(renderer.bounds);
-                }
-
-                gazeTarget = bounds.center;
-            }
-
+            // At the point the gaze meets the part (smoothed), a little toward the viewer: right where the user is looking.
             var cycle = step.Kind == StepKind.Measure ? seconds % needed : seconds; // a reading repeats every ReadSeconds
-            gazeRing.Show(gazeTarget, cycle / needed);
+            var toViewer = (head.position - gazePoint).normalized;
+            gazeRing.Show(gazePoint + toViewer * 0.03f, cycle / needed);
         }
 
         // The step's two-hand control, watched while its step runs (controls register in their own Start, so this is
@@ -301,7 +290,8 @@ namespace Fieldmate.Procedures
             }
 
             var step = runner.CurrentStep;
-            var gazed = machine.PartAlong(new Ray(head.position, head.forward), GazeRange);
+            var gazed = machine.PartAlong(new Ray(head.position, head.forward), out var gazeHit, GazeRange);
+            gazePoint = gazed != null ? (gazePoint == Vector3.zero ? gazeHit : Vector3.Lerp(gazePoint, gazeHit, 0.35f)) : Vector3.zero;
             var previous = dwell.PartId;
             var seconds = dwell.Update(gazed?.Id, Time.deltaTime);
             if (dwell.PartId != previous)
