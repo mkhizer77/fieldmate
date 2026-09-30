@@ -36,8 +36,14 @@ public readonly struct PerfStats
         var c = CultureInfo.InvariantCulture;
         var gpu = GpuMs > 0f ? GpuMs.ToString("0.0", c) : "–";
         return string.Format(c, "{0:0} fps · {1:0.0} ms  (cpu {2:0.0} / gpu {3})\nDraws {4} · Batches {5} · SetPass {6} · Tris {7:0.#}k\nMem {8:0} MB · GC {9:0} MB",
-            Fps, FrameMs, CpuMs, gpu, DrawCalls, Batches, SetPassCalls, Triangles / 1000f, SystemMemoryBytes / 1048576f, GcReservedBytes / 1048576f);
+            Fps, FrameMs, CpuMs, gpu, Count(DrawCalls, c), Count(Batches, c), SetPassCalls, Triangles / 1000f, SystemMemoryBytes / 1048576f, GcReservedBytes / 1048576f);
     }
+
+    /// <summary>
+    /// A rendered frame always has draw calls, so 0 means "not reported": release players on Quest leave the
+    /// Draw Calls and Batches counters at 0 (SetPass and triangles still count).
+    /// </summary>
+    private static string Count(long value, CultureInfo c) => value > 0 ? value.ToString(c) : "–";
 
     /// <summary>One logcat line, grep-able as "[Perf] stats", for docs/perf.</summary>
     public string LogLine()
