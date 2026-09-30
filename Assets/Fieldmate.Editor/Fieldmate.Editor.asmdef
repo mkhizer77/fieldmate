@@ -15,7 +15,9 @@
     "Unity.XR.CoreUtils",
     "Unity.InputSystem",
     "Unity.XR.MetaOpenXR",
-    "Fieldmate.Core"
+    "Fieldmate.Core",
+    "Unity.TextMeshPro",
+    "Unity.TextMeshPro.Editor"
   ],
   "includePlatforms": [
     "Editor"

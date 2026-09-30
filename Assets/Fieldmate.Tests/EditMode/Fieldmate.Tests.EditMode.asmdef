@@ -9,7 +9,8 @@
     "Unity.XR.ARFoundation",
     "Unity.XR.ARSubsystems",
     "Unity.XR.CoreUtils",
-    "Fieldmate.Editor"
+    "Fieldmate.Editor",
+    "Unity.TextMeshPro"
   ],
   "includePlatforms": [
     "Editor"
