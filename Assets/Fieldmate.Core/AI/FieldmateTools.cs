@@ -8,6 +8,7 @@ public static class FieldmateTools
     public const string GoToStep = "go_to_step";
     public const string ShowManual = "show_manual";
     public const string ReadTelemetry = "read_telemetry";
+    public const string ReportReading = "report_reading";
     public const string LogNote = "log_note";
     public const string SetLanguage = "set_language";
     public const string IdentifyView = "identify_view";
@@ -24,8 +25,11 @@ public static class FieldmateTools
             "Start a maintenance procedure from its first step. Only when the user agrees to begin.",
             new ToolParameter("procedure_id", ToolParameterType.String, "Procedure id from the manual, e.g. relief_valve_replacement.")),
         new ToolDefinition(GoToStep,
-            "Show a step of the running procedure again. It does not skip validation; steps still need the real action.",
+            "Show the instructions of a step again on the panel. It never changes progress: the current step stays where it is.",
             new ToolParameter("index", ToolParameterType.Integer, "1-based step number.", minimum: 1, maximum: MaxStepIndex)),
+        new ToolDefinition(ReportReading,
+            "When the user reports a gauge reading or asks if the reading step is done: reads the machine's gauge and completes the current reading step if the value fits its target. Returns the value and what is next.",
+            new ToolParameter("stated_value", ToolParameterType.Number, "The value the user said, if any.", required: false)),
         new ToolDefinition(ShowManual,
             "Open a manual section on the user's panel. Use when the user wants to read details.",
             new ToolParameter("section_id", ToolParameterType.String, "Section id as cited in the context, e.g. safety.loto.")),

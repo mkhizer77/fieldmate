@@ -34,6 +34,7 @@ namespace Fieldmate.Procedures
         private float restartArmedUntil = -1f;
         private bool dwellReported;
         private int readsTaken;
+        private bool readingShown;
         private bool runsBefore;
         private bool placementConfirmed;
 
@@ -266,6 +267,7 @@ namespace Fieldmate.Procedures
             {
                 dwellReported = false;
                 readsTaken = 0;
+                readingShown = false;
                 KeepHighlighted(step);
                 return;
             }
@@ -275,7 +277,13 @@ namespace Fieldmate.Procedures
                 dwellReported = true;
                 runner.Handle(InteractionEvent.Gaze(machine.Now, step.PartId, seconds));
             }
-            else if (step.Kind == StepKind.Measure && seconds >= (readsTaken + 1) * GaugeCheck.ReadSeconds)
+            else if (step.Kind == StepKind.Measure && readsTaken == 0 && !readingShown)
+            {
+                readingShown = true; // the user sees the look is registering before the first reading lands
+                panel.ShowStatus("Reading the gauge…", Theme.Accent, GaugeCheck.ReadSeconds + 0.5f);
+            }
+
+            if (step.Kind == StepKind.Measure && seconds >= (readsTaken + 1) * GaugeCheck.ReadSeconds)
             {
                 // A fresh reading every ReadSeconds while the gaze stays on the gauge: watching the needle fall to zero
                 // completes the step by itself (device test 2026-09-30: one reading per look left the user stuck).
@@ -330,6 +338,7 @@ namespace Fieldmate.Procedures
             dwell.Reset();
             dwellReported = false;
             readsTaken = 0;
+            readingShown = false;
             highlighter.Clear();
             panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
                 StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), machine.Runner.Definition.Title);

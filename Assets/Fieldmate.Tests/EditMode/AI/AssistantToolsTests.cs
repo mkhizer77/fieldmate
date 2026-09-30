@@ -127,6 +127,58 @@ public class AssistantToolsTests
         scene.Identified = "That's the relief valve.";
         Assert.That((await Run("identify_view", "{}")).Content, Is.EqualTo("That's the relief valve."));
     }
+
+    private void RunToTheReadingStep()
+    {
+        runner.Restart(scene.Now);
+        runner.Handle(InteractionEvent.Gaze(scene.Now, "relief_valve", 3f));
+        runner.Handle(InteractionEvent.State(scene.Now, "main_breaker", "locked"));
+        runner.Handle(InteractionEvent.State(scene.Now, "inlet_valve", "closed"));
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_zero"));
+    }
+
+    [Test]
+    public async Task ReportReading_CompletesTheReadingStep_OnlyWhenTheGaugeAgrees()
+    {
+        RunToTheReadingStep();
+        telemetry.Inputs = MachineInputs.Running; // still pressurised
+        telemetry.Settle();
+        var early = await Run("report_reading", "{\"stated_value\": 0}");
+        Assert.That(early.IsError, Is.False);
+        Assert.That(early.Content, Does.Contain("stays open").And.Contain("The user said 0"));
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_zero"));
+        Assert.That(runner.Errors, Is.Empty, "a wrong claim is not a procedure error");
+
+        telemetry.Inputs = MachineInputs.Isolated;
+        telemetry.Settle();
+        var done = await Run("report_reading", "{}");
+        Assert.That(done.IsError, Is.False);
+        Assert.That(done.Content, Does.Contain("Step 4 is complete").And.Contain("Now step 5 of 8"));
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("remove_cover"), "the runner, and so the step card, moved on");
+    }
+
+    [Test]
+    public async Task ReportReading_OutsideAReadingStep_ExplainsWhatTheStepNeeds()
+    {
+        var idle = await Run("report_reading", "{}");
+        Assert.That(idle.IsError, Is.True);
+        runner.Restart(scene.Now);
+        var inspect = await Run("report_reading", "{}");
+        Assert.That(inspect.IsError, Is.True);
+        Assert.That(inspect.Content, Does.Contain("not a reading").And.Contain("look at the relief_valve"));
+    }
+
+    [Test]
+    public void Context_SaysWhatTheCurrentStepNeeds()
+    {
+        RunToTheReadingStep();
+        telemetry.Inputs = MachineInputs.Isolated;
+        telemetry.Settle();
+        var text = AssistantPrompt.DescribeProcedure(runner, telemetry);
+        Assert.That(text, Does.Contain("step 4 of 8").And.Contain("0 ± 0.2 bar").And.Contain("the gauge now reads 0.0 bar"));
+        runner.Handle(InteractionEvent.Measured(scene.Now, 0f));
+        Assert.That(AssistantPrompt.DescribeProcedure(runner, telemetry), Does.Contain("Needs pump_cover = removed (now fitted)").Or.Contain("Needs pump_cover = removed (now unknown)"));
+    }
 }
 
 public class AssistantPromptTests
@@ -161,7 +213,7 @@ public class AssistantPromptTests
         new AssistantTools(manual, runner, new TelemetryModel(FaultModel.CreateDefault()), new FakeScene()).AttachTo(registry);
 
         Assert.That(registry.Definitions.Select(d => d.Name), Has.No.Member(FieldmateTools.IdentifyView));
-        Assert.That(registry.Definitions, Has.Count.EqualTo(7));
+        Assert.That(registry.Definitions, Has.Count.EqualTo(8));
         Assert.That(registry.Definitions.All(d => registry.HasExecutor(d.Name)), Is.True);
     }
 

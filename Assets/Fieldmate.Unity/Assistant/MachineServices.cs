@@ -75,9 +75,17 @@ namespace Fieldmate.Assistant
         /// untagged colliders such as the room-scan mesh are skipped: on device they sat in front of parts and gaze never
         /// landed on the relief valve. No allocations.
         /// </summary>
+        /// <summary>Radius of the second, thicker cast that catches small parts (a gauge face) the thin ray just misses.</summary>
+        public const float GazeRadius = 0.04f;
+
         public PartInfo PartAlong(Ray ray, float maxDistance = 5f)
         {
             var count = Physics.RaycastNonAlloc(ray, RayHits, maxDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            if (count == 0)
+            {
+                count = Physics.SphereCastNonAlloc(ray, GazeRadius, RayHits, maxDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            }
+
             PartTag nearest = null;
             var nearestDistance = float.MaxValue;
             for (var i = 0; i < count; i++)
