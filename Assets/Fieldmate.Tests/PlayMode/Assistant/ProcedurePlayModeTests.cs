@@ -96,9 +96,10 @@ public class ProcedurePlayModeTests
         if (b != null) Object.Destroy(b.gameObject);
     }
 
+    /// <summary>Takes the cover at its centre and carries that centre to <paramref name="to"/>.</summary>
     private IEnumerator MoveCover(RemovablePart cover, Vector3 to)
     {
-        var hand = hands.Hand(cover.transform.position);
+        var hand = hands.Hand(cover.Centre); // grabbed where it is (dynamic attach), moved by the hand's travel
         hands.Grab(hand, cover);
         yield return null;
         var from = hand.transform.position;
@@ -110,7 +111,7 @@ public class ProcedurePlayModeTests
 
         hand.transform.position = to;
         yield return new WaitForSeconds(0.5f); // XRI eases the held object into the hand
-        hands.Release(hand, cover);
+        if (hand.IsSelecting(cover)) hands.Release(hand, cover); // brought back to its seat, it already clicked on
         yield return null;
         Object.Destroy(hand.gameObject);
     }
@@ -187,7 +188,8 @@ public class ProcedurePlayModeTests
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("remove_cover"));
 
         var cover = Object.FindAnyObjectByType<RemovablePart>();
-        yield return MoveCover(cover, cover.transform.position + skid.forward * 0.3f);
+        var seated = cover.Centre;
+        yield return MoveCover(cover, seated + skid.forward * 0.3f);
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("replace"));
 
         hands.Seat(Object.FindAnyObjectByType<ToolSocket>(), Object.FindAnyObjectByType<ToolItem>());
@@ -195,7 +197,7 @@ public class ProcedurePlayModeTests
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("restore"));
         Assert.That(machine.Telemetry.Faults.IsActive(FaultModel.Overpressure), Is.False, "the new cartridge fixed the fault");
 
-        yield return MoveCover(cover, skid.position); // refit: released near its seat, it snaps on
+        yield return MoveCover(cover, seated); // refit: brought back to its seat, it clicks on
         Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted));
         yield return Turn(Rotary("inlet_valve"), Vector3.down, 90f, 0f, twoHands: false);
         yield return Turn(Rotary("main_breaker"), Vector3.back, 135f, 0f, twoHands: true);
@@ -218,7 +220,7 @@ public class ProcedurePlayModeTests
         StartButton().Press();
         yield return null;
         var cover = Object.FindAnyObjectByType<RemovablePart>();
-        yield return MoveCover(cover, cover.transform.position + cover.transform.root.forward * 0.3f);
+        yield return MoveCover(cover, cover.Centre + cover.transform.root.forward * 0.3f);
 
         Assert.That(machine.Runner.Violations.Select(v => v.Id), Does.Contain("loto_cover"));
         Assert.That(panel.StatusText, Does.StartWith("Safety: Lock out the breaker before opening the pump."));
