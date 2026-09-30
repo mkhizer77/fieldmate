@@ -154,6 +154,9 @@ public static class AssistantBenchBuilder
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
             .Configure(Button(skid, "Move Button"), placement);
 
+        new GameObject("Narrator", typeof(ProactiveNarrator)).GetComponent<ProactiveNarrator>()
+            .Configure(services.GetComponent<MachineServices>(), loop); // speaks on its own for steps, violations, debrief (#61)
+
         var occlusion = new GameObject("Occlusion Settings", typeof(OcclusionSettings), typeof(FrameTimeProbe));
         occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
             cameraGo.GetComponent<ARShaderOcclusion>(), Button(skid, "Occlusion Button"));
