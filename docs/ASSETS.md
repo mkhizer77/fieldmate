@@ -11,3 +11,10 @@ build and run with the placeholders in `Assets/_Project/Placeholders/` when they
 | Ambient sound | TBD | | Assets/ThirdParty/Audio/ |
 
 Rules: no real brand names on machines; keep the total under ~120 €; note the licence here.
+
+## Tracked free assets
+
+| Purpose | Asset | Licence | Where |
+|---|---|---|---|
+| UI typeface | Inter 4.1 (Regular, SemiBold) | SIL OFL 1.1 (`Assets/_Project/Fonts/Inter-LICENSE.txt`) | `Assets/_Project/Fonts/`, SDF atlases in `Assets/_Project/Resources/Fonts/` (rebuild: Fieldmate → Build UI Fonts) |
+| TextMeshPro essentials | Unity's TMP resources (shaders, LiberationSans SDF fallback) | Unity Companion License | `Assets/TextMesh Pro/` |

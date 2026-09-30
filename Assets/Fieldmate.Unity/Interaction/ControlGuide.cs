@@ -1,3 +1,4 @@
+using Fieldmate.UI;
 using UnityEngine;
 
 namespace Fieldmate.Interaction
@@ -40,7 +41,7 @@ namespace Fieldmate.Interaction
             line = GetComponent<LineRenderer>();
             line.useWorldSpace = true;
             line.widthMultiplier = 0.008f;
-            line.startColor = line.endColor = new Color(0.1f, 0.9f, 1f);
+            line.startColor = line.endColor = Theme.Accent;
             line.numCapVertices = 2;
             Hide();
         }

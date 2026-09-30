@@ -119,11 +119,12 @@ public class VoiceLoopPlayModeTests
         yield return Await(loop.AskAsync("Last question", speak: false));
         Canvas.ForceUpdateCanvases();
 
-        var transcript = panel.GetComponentsInChildren<UnityEngine.UI.Text>().Single(t => t.name == "Transcript");
+        var transcript = panel.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Transcript");
         Assert.That(transcript.GetComponentInParent<UnityEngine.UI.RectMask2D>(), Is.Not.Null, "overflow must be clipped");
-        var generator = transcript.cachedTextGenerator;
+        transcript.ForceMeshUpdate();
+        var info = transcript.textInfo;
         var newest = transcript.text.LastIndexOf('\n') + 1;
-        var lastLineStart = generator.lines[generator.lineCount - 1].startCharIdx;
+        var lastLineStart = info.characterInfo[info.lineInfo[info.lineCount - 1].firstCharacterIndex].index; // into the source string
         Assert.That(lastLineStart, Is.GreaterThanOrEqualTo(newest), "the newest entry is laid out (Truncate drops the bottom lines)");
     }
 
