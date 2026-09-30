@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,7 +14,49 @@ public static class UiKit
 {
     private const int SpriteSize = 96;
     private const float SpriteRadius = 32f;
+    public const string ImageOverlayShader = "Fieldmate/UIOverlay";
+    public const string TextOverlayShader = "TextMeshPro/Mobile/Distance Field Overlay";
     private static Sprite rounded;
+    private static Material imageOverlay;
+    private static readonly Dictionary<TMP_FontAsset, Material> textOverlays = new();
+
+    /// <summary>UI/Default without depth testing: cards and bars draw over the machine instead of cutting into it.</summary>
+    public static Material ImageOverlay
+    {
+        get
+        {
+            if (imageOverlay == null)
+            {
+                var shader = Shader.Find(ImageOverlayShader);
+                imageOverlay = shader != null ? new Material(shader) { name = "UiKit Image Overlay" } : null;
+            }
+
+            return imageOverlay;
+        }
+    }
+
+    /// <summary>The font's own SDF material on the overlay variant of its shader (same atlas), one per font.</summary>
+    public static Material TextOverlay(TMP_FontAsset font)
+    {
+        if (font == null)
+        {
+            return null;
+        }
+
+        if (!textOverlays.TryGetValue(font, out var material) || material == null)
+        {
+            var shader = Shader.Find(TextOverlayShader);
+            material = new Material(font.material) { name = $"{font.name} Overlay" };
+            if (shader != null)
+            {
+                material.shader = shader;
+            }
+
+            textOverlays[font] = material;
+        }
+
+        return material;
+    }
 
     /// <summary>A 9-sliced rounded rectangle (anti-aliased), shared by every card, pill and chip.</summary>
     public static Sprite Rounded
@@ -49,6 +92,41 @@ public static class UiKit
                 SpriteMeshType.FullRect, new Vector4(border, border, border, border));
             rounded.name = "UiKit Rounded";
             return rounded;
+        }
+    }
+
+    private static Sprite ring;
+
+    /// <summary>An anti-aliased ring (outer radius 46 px, inner 36 px of 96) for radial progress.</summary>
+    public static Sprite Ring
+    {
+        get
+        {
+            if (ring != null)
+            {
+                return ring;
+            }
+
+            var texture = new Texture2D(SpriteSize, SpriteSize, TextureFormat.RGBA32, false) { name = "UiKit Ring", wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color32[SpriteSize * SpriteSize];
+            const float outer = 46f, inner = 36f;
+            for (var y = 0; y < SpriteSize; y++)
+            {
+                for (var x = 0; x < SpriteSize; x++)
+                {
+                    var dx = x + 0.5f - SpriteSize * 0.5f;
+                    var dy = y + 0.5f - SpriteSize * 0.5f;
+                    var r = Mathf.Sqrt(dx * dx + dy * dy);
+                    var alpha = Mathf.Clamp01(outer + 0.5f - r) * Mathf.Clamp01(r - inner + 0.5f);
+                    pixels[y * SpriteSize + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            ring = Sprite.Create(texture, new Rect(0, 0, SpriteSize, SpriteSize), new Vector2(0.5f, 0.5f), 100f);
+            ring.name = "UiKit Ring";
+            return ring;
         }
     }
 
@@ -110,6 +188,7 @@ public static class UiKit
     {
         var image = Rect(name, parent, anchorMin, anchorMax, offsetMin, offsetMax).gameObject.AddComponent<Image>();
         image.color = color;
+        image.material = ImageOverlay;
         image.raycastTarget = false;
         return image;
     }
@@ -119,6 +198,7 @@ public static class UiKit
     {
         var text = Rect(name, parent, anchorMin, anchorMax, offsetMin, offsetMax).gameObject.AddComponent<TextMeshProUGUI>();
         text.font = semiBold ? Theme.SemiBold : Theme.Regular;
+        text.fontSharedMaterial = TextOverlay(text.font);
         text.fontSize = size;
         text.color = color;
         text.alignment = align;
@@ -171,6 +251,7 @@ public static class UiKit
         image.type = Image.Type.Sliced;
         image.pixelsPerUnitMultiplier = SpriteRadius / Theme.Radius; // corner radius in canvas units
         image.color = color;
+        image.material = ImageOverlay;
         image.raycastTarget = false;
     }
 }

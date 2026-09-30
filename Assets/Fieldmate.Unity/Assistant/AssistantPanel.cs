@@ -141,6 +141,7 @@ namespace Fieldmate.Assistant
             var dotImage = dot.AddComponent<Image>();
             dotImage.sprite = UiKit.Rounded;
             dotImage.type = Image.Type.Simple;
+            dotImage.material = UiKit.ImageOverlay;
             dotImage.raycastTarget = false;
             pulse = dot.AddComponent<StatePulse>();
             stateText = UiKit.Label("State", card, new Vector2(0f, 0.875f), new Vector2(1f, 0.99f), Theme.Caption + 2f, Theme.TextSecondary,

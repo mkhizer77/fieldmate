@@ -10,7 +10,11 @@
     "Unity.XR.ARSubsystems",
     "Unity.XR.CoreUtils",
     "Fieldmate.Editor",
-    "Unity.TextMeshPro"
+    "Unity.TextMeshPro",
+    "Unity.XR.Hands",
+    "Unity.XR.OpenXR",
+    "Unity.XR.OpenXR.Features.MetaHandMeshData",
+    "Unity.XR.MetaOpenXR"
   ],
   "includePlatforms": [
     "Editor"

@@ -9,7 +9,10 @@
     "Unity.InputSystem",
     "UnityEngine.UI",
     "Unity.XR.Interaction.Toolkit",
-    "Unity.TextMeshPro"
+    "Unity.TextMeshPro",
+    "Unity.XR.Hands",
+    "Unity.XR.OpenXR",
+    "Unity.XR.MetaOpenXR"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

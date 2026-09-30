@@ -26,18 +26,30 @@ namespace Fieldmate.Interaction
         [SerializeField] private string[] detentStates = { "open", "closed" };
         [SerializeField] private float tickDegrees = 30f;
         [SerializeField, Range(1, 2)] private int requiredHands = 1;
+        [SerializeField, Range(0.5f, 3f)] private float turnGain = 1f;
 
         private RotaryTracker tracker;
         private Detents detents;
         private Quaternion baseRotation;
         private AudioSource clickSource;
         private bool turning;
+        private int handsHolding;
+        private float graceUntil = -1f;
+
+        /// <summary>A hand that slips for a moment (pinch flicker) doesn't end the turn.</summary>
+        private const float GraceSeconds = 0.5f;
+
+        /// <summary>How many hands hold it right now (0–2); <see cref="HoldingChanged"/> reports changes.</summary>
+        public int HandsHolding => handsHolding;
+
+        public event Action<RotaryInteractable, int> HoldingChanged;
 
         public string PartId => partId;
         public string State => detents?.State;
         public float Normalized => tracker?.Normalized ?? 0f;
         public float Angle => tracker?.Angle ?? startAngle;
         public int RequiredHands => requiredHands;
+        public float TurnGain => turnGain;
         public bool IsTurning => turning;
         public Vector3 Axis => axis;
         public Transform Handle => handle;
@@ -64,8 +76,9 @@ namespace Fieldmate.Interaction
 
         /// <summary>Sets up the control in code (the scene builder and tests); call before the first frame.</summary>
         public void Configure(string part, Transform turningHandle, Vector3 turnAxis, float min, float max, float start,
-            float[] angles, string[] states, float tick, int hands)
+            float[] angles, string[] states, float tick, int hands, float gain = 1f)
         {
+            turnGain = gain;
             partId = part;
             handle = turningHandle;
             axis = turnAxis;
@@ -94,7 +107,7 @@ namespace Fieldmate.Interaction
 
             selectMode = requiredHands > 1 ? InteractableSelectMode.Multiple : InteractableSelectMode.Single;
             baseRotation = handle.localRotation;
-            tracker = new RotaryTracker(axis, minAngle, maxAngle, startAngle);
+            tracker = new RotaryTracker(axis, minAngle, maxAngle, startAngle, turnGain);
             detents = new Detents(detentAngles, detentStates, tickDegrees, startAngle);
             if (clickSource == null)
             {
@@ -117,6 +130,13 @@ namespace Fieldmate.Interaction
                 return;
             }
 
+            var count = Mathf.Min(interactorsSelecting.Count, 2);
+            if (count != handsHolding)
+            {
+                handsHolding = count;
+                HoldingChanged?.Invoke(this, count);
+            }
+
             var holding = interactorsSelecting.Count >= requiredHands;
             if (holding && !turning)
             {
@@ -125,6 +145,18 @@ namespace Fieldmate.Interaction
             }
             else if (!holding && turning)
             {
+                // Keep the turn alive briefly: a pinch that flickers off for a few frames must not snap the handle.
+                if (graceUntil < 0f)
+                {
+                    graceUntil = Time.unscaledTime + GraceSeconds;
+                }
+
+                if (Time.unscaledTime < graceUntil)
+                {
+                    return;
+                }
+
+                graceUntil = -1f;
                 turning = false;
                 tracker.End();
                 tracker.Set(detents.SnapTarget(tracker.Angle));
@@ -132,8 +164,9 @@ namespace Fieldmate.Interaction
                 return;
             }
 
-            if (turning)
+            if (turning && holding)
             {
+                graceUntil = -1f;
                 tracker.Update(GripVector());
                 Apply(feedback: true);
             }

@@ -27,7 +27,8 @@ public class ProcedurePresentationTests
         dwell.Update("pressure_gauge", 0.5f);
         dwell.Update("pressure_gauge", 0.5f);
         Assert.That(dwell.Update("pressure_gauge", 0.5f), Is.EqualTo(1f), "the first frame on a part starts the clock");
-        Assert.That(dwell.Update("relief_valve", 0.5f), Is.Zero);
+        Assert.That(dwell.Update("relief_valve", 0.5f), Is.EqualTo(1f), "one frame elsewhere is forgiven (grace)");
+        Assert.That(dwell.Update("relief_valve", 0.5f), Is.Zero, "past the grace the look has moved");
         Assert.That(dwell.Update(null, 0.5f), Is.Zero);
         Assert.That(dwell.Update(null, 0.5f), Is.Zero, "nothing under the gaze never accumulates");
     }

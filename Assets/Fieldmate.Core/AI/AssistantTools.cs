@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,6 +79,7 @@ public sealed class AssistantTools
         registry.SetExecutor(FieldmateTools.GoToStep, new DelegateToolExecutor(GoToStep));
         registry.SetExecutor(FieldmateTools.ShowManual, new DelegateToolExecutor(ShowManual));
         registry.SetExecutor(FieldmateTools.ReadTelemetry, new DelegateToolExecutor(ReadTelemetry));
+        registry.SetExecutor(FieldmateTools.ReportReading, new DelegateToolExecutor(ReportReading));
         registry.SetExecutor(FieldmateTools.LogNote, new DelegateToolExecutor(LogNote));
         registry.SetExecutor(FieldmateTools.SetLanguage, new DelegateToolExecutor(SetLanguage));
         if (registry.TryGetDefinition(FieldmateTools.IdentifyView, out _))
@@ -158,6 +160,46 @@ public sealed class AssistantTools
         }
 
         return ToolResult.Success(call, AssistantPrompt.DescribeTelemetry(telemetry));
+    }
+
+    /// <summary>
+    /// Ties the voice loop to the procedure: the machine's gauge, not the user's words, decides. Within tolerance the
+    /// reading is reported to the runner and the step completes (the step card advances); otherwise the value and the
+    /// gap are returned so the assistant can say what to wait for or check.
+    /// </summary>
+    public ToolResult ReportReading(ToolCall call, ToolArguments args)
+    {
+        if (runner.State != RunnerState.Running)
+        {
+            return ToolResult.Failure(call, "No procedure is running, so there is no reading step to complete.");
+        }
+
+        var step = runner.CurrentStep;
+        var number = runner.CurrentStepIndex + 1;
+        if (step.Kind != StepKind.Measure)
+        {
+            return ToolResult.Failure(call, $"Step {number} '{step.Title}' is not a reading. {AssistantPrompt.Needs(runner, step, telemetry)}");
+        }
+
+        var value = telemetry[TelemetryChannel.Pressure];
+        var stated = args.Has("stated_value") ? args.GetNumber("stated_value") : double.NaN;
+        var said = !double.IsNaN(stated) && Math.Abs(stated - value) > step.Tolerance
+            ? string.Format(CultureInfo.InvariantCulture, " The user said {0:0.#} {1}, but the gauge shows {2:0.0}.", stated, step.Unit, value)
+            : string.Empty;
+        if (Math.Abs(value - step.ExpectedValue) > step.Tolerance)
+        {
+            return ToolResult.Success(call, string.Format(CultureInfo.InvariantCulture,
+                "Gauge reads {0:0.0} {1}; step {2} needs {3:0.#} ± {4:0.#} {1}, so it stays open.{5} Tell the user to keep watching the gauge or check the isolation.",
+                value, step.Unit, number, step.ExpectedValue, step.Tolerance, said));
+        }
+
+        runner.Handle(InteractionEvent.Measured(scene.Now, value));
+        var next = runner.State == RunnerState.Completed
+            ? "The procedure is complete."
+            : $"Now step {runner.CurrentStepIndex + 1} of {runner.Definition.Steps.Count}: {runner.CurrentStep.Title}. {AssistantPrompt.Needs(runner, runner.CurrentStep, telemetry)}";
+        return ToolResult.Success(call, string.Format(CultureInfo.InvariantCulture,
+            "Gauge reads {0:0.0} {1}, within {2:0.#} ± {3:0.#}. Step {4} is complete and the step card moved on.{5} {6}",
+            value, step.Unit, step.ExpectedValue, step.Tolerance, number, said, next));
     }
 
     public ToolResult LogNote(ToolCall call, ToolArguments args)

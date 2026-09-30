@@ -34,21 +34,23 @@ public class InteractionPlayModeTests
         Object.FindObjectsByType<RotaryInteractable>(FindObjectsSortMode.None).Single(r => r.PartId == partId);
 
     [UnityTest]
-    public IEnumerator Handwheel_ThreeTurnsClockwise_ClosesTheOutlet()
+    public IEnumerator Handwheel_TwoGearedTurnsClockwise_ClosesTheOutlet()
     {
+        // Two turns (720°) close it; the hand's travel counts 1.5×, so about 480° of hand movement is enough.
         var wheel = Rotary("outlet_valve");
+        Assert.That(wheel.TurnGain, Is.EqualTo(1.5f).Within(0.01f));
         var hand = hands.Hand(ScriptedHands.AroundAxis(wheel.transform, Vector3.up, new Vector3(0.08f, 0f, 0f), 0f));
         hands.Grab(hand, wheel);
         yield return null;
 
-        for (var a = 0f; a <= 1090f; a += 15f)
+        for (var a = 0f; a <= 495f; a += 15f)
         {
             hand.transform.position = ScriptedHands.AroundAxis(wheel.transform, Vector3.up, new Vector3(0.08f, 0f, 0f), a);
             yield return null;
         }
 
         Assert.That(wheel.State, Is.EqualTo("closed"));
-        Assert.That(wheel.Angle, Is.EqualTo(1080f).Within(0.5f));
+        Assert.That(wheel.Angle, Is.EqualTo(720f).Within(0.5f));
         Assert.That(machine.Telemetry.Inputs.OutletOpening, Is.EqualTo(0f).Within(0.01f), "the twin follows the handwheel");
     }
 

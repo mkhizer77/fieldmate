@@ -18,3 +18,5 @@ Rules: no real brand names on machines; keep the total under ~120 €; note the 
 |---|---|---|---|
 | UI typeface | Inter 4.1 (Regular, SemiBold) | SIL OFL 1.1 (`Assets/_Project/Fonts/Inter-LICENSE.txt`) | `Assets/_Project/Fonts/`, SDF atlases in `Assets/_Project/Resources/Fonts/` (rebuild: Fieldmate → Build UI Fonts) |
 | TextMeshPro essentials | Unity's TMP resources (shaders, LiberationSans SDF fallback) | Unity Companion License | `Assets/TextMesh Pro/` |
+| Hand presence fallback models | XR Hands package sample (LeftHand/RightHand.fbx) | Unity Companion License | `Assets/_Project/Presence/Models/` (used only where the runtime has no fitted hand mesh) |
+| Controller presence model | XRI Starter Assets sample (UniversalController.fbx) | Unity Companion License | `Assets/_Project/Presence/Models/` (rebuild prefabs: Fieldmate → Build Presence Prefabs) |

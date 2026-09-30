@@ -13,6 +13,7 @@ using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 using TrackedPoseDriver = UnityEngine.InputSystem.XR.TrackedPoseDriver;
 
 namespace Fieldmate.Editor;
@@ -38,7 +39,8 @@ public static class AssistantBenchBuilder
         foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
-                     typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe) })
+                     typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -57,6 +59,7 @@ public static class AssistantBenchBuilder
         light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
         new GameObject("Permissions", typeof(PermissionsBootstrap));
+        new GameObject("Boundary", typeof(BoundaryControl)); // keep the app visible outside the Guardian circle
 
         var originGo = new GameObject("XR Origin", typeof(XROrigin), typeof(ARAnchorManager));
         var origin = originGo.GetComponent<XROrigin>();
@@ -81,20 +84,20 @@ public static class AssistantBenchBuilder
         pose.positionInput = new InputActionProperty(new InputAction("Position", binding: "<XRHMD>/centerEyePosition", expectedControlType: "Vector3"));
         pose.rotationInput = new InputActionProperty(new InputAction("Rotation", binding: "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion"));
 
-        // Right controller pointer, or the right hand's Meta aim pose when hands are tracked.
-        var pointerGo = new GameObject("Right Pointer", typeof(TrackedPoseDriver));
-        pointerGo.transform.SetParent(offset, false);
-        var pointerPose = pointerGo.GetComponent<TrackedPoseDriver>();
-        pointerPose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            "<XRController>{RightHand}/pointerPosition", "<MetaAimHand>{RightHand}/devicePosition"));
-        pointerPose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            "<XRController>{RightHand}/pointerRotation", "<MetaAimHand>{RightHand}/deviceRotation"));
+        // One pointer per side: the controller's aim pose, or the hand's Meta aim pose when hands are tracked. The right
+        // one places the machine; both carry a ray that presses the machine's buttons from a distance (#58).
+        var leftPointer = Pointer(offset, "Left");
+        var pointerGo = Pointer(offset, "Right");
 
         // Grabbing: one direct interactor per hand. Hands pinch (index finger); controllers use grip. The user sees
         // their real hands in passthrough, so no hand meshes are drawn.
         new GameObject("XR Interaction Manager", typeof(XRInteractionManager));
         var leftHand = HandInteractor(offset, "Left");
         var rightHand = HandInteractor(offset, "Right");
+        NameButtonLayer();
+        RayInteractor(leftPointer, "Left");
+        RayInteractor(pointerGo, "Right");
+        PresenceBuilder.AddToScene(offset, leftHand, rightHand); // light-yellow glow around hands / controllers (#55)
 
         // Room-scan mesh as invisible colliders, so placement snaps to the real floor (child of the origin, scale = volume).
         var meshingGo = new GameObject("Scene Mesh", typeof(ARMeshManager));
@@ -131,6 +134,10 @@ public static class AssistantBenchBuilder
         Set(placement, "meshManager", meshingGo.GetComponent<ARMeshManager>());
         Set(placement, "services", services.GetComponent<MachineServices>());
         Set(placement, "pointerMaterial", GuideMaterial());
+
+        // Room scan first: with no scene data, ask the headset for Space Setup before placement (#57).
+        new GameObject("Room Scan", typeof(SceneScanBootstrap)).GetComponent<SceneScanBootstrap>()
+            .Configure(Object.FindAnyObjectByType<ARSession>(), meshingGo.GetComponent<ARMeshManager>(), placement);
 
         var router = new GameObject("Machine Controls", typeof(MachineControlRouter)).GetComponent<MachineControlRouter>();
         router.Configure(services.GetComponent<MachineServices>(), placement, new XRBaseInteractor[] { leftHand, rightHand });
@@ -257,7 +264,7 @@ public static class AssistantBenchBuilder
         var lever = Pivot(inlet, "Lever", new Vector3(0.58f, 0.46f, 0f));
         Shape(lever, PrimitiveType.Cube, new Vector3(0.07f, 0f, 0f), new Vector3(0.18f, 0.025f, 0.035f), safety);
         lever.AddComponent<RotaryInteractable>().Configure("inlet_valve", lever.transform, Vector3.down, 0f, 90f, 0f,
-            new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1);
+            new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1, gain: 1.25f);
         lever.AddComponent<ControlTag>().Configure("Inlet valve", "pump suction", new Vector3(0.05f, 0.12f, 0f));
 
         var line = Group(root, "Discharge line", "pressure_line");
@@ -279,14 +286,15 @@ public static class AssistantBenchBuilder
         Shape(outlet, PrimitiveType.Cube, new Vector3(0.66f, 1.03f, 0f), new Vector3(0.11f, 0.12f, 0.1f), dark);
         Shape(outlet, PrimitiveType.Cylinder, new Vector3(0.66f, 1.15f, 0f), new Vector3(0.02f, 0.06f, 0.02f), steel);
 
-        // Gate valve handwheel: three turns clockwise (seen from above) to close, a tick every eighth of a turn.
+        // Gate valve handwheel: two turns clockwise (seen from above) to close, a tick every eighth of a turn; the hand's
+        // travel counts 1.5× (device test 2026-09-30: three turns at 1:1 were tiring).
         var wheel = Pivot(outlet, "Handwheel", new Vector3(0.66f, 1.21f, 0f));
         Shape(wheel, PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.16f, 0.008f, 0.16f), breakerRed);
         Shape(wheel, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0f), new Vector3(0.15f, 0.01f, 0.012f), dark);
         Shape(wheel, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0f), new Vector3(0.012f, 0.01f, 0.15f), dark);
         Shape(wheel, PrimitiveType.Cylinder, new Vector3(0.065f, 0.03f, 0f), new Vector3(0.02f, 0.025f, 0.02f), dark);
-        wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 1080f, 0f,
-            new[] { 0f, 1080f }, new[] { "open", "closed" }, 45f, 1);
+        wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 720f, 0f,
+            new[] { 0f, 720f }, new[] { "open", "closed" }, 45f, 1, gain: 1.5f);
         wheel.AddComponent<ControlTag>().Configure("Outlet valve", "discharge", new Vector3(0f, 0.12f, 0f));
 
         var cabinet = Group(root, "Electrical cabinet", "electrical_cabinet");
@@ -305,7 +313,7 @@ public static class AssistantBenchBuilder
         var handle = Pivot(breaker, "Handle", new Vector3(-1.2f, 0.82f, 0.18f));
         Shape(handle, PrimitiveType.Cube, Vector3.zero, new Vector3(0.3f, 0.04f, 0.04f), breakerRed);
         handle.AddComponent<RotaryInteractable>().Configure("main_breaker", handle.transform, Vector3.back, 0f, 135f, 0f,
-            new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2);
+            new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2, gain: 1.25f);
         handle.AddComponent<ControlTag>().Configure("Main breaker", "pump motor power", new Vector3(0f, 0.2f, 0f));
 
         var tray = Group(root, "Parts tray", null);
@@ -356,7 +364,7 @@ public static class AssistantBenchBuilder
 
         var sphere = go.GetComponent<SphereCollider>();
         sphere.isTrigger = true;
-        sphere.radius = 0.05f;
+        sphere.radius = 0.07f; // 7 cm: a pinch near the handle counts (device test 2026-09-30: 5 cm missed often)
         var body = go.GetComponent<Rigidbody>();
         body.isKinematic = true;
         body.useGravity = false;
@@ -378,6 +386,86 @@ public static class AssistantBenchBuilder
         go.transform.SetParent(root.transform, false);
         go.transform.localPosition = localPosition;
         Set(go.GetComponent<PressButton>(), "style", style);
+        // Pressed by a hand in the cap (Default layer) or by a pointer ray (Buttons layer); machine controls stay hands-only.
+        go.GetComponent<PressButton>().interactionLayers = InteractionLayerMask.GetMask("Default") | ButtonLayer;
+    }
+
+    private const int ButtonLayerIndex = 1;
+    private static InteractionLayerMask ButtonLayer => 1 << ButtonLayerIndex;
+
+    private static void NameButtonLayer()
+    {
+        // InteractionLayerSettings is internal to XRI; its asset is plain YAML we can edit through a SerializedObject.
+        var asset = AssetDatabase.LoadMainAssetAtPath("Assets/XRI/Settings/Resources/InteractionLayerSettings.asset")
+            ?? throw new System.InvalidOperationException("XRI InteractionLayerSettings asset missing.");
+        var so = new SerializedObject(asset);
+        var names = so.FindProperty("m_LayerNames");
+        names.GetArrayElementAtIndex(ButtonLayerIndex).stringValue = "Buttons";
+        so.ApplyModifiedPropertiesWithoutUndo();
+        AssetDatabase.SaveAssets();
+    }
+
+    /// <summary>The aim pose of one side: controller pointer pose, or the Meta aim-hand pose when hands are tracked.</summary>
+    private static GameObject Pointer(Transform parent, string side)
+    {
+        var go = new GameObject($"{side} Pointer", typeof(TrackedPoseDriver));
+        go.transform.SetParent(parent, false);
+        var pose = go.GetComponent<TrackedPoseDriver>();
+        pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
+            $"<XRController>{{{side}Hand}}/pointerPosition", $"<MetaAimHand>{{{side}Hand}}/devicePosition"));
+        pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
+            $"<XRController>{{{side}Hand}}/pointerRotation", $"<MetaAimHand>{{{side}Hand}}/deviceRotation"));
+        return go;
+    }
+
+    /// <summary>
+    /// A pointer ray that only sees the machine's buttons (Buttons interaction layer): trigger or index pinch presses the
+    /// button it points at, so Start, Move machine and the occlusion setting work without walking up to them. Machine
+    /// controls are not on that layer: they are still operated by hand, at the part.
+    /// </summary>
+    private static void RayInteractor(GameObject pointer, string side)
+    {
+        var ray = pointer.AddComponent<XRRayInteractor>();
+        ray.lineType = XRRayInteractor.LineType.StraightLine;
+        ray.maxRaycastDistance = 3f;
+        ray.hitClosestOnly = true;
+        ray.enableUIInteraction = false;
+        ray.interactionLayers = ButtonLayer;
+        var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/triggerPressed");
+        select.AddBinding($"<MetaAimHand>{{{side}Hand}}/indexPressed");
+        ray.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.InputAction;
+        ray.selectInput.inputActionPerformed = select;
+
+        var line = pointer.AddComponent<LineRenderer>();
+        line.sharedMaterial = GuideMaterial();
+        line.widthMultiplier = 0.004f;
+        line.numCapVertices = 2;
+        var visual = pointer.AddComponent<XRInteractorLineVisual>();
+        visual.lineWidth = 0.004f;
+        visual.overrideInteractorLineLength = true;
+        visual.lineLength = 3f;
+        visual.stopLineAtFirstRaycastHit = true;
+        visual.smoothMovement = true;
+        visual.setLineColorGradient = true;
+        visual.validColorGradient = Gradient(PointerRayStyle.Idle, PointerRayStyle.Idle);
+        visual.invalidColorGradient = Gradient(PointerRayStyle.Idle, PointerRayStyle.Idle);
+
+        // Light white with a dot at the end; blue while pinching / pulling the trigger (device test 2026-09-30).
+        var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        dot.name = "Ray Dot";
+        Object.DestroyImmediate(dot.GetComponent<Collider>()); // must never catch the gaze or the ray
+        dot.transform.SetParent(pointer.transform, false);
+        dot.transform.localScale = Vector3.one * 0.012f;
+        dot.GetComponent<Renderer>().sharedMaterial = GuideMaterial();
+        pointer.AddComponent<PointerRayStyle>().Configure(dot.transform);
+    }
+
+    private static Gradient Gradient(Color start, Color end)
+    {
+        var g = new Gradient();
+        g.SetKeys(new[] { new GradientColorKey(start, 0f), new GradientColorKey(end, 1f) },
+            new[] { new GradientAlphaKey(start.a, 0f), new GradientAlphaKey(end.a, 1f) });
+        return g;
     }
 
     private static PressButton Button(GameObject skid, string name) =>
@@ -438,17 +526,20 @@ public static class AssistantBenchBuilder
         return prefab.GetComponent<MeshFilter>();
     }
 
-    /// <summary>Vertex-coloured unlit material for the placement line and floor ring.</summary>
+    /// <summary>Vertex-coloured unlit overlay material for the placement line, floor ring, step guide and pointer rays.</summary>
     private static Material GuideMaterial()
     {
         var path = $"{MaterialsDir}/PlacementGuide.mat";
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        var overlay = Shader.Find("Fieldmate/UnlitOverlay")
+            ?? throw new System.InvalidOperationException("Shader Fieldmate/UnlitOverlay not found (Assets/_Project/Shaders).");
         if (material == null)
         {
-            material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+            material = new Material(overlay);
             AssetDatabase.CreateAsset(material, path);
         }
 
+        material.shader = overlay; // lines and rings draw over the machine, never inside it
         material.SetColor("_BaseColor", new Color(0.2f, 0.9f, 1f, 1f));
         EditorUtility.SetDirty(material);
         return material;

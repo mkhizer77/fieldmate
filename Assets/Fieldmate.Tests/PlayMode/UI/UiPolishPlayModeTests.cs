@@ -51,6 +51,17 @@ public class UiPolishPlayModeTests
         panel.ShowIdle("Step 0: Place the machine", "…", "Setup");
         Assert.That(panel.ProgressTotal, Is.EqualTo(0));
         Assert.That(panel.ChipText, Is.EqualTo("Setup"));
+
+        // Every image and label of the card draws on top of the machine.
+        foreach (var image in panel.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+        {
+            Assert.That(image.material.shader.name, Is.EqualTo(Fieldmate.UI.UiKit.ImageOverlayShader), image.name);
+        }
+
+        foreach (var text in panel.GetComponentsInChildren<TMPro.TMP_Text>(true))
+        {
+            Assert.That(text.fontSharedMaterial.shader.name, Is.EqualTo(Fieldmate.UI.UiKit.TextOverlayShader), text.name);
+        }
     }
 
     [UnityTest]
@@ -113,5 +124,26 @@ public class UiPolishPlayModeTests
         Assert.That(panel.IsPulsing, Is.True);
         panel.SetState(AssistantState.Idle, "Pinch to talk");
         Assert.That(panel.IsPulsing, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator Gaze_ring_fills_and_hides()
+    {
+        var head = new GameObject("Head").transform;
+        spawned.Add(head.gameObject);
+        var ring = GazeRing.Create(head);
+        spawned.Add(ring.gameObject);
+        yield return null;
+        Assert.That(ring.IsShowing, Is.False);
+        ring.Show(new Vector3(0f, 1f, 1f), 0.5f);
+        Assert.That(ring.IsShowing, Is.True);
+        Assert.That(ring.Progress, Is.EqualTo(0.5f).Within(1e-4f));
+        foreach (var image in ring.GetComponentsInChildren<UnityEngine.UI.Image>())
+        {
+            Assert.That(image.material.shader.name, Is.EqualTo(Fieldmate.UI.UiKit.ImageOverlayShader), "drawn over the machine");
+        }
+
+        ring.Hide();
+        Assert.That(ring.IsShowing, Is.False);
     }
 }

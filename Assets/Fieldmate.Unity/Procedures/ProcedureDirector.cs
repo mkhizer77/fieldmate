@@ -1,6 +1,7 @@
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
 using Fieldmate.Twin;
+using Fieldmate.UI;
 using Fieldmate.XR;
 using UnityEngine;
 
@@ -29,8 +30,15 @@ namespace Fieldmate.Procedures
         private const float RestartConfirmSeconds = 3f;
 
         private readonly DwellTracker dwell = new();
+        private readonly System.Collections.Generic.HashSet<string> shownTips = new();
+        private RotaryInteractable watched;
+        private GazeRing gazeRing;
+        private Vector3 gazeTarget;
+        private string gazeTargetPart;
         private float restartArmedUntil = -1f;
         private bool dwellReported;
+        private int readsTaken;
+        private bool readingShown;
         private bool runsBefore;
         private bool placementConfirmed;
 
@@ -67,7 +75,83 @@ namespace Fieldmate.Procedures
             }
 
             panel.SetHead(head);
+            gazeRing = GazeRing.Create(head);
             ShowIdle();
+        }
+
+        // Ring over the step's part while the gaze rests on it: fills over the dwell the step needs.
+        private void UpdateGazeRing(StepDefinition step, float seconds)
+        {
+            if (gazeRing == null)
+            {
+                return;
+            }
+
+            var needed = step.Kind == StepKind.Inspect ? step.DwellSeconds : step.Kind == StepKind.Measure ? GaugeCheck.ReadSeconds : 0f;
+            if (needed <= 0f || dwell.PartId == null || dwell.PartId != step.PartId)
+            {
+                gazeRing.Hide();
+                return;
+            }
+
+            if (gazeTargetPart != step.PartId && machine.TryGetPart(step.PartId, out var part))
+            {
+                gazeTargetPart = step.PartId;
+                var bounds = new Bounds(part.transform.position, Vector3.zero);
+                foreach (var renderer in part.GetComponentsInChildren<Renderer>())
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+
+                gazeTarget = bounds.center;
+            }
+
+            var cycle = step.Kind == StepKind.Measure ? seconds % needed : seconds; // a reading repeats every ReadSeconds
+            gazeRing.Show(gazeTarget, cycle / needed);
+        }
+
+        // The step's two-hand control, watched while its step runs (controls register in their own Start, so this is
+        // done per step rather than once at startup).
+        private void WatchControl(StepDefinition step)
+        {
+            if (watched != null)
+            {
+                watched.HoldingChanged -= OnHoldingChanged;
+                watched = null;
+            }
+
+            if (step?.Kind != StepKind.Operate || controls == null)
+            {
+                return;
+            }
+
+            foreach (var control in controls.Controls)
+            {
+                if (control.PartId == step.PartId && control is RotaryInteractable rotary && rotary.RequiredHands > 1)
+                {
+                    watched = rotary;
+                    watched.HoldingChanged += OnHoldingChanged;
+                }
+            }
+        }
+
+        // One hand on a two-hand control during its step: say what the other hand has to do (device test 2026-09-30).
+        private void OnHoldingChanged(RotaryInteractable control, int hands)
+        {
+            var runner = machine.Runner;
+            if (runner.State != RunnerState.Running || runner.CurrentStep?.PartId != control.PartId)
+            {
+                return;
+            }
+
+            if (hands == 1)
+            {
+                panel.ShowStatus(InteractionTips.SecondHand(InputModalityProbe.Current), Theme.Accent, 8f);
+            }
+            else if (hands == 2)
+            {
+                panel.ShowStatus("Both hands on. Turn them together.", Theme.Accent, 3f);
+            }
         }
 
         private void OnPlacementChanged(PlacementState state)
@@ -135,6 +219,11 @@ namespace Fieldmate.Procedures
         private void OnDestroy()
         {
             InputModalityProbe.Changed -= OnModalityChanged; // static event: always unsubscribe, even if services are gone
+            if (watched != null)
+            {
+                watched.HoldingChanged -= OnHoldingChanged;
+            }
+
             if (placement != null)
             {
                 placement.StateChanged -= OnPlacementChanged;
@@ -218,9 +307,13 @@ namespace Fieldmate.Procedures
                 Debug.Log($"[Procedure] gaze {dwell.PartId ?? "none"}"); // only on change
             }
 
+            UpdateGazeRing(step, seconds);
+
             if (dwell.PartId == null || dwell.PartId != step.PartId)
             {
                 dwellReported = false;
+                readsTaken = 0;
+                readingShown = false;
                 KeepHighlighted(step);
                 return;
             }
@@ -230,9 +323,17 @@ namespace Fieldmate.Procedures
                 dwellReported = true;
                 runner.Handle(InteractionEvent.Gaze(machine.Now, step.PartId, seconds));
             }
-            else if (step.Kind == StepKind.Measure && !dwellReported && seconds >= GaugeCheck.ReadSeconds)
+            else if (step.Kind == StepKind.Measure && readsTaken == 0 && !readingShown)
             {
-                dwellReported = true; // one reading per look: look away and back to read again
+                readingShown = true; // the user sees the look is registering before the first reading lands
+                panel.ShowStatus("Reading the gauge…", Theme.Accent, GaugeCheck.ReadSeconds + 0.5f);
+            }
+
+            if (step.Kind == StepKind.Measure && seconds >= (readsTaken + 1) * GaugeCheck.ReadSeconds)
+            {
+                // A fresh reading every ReadSeconds while the gaze stays on the gauge: watching the needle fall to zero
+                // completes the step by itself (device test 2026-09-30: one reading per look left the user stuck).
+                readsTaken++;
                 var reading = machine.Telemetry[TelemetryChannel.Pressure];
                 if (GaugeCheck.TryRead(step, reading, out var hint))
                 {
@@ -282,10 +383,14 @@ namespace Fieldmate.Procedures
 
             dwell.Reset();
             dwellReported = false;
+            readsTaken = 0;
+            readingShown = false;
             highlighter.Clear();
             panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
                 StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), machine.Runner.Definition.Title);
             ShowGuide(step);
+            WatchControl(step);
+            ShowTip(step);
             button.SetLabel("Restart");
             button.SetStyle(ButtonStyle.Secondary);
             KeepHighlighted(step);
@@ -308,6 +413,30 @@ namespace Fieldmate.Procedures
         {
             panel.ShowStatus(error.Message, ProcedurePanel.Hint, 6f);
             Debug.Log($"[Procedure] error {error}");
+        }
+
+        // Once per kind of interaction per session: how to hold and move the hand for this kind of step.
+        private void ShowTip(StepDefinition step)
+        {
+            var hands = 1;
+            if (step.Kind == StepKind.Operate && controls != null)
+            {
+                foreach (var control in controls.Controls)
+                {
+                    if (control.PartId == step.PartId && control is RotaryInteractable rotary)
+                    {
+                        hands = rotary.RequiredHands;
+                    }
+                }
+            }
+
+            var key = InteractionTips.Key(step, hands);
+            if (key == null || !shownTips.Add(key))
+            {
+                return;
+            }
+
+            panel.ShowStatus(InteractionTips.For(step, hands, InputModalityProbe.Current), Theme.Accent, InteractionTips.Seconds);
         }
 
         // The way to operate the step's control: arc to the target position, arrow off the machine, or a line to the socket.
@@ -364,6 +493,8 @@ namespace Fieldmate.Procedures
         private void OnCompleted(ProcedureResult result)
         {
             guide?.Hide();
+            gazeRing?.Hide();
+            WatchControl(null);
             highlighter.Clear();
             panel.ShowDebrief(result, machine.Runner.Definition.Title);
             button.SetLabel("Run again");
