@@ -319,8 +319,19 @@ namespace Fieldmate.XR
             UiKit.FaceAway(hint, head.position);
         }
 
+        private bool scanning;
+
+        /// <summary>While the headset scans the room (Space Setup), the hint card says so instead of asking to place.</summary>
+        public void SetScanning(bool active)
+        {
+            scanning = active;
+            OnModalityChanged(InputModalityProbe.Current);
+        }
+
         private void OnModalityChanged(Modality modality) =>
-            hintText.text = $"{InputWords.Place(modality)}\n<color={Theme.MutedHex}>{InputWords.Move(modality)} to move it later</color>";
+            hintText.text = scanning
+                ? $"Follow the headset's room setup so the machine can stand on your real floor.\n<color={Theme.MutedHex}>You can place it once the scan is done.</color>"
+                : $"{InputWords.Place(modality)}\n<color={Theme.MutedHex}>{InputWords.Move(modality)} to move it later</color>";
 
         public string HintText => hintText != null ? hintText.text : string.Empty;
 

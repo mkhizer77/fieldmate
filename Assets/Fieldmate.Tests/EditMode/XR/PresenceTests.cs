@@ -21,6 +21,8 @@ public class PresenceTests
         Assert.That(material.shader.name, Is.EqualTo(PresenceBuilder.ShaderName));
         var glow = material.GetColor("_GlowColor");
         Assert.That(glow.r, Is.GreaterThan(0.9f).And.GreaterThan(glow.b), "light yellow");
+        Assert.That(material.GetFloat("_Fill"), Is.EqualTo(0f), "outline only, no glowing fill (device test 2026-09-30)");
+        Assert.That(material.GetFloat("_RimPower"), Is.GreaterThanOrEqualTo(3f), "thin rim");
     }
 
     [TestCase(PresenceBuilder.LeftHandPrefabPath, Handedness.Left)]

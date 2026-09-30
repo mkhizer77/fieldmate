@@ -144,8 +144,8 @@ public static class PresenceBuilder
 
         material.shader = shader;
         material.SetColor("_GlowColor", new Color(1f, 0.94f, 0.62f, 1f));
-        material.SetFloat("_RimPower", 2.8f); // a thin outline, like the system hand visual
-        material.SetFloat("_Fill", 0.03f);
+        material.SetFloat("_RimPower", 3.6f); // outline only, like the system hand visual (device test: no glowing fill)
+        material.SetFloat("_Fill", 0f);
         EditorUtility.SetDirty(material);
         return material;
     }

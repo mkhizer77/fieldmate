@@ -40,7 +40,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -134,6 +134,10 @@ public static class AssistantBenchBuilder
         Set(placement, "meshManager", meshingGo.GetComponent<ARMeshManager>());
         Set(placement, "services", services.GetComponent<MachineServices>());
         Set(placement, "pointerMaterial", GuideMaterial());
+
+        // Room scan first: with no scene data, ask the headset for Space Setup before placement (#57).
+        new GameObject("Room Scan", typeof(SceneScanBootstrap)).GetComponent<SceneScanBootstrap>()
+            .Configure(Object.FindAnyObjectByType<ARSession>(), meshingGo.GetComponent<ARMeshManager>(), placement);
 
         var router = new GameObject("Machine Controls", typeof(MachineControlRouter)).GetComponent<MachineControlRouter>();
         router.Configure(services.GetComponent<MachineServices>(), placement, new XRBaseInteractor[] { leftHand, rightHand });
@@ -443,8 +447,17 @@ public static class AssistantBenchBuilder
         visual.stopLineAtFirstRaycastHit = true;
         visual.smoothMovement = true;
         visual.setLineColorGradient = true;
-        visual.validColorGradient = Gradient(new Color(0.21f, 0.82f, 1f, 0.9f), new Color(0.21f, 0.82f, 1f, 0.9f));
-        visual.invalidColorGradient = Gradient(new Color(1f, 1f, 1f, 0.35f), new Color(1f, 1f, 1f, 0f));
+        visual.validColorGradient = Gradient(PointerRayStyle.Idle, PointerRayStyle.Idle);
+        visual.invalidColorGradient = Gradient(PointerRayStyle.Idle, PointerRayStyle.Idle);
+
+        // Light white with a dot at the end; blue while pinching / pulling the trigger (device test 2026-09-30).
+        var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        dot.name = "Ray Dot";
+        Object.DestroyImmediate(dot.GetComponent<Collider>()); // must never catch the gaze or the ray
+        dot.transform.SetParent(pointer.transform, false);
+        dot.transform.localScale = Vector3.one * 0.012f;
+        dot.GetComponent<Renderer>().sharedMaterial = GuideMaterial();
+        pointer.AddComponent<PointerRayStyle>().Configure(dot.transform);
     }
 
     private static Gradient Gradient(Color start, Color end)

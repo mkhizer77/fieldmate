@@ -6,8 +6,8 @@ Shader "Fieldmate/PresenceGlow"
     Properties
     {
         _GlowColor ("Glow colour", Color) = (1.0, 0.94, 0.62, 1.0)
-        _RimPower ("Rim power", Range(0.5, 8)) = 2.8
-        _Fill ("Fill", Range(0, 1)) = 0.03
+        _RimPower ("Rim power", Range(0.5, 8)) = 3.6
+        _Fill ("Fill", Range(0, 1)) = 0
         _Intensity ("Intensity", Range(0, 2)) = 0.5
     }
 

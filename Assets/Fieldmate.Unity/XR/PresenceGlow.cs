@@ -15,9 +15,9 @@ namespace Fieldmate.XR
 
         [SerializeField] private Renderer target;
         [SerializeField] private XRBaseInteractor interactor;
-        [SerializeField] private float idle = 0.45f;
-        [SerializeField] private float hover = 0.85f;
-        [SerializeField] private float grab = 1.4f;
+        [SerializeField] private float idle = 0.9f;
+        [SerializeField] private float hover = 1.3f;
+        [SerializeField] private float grab = 1.9f;
 
         private MaterialPropertyBlock block;
         private TrackedHandMesh runtimeMesh;

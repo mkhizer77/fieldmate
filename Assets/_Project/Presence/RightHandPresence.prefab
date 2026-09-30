@@ -163,9 +163,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fieldmate.Unity::Fieldmate.XR.PresenceGlow
   target: {fileID: 0}
   interactor: {fileID: 0}
-  idle: 0.45
-  hover: 0.85
-  grab: 1.4
+  idle: 0.9
+  hover: 1.3
+  grab: 1.9
 --- !u!114 &6718546696912495632
 MonoBehaviour:
   m_ObjectHideFlags: 0

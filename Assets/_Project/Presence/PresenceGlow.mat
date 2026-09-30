@@ -25,9 +25,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Fill: 0.03
+    - _Fill: 0
     - _Intensity: 0.5
-    - _RimPower: 2.8
+    - _RimPower: 3.6
     m_Colors:
     - _GlowColor: {r: 1, g: 0.94, b: 0.62, a: 1}
   m_BuildTextureStacks: []

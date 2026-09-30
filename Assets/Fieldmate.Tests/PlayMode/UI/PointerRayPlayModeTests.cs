@@ -40,5 +40,22 @@ public class PointerRayPlayModeTests
         {
             Assert.That((int)control.interactionLayers & (int)buttons, Is.EqualTo(0), $"{control.name}: machine controls are hands-only");
         }
+
+        // White at rest with a dot at the end, blue while pressing, white again on release.
+        foreach (var ray in rays)
+        {
+            var style = ray.GetComponent<Fieldmate.XR.PointerRayStyle>();
+            Assert.That(style, Is.Not.Null, $"{ray.name} has a style");
+            Assert.That(style.IsPressing, Is.False);
+            Assert.That(style.CurrentColor, Is.EqualTo(Fieldmate.XR.PointerRayStyle.Idle));
+            Assert.That(ray.transform.Find("Ray Dot"), Is.Not.Null, "end dot");
+            Assert.That(ray.transform.Find("Ray Dot").GetComponent<Collider>(), Is.Null, "the dot never blocks a ray or the gaze");
+            style.Apply(true);
+            Assert.That(style.CurrentColor, Is.EqualTo(Fieldmate.XR.PointerRayStyle.Pressing));
+            Assert.That(ray.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals.XRInteractorLineVisual>().validColorGradient.Evaluate(0.5f).b,
+                Is.GreaterThan(0.9f), "blue line while pressing");
+            style.Apply(false);
+            Assert.That(style.CurrentColor, Is.EqualTo(Fieldmate.XR.PointerRayStyle.Idle));
+        }
     }
 }

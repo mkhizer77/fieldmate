@@ -31,6 +31,7 @@ namespace Fieldmate.Procedures
 
         private readonly DwellTracker dwell = new();
         private readonly System.Collections.Generic.HashSet<string> shownTips = new();
+        private RotaryInteractable watched;
         private float restartArmedUntil = -1f;
         private bool dwellReported;
         private int readsTaken;
@@ -71,18 +72,32 @@ namespace Fieldmate.Procedures
             }
 
             panel.SetHead(head);
-            if (controls != null)
+            ShowIdle();
+        }
+
+        // The step's two-hand control, watched while its step runs (controls register in their own Start, so this is
+        // done per step rather than once at startup).
+        private void WatchControl(StepDefinition step)
+        {
+            if (watched != null)
             {
-                foreach (var control in controls.Controls)
-                {
-                    if (control is RotaryInteractable rotary && rotary.RequiredHands > 1)
-                    {
-                        rotary.HoldingChanged += OnHoldingChanged;
-                    }
-                }
+                watched.HoldingChanged -= OnHoldingChanged;
+                watched = null;
             }
 
-            ShowIdle();
+            if (step?.Kind != StepKind.Operate || controls == null)
+            {
+                return;
+            }
+
+            foreach (var control in controls.Controls)
+            {
+                if (control.PartId == step.PartId && control is RotaryInteractable rotary && rotary.RequiredHands > 1)
+                {
+                    watched = rotary;
+                    watched.HoldingChanged += OnHoldingChanged;
+                }
+            }
         }
 
         // One hand on a two-hand control during its step: say what the other hand has to do (device test 2026-09-30).
@@ -169,15 +184,9 @@ namespace Fieldmate.Procedures
         private void OnDestroy()
         {
             InputModalityProbe.Changed -= OnModalityChanged; // static event: always unsubscribe, even if services are gone
-            if (controls != null)
+            if (watched != null)
             {
-                foreach (var control in controls.Controls)
-                {
-                    if (control is RotaryInteractable rotary)
-                    {
-                        rotary.HoldingChanged -= OnHoldingChanged;
-                    }
-                }
+                watched.HoldingChanged -= OnHoldingChanged;
             }
 
             if (placement != null)
@@ -343,6 +352,7 @@ namespace Fieldmate.Procedures
             panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
                 StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), machine.Runner.Definition.Title);
             ShowGuide(step);
+            WatchControl(step);
             ShowTip(step);
             button.SetLabel("Restart");
             button.SetStyle(ButtonStyle.Secondary);
@@ -446,6 +456,7 @@ namespace Fieldmate.Procedures
         private void OnCompleted(ProcedureResult result)
         {
             guide?.Hide();
+            WatchControl(null);
             highlighter.Clear();
             panel.ShowDebrief(result, machine.Runner.Definition.Title);
             button.SetLabel("Run again");
