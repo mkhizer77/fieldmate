@@ -7,9 +7,9 @@ so GPU time comes from Unity's `FrameTimingManager`, which reports 0 on this pla
 | Item | Budget | Measured 2026-09-30, build from main 1ad4f26 (bench scene, machine placed, hands tracked) |
 |---|---|---|
 | App frame time | ≤ 11 ms | **13.9 ms** steady (72 Hz frame budget; app is on the edge). CPU 13.9–15.9 ms; GPU not reported |
-| Draw calls | ≤ 120 | pending: first build with the Stats overlay (#18) |
-| Triangles | ≤ 400 k | pending: same |
-| Texture memory | ≤ 300 MB | pending: same ("System Used Memory" and "GC Reserved" from the overlay) |
+| Draw calls | ≤ 120 | **not reported** by the release player (Draw Calls / Batches counters read 0; the overlay shows "–"). SetPass **9–50** as the proxy (build 15:30, main + #59/#60/#62/#63) |
+| Triangles | ≤ 400 k | **5–34 k** (same build; hands tracked, machine in view) |
+| Texture memory | ≤ 300 MB | not separable on device: System Used Memory **~500 MB** for the whole process (Unity + XR runtime + textures), GC reserved 9–23 MB |
 | GC alloc / frame (interaction + telemetry) | 0 | by construction (guarded in review); not yet profiled on device |
 
 Spikes seen in the same session, for the record: 27 s and 2.1 s single samples while the headset ran a system screen

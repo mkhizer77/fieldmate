@@ -18,6 +18,13 @@ public class PerfStatsTests
     }
 
     [Test]
+    public void Overlay_shows_a_dash_for_counters_the_release_player_leaves_at_zero()
+    {
+        var device = new PerfStats(13.9f, 13.9f, 0f, 0, 0, 22, 34_000, 500L * 1048576, 18L * 1048576);
+        Assert.That(device.Overlay(), Does.Contain("Draws – · Batches – · SetPass 22 · Tris 34k"));
+    }
+
+    [Test]
     public void Log_line_is_one_grepable_line()
     {
         Assert.That(Sample.LogLine(), Is.EqualTo("[Perf] stats frame 13.9 ms draws 84 batches 40 setpass 22 tris 118500 mem 412 MB gc 18 MB"));
