@@ -17,6 +17,8 @@ namespace Fieldmate.Assistant
         private const int MaxLines = 9;
 
         [SerializeField] private Transform head;
+        [SerializeField] private Transform anchor;
+        [SerializeField] private Vector3 anchorOffset = new(1.15f, 1.45f, 0.25f);
 
         private readonly Queue<string> lines = new();
         private Text stateText;
@@ -91,19 +93,32 @@ namespace Fieldmate.Assistant
             detailText.text = sb.ToString();
         }
 
+        /// <summary>Pins the panel beside the machine: it moves with the machine, never with the head.</summary>
+        public void Anchor(Transform machine, Vector3 localOffset)
+        {
+            anchor = machine;
+            anchorOffset = localOffset;
+        }
+
+        // Stays put beside the machine (device test: a head-following panel was in the way); only turns to stay readable.
         private void LateUpdate()
         {
+            if (anchor != null)
+            {
+                transform.position = anchor.TransformPoint(anchorOffset);
+            }
+
             if (head == null)
             {
                 return;
             }
 
-            var forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
-            forward = forward.sqrMagnitude < 1e-4f ? Vector3.forward : forward.normalized;
-            var right = Vector3.Cross(Vector3.up, forward);
-            var goal = head.position + forward * 1.1f + right * 0.45f - Vector3.up * 0.15f;
-            transform.position = Vector3.Lerp(transform.position, goal, 0.06f);
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(goal - head.position, Vector3.up), 0.06f);
+            var away = transform.position - head.position;
+            away.y = 0f;
+            if (away.sqrMagnitude > 1e-4f)
+            {
+                transform.rotation = Quaternion.LookRotation(away, Vector3.up);
+            }
         }
 
         private void Build()

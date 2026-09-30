@@ -6,6 +6,7 @@ using Fieldmate.AI;
 using Fieldmate.Knowledge;
 using Fieldmate.Procedures;
 using Fieldmate.Providers;
+using Fieldmate.XR;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -31,7 +32,7 @@ namespace Fieldmate.Assistant
         private InputAction talkAction;
         private AssistantSession session;
         private CancellationTokenSource turn;
-        private string idleHint = "Hold X or pinch (left middle finger) to talk";
+        private string idleHint = InputWords.Talk(InputModalityProbe.Current);
         private readonly TalkGate gate = new(); // press/release decisions: flicker grace, interrupt only on speech
         private readonly SpeechDetector speech = new();
         private bool speakingTail; // turn finished, speech still audible
@@ -43,6 +44,7 @@ namespace Fieldmate.Assistant
 
         private void Start()
         {
+            InputModalityProbe.Changed += OnModalityChanged;
             panel.SetHead(head);
             talkAction = new InputAction("Talk", InputActionType.Button, "<XRController>{LeftHand}/primaryButton");
             talkAction.AddBinding("<MetaAimHand>{LeftHand}/middlePressed");
@@ -63,8 +65,23 @@ namespace Fieldmate.Assistant
             }
         }
 
+        private void OnModalityChanged(Modality modality)
+        {
+            if (DisabledReason != null)
+            {
+                return;
+            }
+
+            idleHint = InputWords.Talk(modality);
+            if (session != null && session.State == AssistantState.Idle && !speakingTail)
+            {
+                panel.SetState(AssistantState.Idle, idleHint);
+            }
+        }
+
         private void OnDestroy()
         {
+            InputModalityProbe.Changed -= OnModalityChanged;
             turn?.Cancel();
             talkAction?.Dispose();
         }

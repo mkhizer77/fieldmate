@@ -65,6 +65,8 @@ public class ProcedurePresentationTests
         Assert.That(StepInstructions.For(Step("replace"), catalog), Does.Contain("relief valve cartridge").And.Contain("relief valve seat"));
         Assert.That(StepInstructions.For(Step("remove_cover"), catalog), Does.Contain("pull it off"));
         Assert.That(StepInstructions.For(Step("verify_running"), catalog), Does.Contain("4 ± 1 bar"));
+        Assert.That(StepInstructions.For(Step("lockout"), catalog, Fieldmate.XR.Modality.Controllers), Does.StartWith("Grip").And.Contain("both controllers"));
+        Assert.That(StepInstructions.Short(Step("close_inlet")), Is.EqualTo("pinch · turn to CLOSED"));
     }
 
     [Test]

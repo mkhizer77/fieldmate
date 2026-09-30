@@ -38,7 +38,7 @@ public static class AssistantBenchBuilder
         foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
-                     typeof(OcclusionSettings), typeof(FrameTimeProbe) })
+                     typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -135,9 +135,15 @@ public static class AssistantBenchBuilder
         var router = new GameObject("Machine Controls", typeof(MachineControlRouter)).GetComponent<MachineControlRouter>();
         router.Configure(services.GetComponent<MachineServices>(), placement, new XRBaseInteractor[] { leftHand, rightHand });
 
+        new GameObject("Input Modality", typeof(InputModalityProbe));
+        var guideGo = new GameObject("Step Guide", typeof(LineRenderer), typeof(ControlGuide));
+        guideGo.GetComponent<LineRenderer>().sharedMaterial = GuideMaterial();
+        panel.GetComponent<AssistantPanel>().Anchor(skid.transform, new Vector3(1.2f, 1.8f, 0.3f)); // beside the outlet end
+
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),
-            skid.GetComponentInChildren<ProcedurePanel>(), Button(skid, "Start Button"), cameraGo.transform);
+            skid.GetComponentInChildren<ProcedurePanel>(), Button(skid, "Start Button"), cameraGo.transform,
+            placement, guideGo.GetComponent<ControlGuide>());
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
             .Configure(Button(skid, "Move Button"), placement);
 
@@ -227,6 +233,7 @@ public static class AssistantBenchBuilder
         }
 
         cover.AddComponent<RemovablePart>().Configure("pump_cover");
+        cover.AddComponent<ControlTag>().Configure("Pump cover", "opens the relief seat", new Vector3(0.18f, 0.6f, 0.18f));
         cover.GetComponent<Rigidbody>().isKinematic = true;
         cover.GetComponent<Rigidbody>().useGravity = false;
 
@@ -251,6 +258,7 @@ public static class AssistantBenchBuilder
         Shape(lever, PrimitiveType.Cube, new Vector3(0.07f, 0f, 0f), new Vector3(0.18f, 0.025f, 0.035f), safety);
         lever.AddComponent<RotaryInteractable>().Configure("inlet_valve", lever.transform, Vector3.down, 0f, 90f, 0f,
             new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1);
+        lever.AddComponent<ControlTag>().Configure("Inlet valve", "pump suction", new Vector3(0.05f, 0.12f, 0f));
 
         var line = Group(root, "Discharge line", "pressure_line");
         Shape(line, PrimitiveType.Cylinder, new Vector3(0.18f, 0.8f, 0f), new Vector3(0.07f, 0.23f, 0.07f), steel);
@@ -279,6 +287,7 @@ public static class AssistantBenchBuilder
         Shape(wheel, PrimitiveType.Cylinder, new Vector3(0.065f, 0.03f, 0f), new Vector3(0.02f, 0.025f, 0.02f), dark);
         wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 1080f, 0f,
             new[] { 0f, 1080f }, new[] { "open", "closed" }, 45f, 1);
+        wheel.AddComponent<ControlTag>().Configure("Outlet valve", "discharge", new Vector3(0f, 0.12f, 0f));
 
         var cabinet = Group(root, "Electrical cabinet", "electrical_cabinet");
         Shape(cabinet, PrimitiveType.Cube, new Vector3(-1.2f, 0.62f, 0f), new Vector3(0.5f, 0.9f, 0.28f), cabinetGrey);
@@ -297,6 +306,7 @@ public static class AssistantBenchBuilder
         Shape(handle, PrimitiveType.Cube, Vector3.zero, new Vector3(0.3f, 0.04f, 0.04f), breakerRed);
         handle.AddComponent<RotaryInteractable>().Configure("main_breaker", handle.transform, Vector3.back, 0f, 135f, 0f,
             new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2);
+        handle.AddComponent<ControlTag>().Configure("Main breaker", "pump motor power", new Vector3(0f, 0.2f, 0f));
 
         var tray = Group(root, "Parts tray", null);
         Shape(tray, PrimitiveType.Cube, new Vector3(0.7f, 0.13f, 0.26f), new Vector3(0.2f, 0.02f, 0.12f), dark);
@@ -306,6 +316,7 @@ public static class AssistantBenchBuilder
         spare.transform.localPosition = new Vector3(0.7f, 0.17f, 0.26f);
         Shape(spare, PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.05f, 0.06f, 0.05f), brass, rot90X);
         spare.AddComponent<ToolItem>().Configure("relief_cartridge");
+        spare.AddComponent<ControlTag>().Configure("New relief cartridge", "fits the relief seat", new Vector3(0f, 0.12f, 0f));
         spare.GetComponent<Rigidbody>().isKinematic = true;
         spare.GetComponent<Rigidbody>().useGravity = false;
 
@@ -326,6 +337,8 @@ public static class AssistantBenchBuilder
         occlusionButton.transform.localPosition = new Vector3(-0.4f, 1.13f, 0.34f);
         Shape(occlusionButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, dark);
 
+        // 80 %: the full-size skid (2.3 m with the cabinet) didn't fit the test room (device test 2026-09-28).
+        root.transform.localScale = Vector3.one * 0.8f;
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, SkidPrefabPath);
         Object.DestroyImmediate(root);
         return prefab;
@@ -357,6 +370,7 @@ public static class AssistantBenchBuilder
 
         var interactor = go.GetComponent<XRDirectInteractor>();
         var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/gripPressed");
+        select.AddBinding($"<XRController>{{{side}Hand}}/triggerPressed"); // controllers: grip grabs, trigger also presses buttons
         // No fist (graspFirm) binding: a relaxed hand or the left-hand talk pinch reads as a firm grasp and pressed the
         // Start button over and over in the device test (2026-09-28). Index pinch is reliable on Quest 3.
         select.AddBinding($"<MetaAimHand>{{{side}Hand}}/indexPressed");

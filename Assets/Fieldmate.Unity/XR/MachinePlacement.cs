@@ -50,6 +50,9 @@ namespace Fieldmate.XR
         /// <summary>Whether the last placement found real scene data (false: tracked-floor fallback).</summary>
         public bool LastHitWasSceneMesh { get; private set; }
 
+        /// <summary>True when the current position came from the saved anchor at launch (not confirmed this session).</summary>
+        public bool Restored { get; private set; }
+
         public event Action<PlacementState> StateChanged;
 
         private void Awake()
@@ -68,6 +71,7 @@ namespace Fieldmate.XR
 
         private void OnEnable()
         {
+            InputModalityProbe.Changed += OnModalityChanged;
             confirmAction.Enable();
             moveAction.Enable();
             rotateAction.Enable();
@@ -75,6 +79,7 @@ namespace Fieldmate.XR
 
         private void OnDisable()
         {
+            InputModalityProbe.Changed -= OnModalityChanged;
             confirmAction.Disable();
             moveAction.Disable();
             rotateAction.Disable();
@@ -180,6 +185,7 @@ namespace Fieldmate.XR
                 }
 
                 Debug.Log($"[Placement] placed at {pose.position}, anchored={placed != null}, saved={persisted}, sceneMesh={LastHitWasSceneMesh}");
+                Restored = false;
                 SetState(PlacementState.Placed);
                 services.RefreshParts();
             }
@@ -214,6 +220,7 @@ namespace Fieldmate.XR
                 if (loaded.status.IsSuccess())
                 {
                     Attach(loaded.value);
+                    Restored = true;
                     SetState(PlacementState.Placed);
                     Debug.Log("[Placement] restored saved machine anchor");
                     return;
@@ -304,6 +311,11 @@ namespace Fieldmate.XR
             hint.transform.rotation = Quaternion.LookRotation(hint.transform.position - head.position, Vector3.up);
         }
 
+        private void OnModalityChanged(Modality modality) =>
+            hint.text = $"{InputWords.Place(modality)}\n{InputWords.Move(modality)} to move it later";
+
+        public string HintText => hint != null ? hint.text : string.Empty;
+
         private void BuildVisuals()
         {
             line = gameObject.AddComponent<LineRenderer>();
@@ -322,7 +334,7 @@ namespace Fieldmate.XR
             hint = new GameObject("Placement hint").AddComponent<TextMesh>();
             hint.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hint.GetComponent<MeshRenderer>().sharedMaterial = hint.font.material;
-            hint.text = "Point at the floor · trigger or pinch to place\nthumbstick to rotate · Y to move later";
+            OnModalityChanged(InputModalityProbe.Current);
             hint.characterSize = 0.012f;
             hint.fontSize = 48;
             hint.anchor = TextAnchor.MiddleCenter;
