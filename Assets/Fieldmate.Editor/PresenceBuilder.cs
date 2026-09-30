@@ -64,11 +64,8 @@ public static class PresenceBuilder
             $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition"));
         pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
             $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation"));
+        // The XRI model is symmetric enough for both hands; a mirrored scale flips the winding and shows the inside of the glow.
         go.GetComponent<PresenceGlow>().Configure(go.GetComponentInChildren<MeshRenderer>(), interactor);
-        if (side == "Left")
-        {
-            go.GetComponentInChildren<MeshRenderer>().transform.localScale = new Vector3(-1f, 1f, 1f); // mirrored for the left hand
-        }
     }
 
     private static void BuildHand(Handedness handedness, string modelPath, string prefabPath, Material material)

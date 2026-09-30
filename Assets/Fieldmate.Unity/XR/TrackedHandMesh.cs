@@ -18,8 +18,8 @@ namespace Fieldmate.XR
 
         [SerializeField] private Material material;
         [SerializeField] private GameObject fallback;
-        [Tooltip("Flip if the runtime's bind matrices turn out to be joint-to-mesh rather than mesh-to-joint (check on device).")]
-        [SerializeField] private bool invertBindPoses;
+        [Tooltip("The OpenXR plugin hands over the joints' bind transforms; Mesh.bindposes needs their inverses (verified on device 2026-09-30).")]
+        [SerializeField] private bool invertBindPoses = true;
 
         private XRHandTrackingEvents events;
         private SkinnedMeshRenderer skinned;

@@ -180,7 +180,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fieldmate.Unity::Fieldmate.XR.TrackedHandMesh
   material: {fileID: 2100000, guid: 9c9d89158471d4fc2819a23a94fc95c0, type: 2}
   fallback: {fileID: 4938005009003460743}
-  invertBindPoses: 0
+  invertBindPoses: 1
 --- !u!1001 &5207912371167495638
 PrefabInstance:
   m_ObjectHideFlags: 0

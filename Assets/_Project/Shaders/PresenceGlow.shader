@@ -21,7 +21,7 @@ Shader "Fieldmate/PresenceGlow"
             Blend SrcAlpha One
             ZWrite Off
             ZTest Always
-            Cull Back
+            Cull Off // thin double-sided glow; robust to mirrored or open meshes
 
             HLSLPROGRAM
             #pragma vertex Vert
