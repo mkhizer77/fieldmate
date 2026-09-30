@@ -30,7 +30,7 @@ public static class PresenceBuilder
         var material = GlowMaterial();
         BuildHand(Handedness.Left, Dir + "/Models/LeftHand.fbx", LeftHandPrefabPath, material);
         BuildHand(Handedness.Right, Dir + "/Models/RightHand.fbx", RightHandPrefabPath, material);
-        BuildController(Dir + "/Models/UniversalController.fbx", ControllerPrefabPath, material);
+        BuildController(ControllerPrefabPath, material);
         AssetDatabase.SaveAssets();
         Debug.Log("[PresenceBuilder] Built hand and controller presence prefabs.");
     }
@@ -109,26 +109,83 @@ public static class PresenceBuilder
         Object.DestroyImmediate(root);
     }
 
-    private static void BuildController(string modelPath, string prefabPath, Material material)
+    /// <summary>
+    /// Controller presence (redone 2026-09-30): no generic model, which never fitted the Touch Plus. A thin ring around
+    /// the grip where the palm holds it, in the grip pose's XY plane (the OpenXR grip Z axis runs along the handle), on
+    /// the unlit overlay material; the glow brightens it while hovering and grabbing.
+    /// </summary>
+    private static void BuildController(string prefabPath, Material outline)
     {
-        var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath)
-            ?? throw new System.IO.FileNotFoundException(modelPath);
         var root = new GameObject("Controller Presence", typeof(ModalityVisibility), typeof(PresenceGlow));
-        var visual = (GameObject)PrefabUtility.InstantiatePrefab(model);
+        var visual = new GameObject("Grip Ring", typeof(MeshFilter), typeof(MeshRenderer));
         visual.transform.SetParent(root.transform, false);
-        // The XRI model's handle points -Z; the OpenXR grip pose runs +Z along the handle. Same offset as XRI's own rig
-        // (XR Origin (XR Rig): model turned 180° about Y and 5 cm back), confirmed against the device test 2026-09-30.
-        visual.transform.SetLocalPositionAndRotation(new Vector3(0f, 0f, -0.05f), Quaternion.Euler(0f, 180f, 0f));
-        foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>())
-        {
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-        }
-
+        visual.GetComponent<MeshFilter>().sharedMesh = GripRingMesh();
+        var renderer = visual.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = RingMaterial();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
         root.GetComponent<ModalityVisibility>().Configure(Modality.Controllers, visual);
         PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         Object.DestroyImmediate(root);
+    }
+
+    /// <summary>A torus: major radius 34 mm (around the handle), tube 3 mm.</summary>
+    private static Mesh GripRingMesh()
+    {
+        const string path = Dir + "/GripRing.asset";
+        var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        const int segments = 48, sides = 10;
+        const float major = 0.034f, minor = 0.003f;
+        var vertices = new Vector3[segments * sides];
+        var normals = new Vector3[segments * sides];
+        var triangles = new int[segments * sides * 6];
+        for (var i = 0; i < segments; i++)
+        {
+            var u = i * Mathf.PI * 2f / segments;
+            var center = new Vector3(Mathf.Cos(u) * major, Mathf.Sin(u) * major, 0f);
+            var radial = new Vector3(Mathf.Cos(u), Mathf.Sin(u), 0f);
+            for (var j = 0; j < sides; j++)
+            {
+                var v = j * Mathf.PI * 2f / sides;
+                var normal = radial * Mathf.Cos(v) + Vector3.forward * Mathf.Sin(v);
+                var index = i * sides + j;
+                vertices[index] = center + normal * minor;
+                normals[index] = normal;
+                var next = ((i + 1) % segments) * sides + (j + 1) % sides;
+                var right = ((i + 1) % segments) * sides + j;
+                var up = i * sides + (j + 1) % sides;
+                var t = index * 6;
+                triangles[t] = index; triangles[t + 1] = up; triangles[t + 2] = right;
+                triangles[t + 3] = up; triangles[t + 4] = next; triangles[t + 5] = right;
+            }
+        }
+
+        var mesh = new Mesh { name = "GripRing", vertices = vertices, normals = normals, triangles = triangles };
+        mesh.RecalculateBounds();
+        AssetDatabase.CreateAsset(mesh, path);
+        return mesh;
+    }
+
+    private static Material RingMaterial()
+    {
+        const string path = Dir + "/PresenceRing.mat";
+        var shader = Shader.Find("Fieldmate/UnlitOverlay") ?? throw new System.InvalidOperationException("Shader Fieldmate/UnlitOverlay not found.");
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, path);
+        }
+
+        material.shader = shader;
+        material.SetColor("_BaseColor", new Color(1f, 0.94f, 0.62f, 0.85f));
+        EditorUtility.SetDirty(material);
+        return material;
     }
 
     private static Material GlowMaterial()
