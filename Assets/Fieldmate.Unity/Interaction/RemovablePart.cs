@@ -8,7 +8,8 @@ namespace Fieldmate.Interaction
     /// <summary>
     /// A part that is taken off by hand, like the pump access cover. It is "fitted" at its home pose and becomes "removed"
     /// once pulled more than <see cref="removeDistance"/> away. Released close to home, it snaps back and is fitted again;
-    /// released elsewhere, it stays there (kinematic, no gravity), still parented to the machine.
+    /// released elsewhere, it stays there (kinematic, no gravity), still parented to the machine. While an
+    /// <see cref="Interlock"/> holds it, a grab doesn't move it (#65).
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(HoverTint))]
@@ -36,6 +37,13 @@ namespace Fieldmate.Interaction
 
         public event Action<string, string> StateReached;
 
+        public IInterlock Interlock { get; set; }
+
+        public event Action<string> Refused;
+
+        /// <summary>True while a grab is being held still by the interlock.</summary>
+        public bool IsHeldByInterlock { get; private set; }
+
         public void Configure(string part) => partId = part;
 
         protected override void Awake()
@@ -61,13 +69,45 @@ namespace Fieldmate.Interaction
             }
         }
 
+        protected override void OnSelectEntering(SelectEnterEventArgs args)
+        {
+            // Decided before XRI starts tracking the hand, so a held part never moves at all.
+            var first = !isSelected;
+            if (first && Interlock != null && !Interlock.Allows(partId))
+            {
+                IsHeldByInterlock = true;
+                SetTracking(false);
+            }
+
+            base.OnSelectEntering(args);
+            if (first && IsHeldByInterlock)
+            {
+                InteractionFeedback.Refused(interactorsSelecting);
+                Refused?.Invoke(partId);
+            }
+        }
+
         protected override void OnSelectExited(SelectExitEventArgs args)
         {
             base.OnSelectExited(args);
+            if (!isSelected && IsHeldByInterlock)
+            {
+                IsHeldByInterlock = false;
+                SetTracking(true);
+            }
+
             if (!isSelected && Offset <= snapDistance)
             {
                 ReturnHome();
             }
+        }
+
+        private void SetTracking(bool follow)
+        {
+            trackPosition = follow;
+            trackRotation = follow;
+            trackScale = follow;
+            unparentTransformOnGrab = follow;
         }
 
         /// <summary>Puts the part back on its seat (release near home, or a reset).</summary>

@@ -65,6 +65,7 @@ namespace Fieldmate.Procedures
             runner.StepStarted += OnStepStarted;
             runner.StepCompleted += OnStepCompleted;
             runner.ViolationRaised += OnViolation;
+            runner.AttemptRefused += OnAttemptRefused;
             runner.ErrorRecorded += OnError;
             runner.ProcedureCompleted += OnCompleted;
             button.Pressed += OnButton;
@@ -238,6 +239,7 @@ namespace Fieldmate.Procedures
             runner.StepStarted -= OnStepStarted;
             runner.StepCompleted -= OnStepCompleted;
             runner.ViolationRaised -= OnViolation;
+            runner.AttemptRefused -= OnAttemptRefused;
             runner.ErrorRecorded -= OnError;
             runner.ProcedureCompleted -= OnCompleted;
 
@@ -408,6 +410,10 @@ namespace Fieldmate.Procedures
             panel.ShowStatus($"Safety: {rule.Description}", ProcedurePanel.Violation, 8f);
             Debug.Log($"[Procedure] violation {rule.Id} by {e}");
         }
+
+        // Every try on a held part says why it didn't move (the violation itself is spoken once).
+        private void OnAttemptRefused(SafetyRule rule, InteractionEvent e) =>
+            panel.ShowStatus($"Safety: {rule.Description}", ProcedurePanel.Violation, 8f);
 
         private void OnError(ProcedureError error)
         {

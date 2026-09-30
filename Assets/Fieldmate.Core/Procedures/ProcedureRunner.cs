@@ -13,7 +13,9 @@ public enum RunnerState
 /// <summary>
 /// Deterministic state machine that validates a procedure from <see cref="InteractionEvent"/>s (design.md §5.3).
 /// Steps complete only from interaction state, never from a "next" button. Safety rules are checked on every physical
-/// action; mistakes that don't endanger anyone are recorded as errors. The runner never reads a clock: all timing comes
+/// action; mistakes that don't endanger anyone are recorded as errors. While a run is in progress, <see cref="Interlock"/>
+/// tells the controls which parts a safety rule holds still (#65): trying one is reported as an
+/// <see cref="InteractionKind.Attempted"/> event, which raises the violation but moves nothing. The runner never reads a clock: all timing comes
 /// from event timestamps, so recorded sequences replay exactly.
 /// </summary>
 public sealed class ProcedureRunner
@@ -45,6 +47,9 @@ public sealed class ProcedureRunner
     public event Action<SafetyRule, InteractionEvent> ViolationRaised;
     public event Action<ProcedureError> ErrorRecorded;
     public event Action<ProcedureResult> ProcedureCompleted;
+
+    /// <summary>Every attempt the interlock stopped (the violation itself is raised once per rule).</summary>
+    public event Action<SafetyRule, InteractionEvent> AttemptRefused;
 
     public ProcedureDefinition Definition { get; }
     public RunnerState State { get; private set; }
@@ -81,6 +86,29 @@ public sealed class ProcedureRunner
     public string GetPartState(string partId) =>
         partId != null && partStates.TryGetValue(partId, out var state) ? state : null;
 
+    /// <summary>
+    /// The safety rule that holds <paramref name="partId"/> still right now, or null when it may be operated. Nothing is
+    /// held outside a run.
+    /// </summary>
+    public SafetyRule Interlock(string partId)
+    {
+        if (State != RunnerState.Running || partId == null)
+        {
+            return null;
+        }
+
+        var rules = Definition.SafetyRules;
+        for (var i = 0; i < rules.Count; i++)
+        {
+            if (Blocks(rules[i], partId))
+            {
+                return rules[i];
+            }
+        }
+
+        return null;
+    }
+
     public void Start(double time)
     {
         if (State == RunnerState.Running)
@@ -116,6 +144,17 @@ public sealed class ProcedureRunner
         }
 
         var violated = e.IsPhysicalAction && CheckSafety(e);
+        if (e.Kind == InteractionKind.Attempted)
+        {
+            var rule = Interlock(e.PartId);
+            if (rule != null)
+            {
+                AttemptRefused?.Invoke(rule, e);
+            }
+
+            return false;
+        }
+
         if (e.Kind == InteractionKind.StateChanged && e.PartId != null)
         {
             partStates[e.PartId] = e.Value;
@@ -179,7 +218,7 @@ public sealed class ProcedureRunner
         for (var i = 0; i < rules.Count; i++)
         {
             var rule = rules[i];
-            if (rule.GuardedPartId != e.PartId || GetPartState(rule.RequiredPartId) == rule.RequiredState)
+            if (!Blocks(rule, e.PartId))
             {
                 continue;
             }
@@ -194,6 +233,9 @@ public sealed class ProcedureRunner
 
         return violated;
     }
+
+    private bool Blocks(SafetyRule rule, string partId) =>
+        rule.GuardedPartId == partId && GetPartState(rule.RequiredPartId) != rule.RequiredState;
 
     private void AddError(double time, string stepId, string message)
     {
