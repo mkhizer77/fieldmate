@@ -40,7 +40,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -159,6 +159,8 @@ public static class AssistantBenchBuilder
         occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
             cameraGo.GetComponent<ARShaderOcclusion>(), Button(skid, "Occlusion Button"));
         occlusion.GetComponent<FrameTimeProbe>().Configure(occlusion.GetComponent<OcclusionSettings>());
+        var perf = new GameObject("Perf Overlay", typeof(RectTransform), typeof(PerfOverlay)).GetComponent<PerfOverlay>();
+        perf.Configure(occlusion.GetComponent<FrameTimeProbe>(), Button(skid, "Stats Button"), skid.transform, new Vector3(-0.78f, 2.05f, 0.3f), cameraGo.transform);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
@@ -338,6 +340,7 @@ public static class AssistantBenchBuilder
         MachineButton(root, "Start Button", new Vector3(-0.88f, 1.34f, 0.34f), ButtonStyle.Primary);
         MachineButton(root, "Move Button", new Vector3(-0.68f, 1.34f, 0.34f), ButtonStyle.Secondary);
         MachineButton(root, "Occlusion Button", new Vector3(-0.88f, 1.25f, 0.34f), ButtonStyle.Secondary);
+        MachineButton(root, "Stats Button", new Vector3(-0.68f, 1.25f, 0.34f), ButtonStyle.Secondary); // perf overlay (#18)
 
         // 80 %: the full-size skid (2.3 m with the cabinet) didn't fit the test room (device test 2026-09-28).
         root.transform.localScale = Vector3.one * 0.8f;

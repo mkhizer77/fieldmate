@@ -99,6 +99,12 @@ namespace Fieldmate.Assistant
             tools.LanguageChanged += language => session.Language = language;
             session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
+            session.Fallback = new FallbackResponses(machine.Manual, machine.Runner, machine.Telemetry);
+            session.OfflineChanged += offline =>
+            {
+                panel.ShowBanner(offline ? "Offline: scripted answers from the manual until the service is back." : null);
+                Debug.Log(offline ? "[Assistant] offline: scripted answers" : "[Assistant] back online");
+            };
 
             DisabledReason = null;
             panel.ShowBanner(null);

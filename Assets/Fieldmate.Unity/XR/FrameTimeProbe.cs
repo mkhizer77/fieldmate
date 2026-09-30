@@ -19,6 +19,12 @@ namespace Fieldmate.XR
         private int frames;
         private float windowStart;
 
+        /// <summary>Averages of the last logged window (ms); 0 until the first window closes.</summary>
+        public float LastCpuMs { get; private set; }
+        public float LastGpuMs { get; private set; }
+        public float LastFrameMs { get; private set; }
+        public float LastFps => LastFrameMs > 0f ? 1000f / LastFrameMs : 0f;
+
         public void Configure(OcclusionSettings settings) => occlusion = settings;
 
         private void Update()
@@ -38,6 +44,9 @@ namespace Fieldmate.XR
             }
 
             var mode = occlusion != null ? occlusion.Mode.ToString() : "n/a";
+            LastCpuMs = (float)(cpu / frames);
+            LastGpuMs = (float)(gpu / frames);
+            LastFrameMs = (float)(frame / frames);
             Debug.Log($"[Perf] occlusion={mode} cpu {cpu / frames:0.0} ms gpu {gpu / frames:0.0} ms frame {frame / frames:0.0} ms ({frames} frames)");
             cpu = gpu = frame = 0;
             frames = 0;
