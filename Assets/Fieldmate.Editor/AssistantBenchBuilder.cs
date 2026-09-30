@@ -1,6 +1,7 @@
 using System.Linq;
 using Fieldmate.Assistant;
 using Fieldmate.Twin;
+using Fieldmate.XR;
 using Unity.XR.CoreUtils;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -29,7 +30,7 @@ public static class AssistantBenchBuilder
         // Scripts created in this session must be imported assets, or the saved scene references in-memory scripts
         // that don't survive a reload (seen when the builder ran right after the scripts were first compiled).
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag) })
+        foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -47,7 +48,9 @@ public static class AssistantBenchBuilder
         light.GetComponent<Light>().type = LightType.Directional;
         light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-        var originGo = new GameObject("XR Origin", typeof(XROrigin));
+        new GameObject("Permissions", typeof(PermissionsBootstrap));
+
+        var originGo = new GameObject("XR Origin", typeof(XROrigin), typeof(ARAnchorManager));
         var origin = originGo.GetComponent<XROrigin>();
         origin.RequestedTrackingOriginMode = XROrigin.TrackingOriginMode.Floor;
         var offset = new GameObject("Camera Offset").transform;
@@ -66,6 +69,21 @@ public static class AssistantBenchBuilder
         var pose = cameraGo.GetComponent<TrackedPoseDriver>();
         pose.positionInput = new InputActionProperty(new InputAction("Position", binding: "<XRHMD>/centerEyePosition", expectedControlType: "Vector3"));
         pose.rotationInput = new InputActionProperty(new InputAction("Rotation", binding: "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion"));
+
+        // Right controller pointer, or the right hand's Meta aim pose when hands are tracked.
+        var pointerGo = new GameObject("Right Pointer", typeof(TrackedPoseDriver));
+        pointerGo.transform.SetParent(offset, false);
+        var pointerPose = pointerGo.GetComponent<TrackedPoseDriver>();
+        pointerPose.positionInput = new InputActionProperty(Action("Position", "Vector3",
+            "<XRController>{RightHand}/pointerPosition", "<MetaAimHand>{RightHand}/devicePosition"));
+        pointerPose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
+            "<XRController>{RightHand}/pointerRotation", "<MetaAimHand>{RightHand}/deviceRotation"));
+
+        // Room-scan mesh as invisible colliders, so placement snaps to the real floor (child of the origin, scale = volume).
+        var meshingGo = new GameObject("Scene Mesh", typeof(ARMeshManager));
+        meshingGo.transform.SetParent(originGo.transform, false);
+        meshingGo.transform.localScale = Vector3.one * 10f;
+        meshingGo.GetComponent<ARMeshManager>().meshPrefab = SceneMeshColliderPrefab();
 
         var skid = (GameObject)PrefabUtility.InstantiatePrefab(skidPrefab);
         skid.transform.SetPositionAndRotation(new Vector3(0f, 0f, 1.8f), Quaternion.Euler(0f, 180f, 0f));
@@ -87,6 +105,16 @@ public static class AssistantBenchBuilder
         Set(loop, "player", audio.GetComponent<StreamingAudioPlayer>());
         Set(loop, "head", cameraGo.transform);
 
+        var placementGo = new GameObject("Machine Placement", typeof(MachinePlacement));
+        var placement = placementGo.GetComponent<MachinePlacement>();
+        Set(placement, "machine", skid.transform);
+        Set(placement, "head", cameraGo.transform);
+        Set(placement, "pointer", pointerGo.transform);
+        Set(placement, "anchorManager", originGo.GetComponent<ARAnchorManager>());
+        Set(placement, "meshManager", meshingGo.GetComponent<ARMeshManager>());
+        Set(placement, "services", services.GetComponent<MachineServices>());
+        Set(placement, "pointerMaterial", GuideMaterial());
+
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) }.Concat(others).ToArray();
@@ -94,69 +122,192 @@ public static class AssistantBenchBuilder
         Debug.Log($"[AssistantBenchBuilder] Built {ScenePath}");
     }
 
-    /// <summary>Placeholder FM-200 skid (~1.6 m long) from primitives; every manual part gets a tagged object.</summary>
+    /// <summary>
+    /// Placeholder FM-200 skid (about 2.3 m wide including the cabinet) from primitives. Each manual part is a tagged
+    /// group; the front (+Z) faces the user after placement, so the gauge, pump cover, valves and breaker are there.
+    /// </summary>
     private static GameObject BuildSkidPrefab()
     {
-        var steel = Mat("Steel", new Color(0.45f, 0.47f, 0.5f));
-        var motorBlue = Mat("MotorBlue", new Color(0.12f, 0.3f, 0.62f));
-        var pumpRed = Mat("PumpRed", new Color(0.7f, 0.18f, 0.12f));
-        var valveYellow = Mat("ValveYellow", new Color(0.95f, 0.75f, 0.1f));
-        var cabinetGrey = Mat("CabinetGrey", new Color(0.72f, 0.74f, 0.7f));
-        var dial = Mat("GaugeWhite", new Color(0.95f, 0.95f, 0.95f));
-        var brass = Mat("Brass", new Color(0.8f, 0.6f, 0.25f));
+        var steel = Mat("Steel", new Color(0.46f, 0.48f, 0.5f), 0.6f, 0.55f);
+        var dark = Mat("DarkSteel", new Color(0.16f, 0.17f, 0.18f), 0.5f, 0.4f);
+        var motorBlue = Mat("MotorBlue", new Color(0.1f, 0.28f, 0.58f), 0.2f, 0.6f);
+        var pumpRed = Mat("PumpRed", new Color(0.62f, 0.14f, 0.1f), 0.2f, 0.55f);
+        var safety = Mat("SafetyYellow", new Color(0.95f, 0.72f, 0.05f), 0f, 0.45f);
+        var cabinetGrey = Mat("CabinetGrey", new Color(0.78f, 0.8f, 0.78f), 0.1f, 0.35f);
+        var dial = Mat("GaugeWhite", new Color(0.96f, 0.96f, 0.94f), 0f, 0.8f);
+        var brass = Mat("Brass", new Color(0.78f, 0.58f, 0.22f), 0.9f, 0.65f);
+        var breakerRed = Mat("BreakerRed", new Color(0.8f, 0.08f, 0.06f), 0f, 0.5f);
+        var rot90X = Quaternion.Euler(90f, 0f, 0f);
+        var rot90Z = Quaternion.Euler(0f, 0f, 90f);
 
         var root = new GameObject("PlaceholderSkid");
-        Box(root, "Base frame", new Vector3(0f, 0.05f, 0f), new Vector3(1.6f, 0.1f, 0.7f), steel);
 
-        Part(root, "motor", PrimitiveType.Cylinder, new Vector3(-0.45f, 0.33f, 0f), new Vector3(0.36f, 0.25f, 0.36f), motorBlue, Quaternion.Euler(0, 0, 90));
-        Part(root, "cooling_fins", PrimitiveType.Cube, new Vector3(-0.72f, 0.33f, 0f), new Vector3(0.04f, 0.38f, 0.38f), steel);
-        Part(root, "motor_mount", PrimitiveType.Cube, new Vector3(-0.45f, 0.13f, 0f), new Vector3(0.42f, 0.06f, 0.4f), steel);
+        // Base frame (not a manual part): two rails, cross members and a deck plate.
+        var frame = Group(root, "Base frame", null);
+        foreach (var z in new[] { -0.3f, 0.3f })
+        {
+            Shape(frame, PrimitiveType.Cube, new Vector3(0f, 0.05f, z), new Vector3(1.7f, 0.1f, 0.08f), dark);
+        }
 
-        Part(root, "pump", PrimitiveType.Cylinder, new Vector3(0.15f, 0.33f, 0f), new Vector3(0.4f, 0.15f, 0.4f), pumpRed, Quaternion.Euler(0, 0, 90));
-        Part(root, "pump_cover", PrimitiveType.Cube, new Vector3(0.15f, 0.33f, -0.22f), new Vector3(0.28f, 0.28f, 0.04f), pumpRed);
-        Part(root, "relief_valve_seat", PrimitiveType.Cylinder, new Vector3(0.15f, 0.33f, -0.19f), new Vector3(0.07f, 0.01f, 0.07f), steel, Quaternion.Euler(90, 0, 0));
-        Part(root, "relief_cartridge", PrimitiveType.Cylinder, new Vector3(0.62f, 0.13f, -0.25f), new Vector3(0.05f, 0.06f, 0.05f), brass);
+        foreach (var x in new[] { -0.8f, 0f, 0.8f })
+        {
+            Shape(frame, PrimitiveType.Cube, new Vector3(x, 0.05f, 0f), new Vector3(0.08f, 0.1f, 0.6f), dark);
+        }
 
-        Part(root, "inlet_valve", PrimitiveType.Cylinder, new Vector3(0.15f, 0.33f, 0.32f), new Vector3(0.1f, 0.08f, 0.1f), valveYellow, Quaternion.Euler(90, 0, 0));
-        Part(root, "pressure_line", PrimitiveType.Cylinder, new Vector3(0.45f, 0.62f, 0f), new Vector3(0.07f, 0.3f, 0.07f), steel);
-        Part(root, "relief_valve", PrimitiveType.Cylinder, new Vector3(0.45f, 0.95f, 0f), new Vector3(0.1f, 0.06f, 0.1f), brass);
-        Part(root, "pressure_gauge", PrimitiveType.Cylinder, new Vector3(0.45f, 0.8f, -0.08f), new Vector3(0.14f, 0.015f, 0.14f), dial, Quaternion.Euler(90, 0, 0));
-        Part(root, "outlet_valve", PrimitiveType.Cylinder, new Vector3(0.72f, 0.62f, 0f), new Vector3(0.1f, 0.08f, 0.1f), valveYellow, Quaternion.Euler(0, 0, 90));
+        Shape(frame, PrimitiveType.Cube, new Vector3(0f, 0.11f, 0f), new Vector3(1.7f, 0.02f, 0.68f), steel);
 
-        Part(root, "electrical_cabinet", PrimitiveType.Cube, new Vector3(-0.95f, 0.75f, 0.2f), new Vector3(0.45f, 1.1f, 0.3f), cabinetGrey);
-        Part(root, "main_breaker", PrimitiveType.Cylinder, new Vector3(-0.95f, 0.85f, 0.04f), new Vector3(0.13f, 0.02f, 0.13f), Mat("BreakerRed", new Color(0.8f, 0.1f, 0.1f)), Quaternion.Euler(90, 0, 0));
+        var mount = Group(root, "Motor mount", "motor_mount");
+        Shape(mount, PrimitiveType.Cube, new Vector3(-0.45f, 0.14f, 0f), new Vector3(0.52f, 0.04f, 0.42f), steel);
+        foreach (var (x, z) in new[] { (-0.66f, -0.16f), (-0.66f, 0.16f), (-0.24f, -0.16f), (-0.24f, 0.16f) })
+        {
+            Shape(mount, PrimitiveType.Cylinder, new Vector3(x, 0.175f, z), new Vector3(0.035f, 0.015f, 0.035f), dark);
+        }
+
+        var motor = Group(root, "Drive motor", "motor");
+        Shape(motor, PrimitiveType.Cylinder, new Vector3(-0.45f, 0.37f, 0f), new Vector3(0.34f, 0.24f, 0.34f), motorBlue, rot90Z);
+        Shape(motor, PrimitiveType.Cylinder, new Vector3(-0.2f, 0.37f, 0f), new Vector3(0.3f, 0.02f, 0.3f), motorBlue, rot90Z);
+        Shape(motor, PrimitiveType.Cube, new Vector3(-0.45f, 0.58f, 0.02f), new Vector3(0.14f, 0.1f, 0.16f), motorBlue);
+        Shape(motor, PrimitiveType.Cube, new Vector3(-0.45f, 0.2f, 0f), new Vector3(0.4f, 0.06f, 0.3f), motorBlue);
+
+        var fins = Group(root, "Cooling fins", "cooling_fins");
+        Shape(fins, PrimitiveType.Cylinder, new Vector3(-0.72f, 0.37f, 0f), new Vector3(0.32f, 0.04f, 0.32f), dark, rot90Z);
+        foreach (var angle in new[] { 20f, 55f, 125f, 160f })
+        {
+            var r = Quaternion.Euler(angle, 0f, 0f);
+            Shape(fins, PrimitiveType.Cube, new Vector3(-0.45f, 0.37f, 0f) + r * new Vector3(0f, 0.175f, 0f), new Vector3(0.44f, 0.02f, 0.02f), motorBlue, r);
+        }
+
+        var guard = Group(root, "Coupling guard", null);
+        Shape(guard, PrimitiveType.Cube, new Vector3(-0.1f, 0.37f, 0f), new Vector3(0.16f, 0.2f, 0.22f), safety);
+
+        var pump = Group(root, "Pump", "pump");
+        Shape(pump, PrimitiveType.Cylinder, new Vector3(0.18f, 0.37f, 0f), new Vector3(0.42f, 0.1f, 0.42f), pumpRed, rot90X);
+        Shape(pump, PrimitiveType.Cube, new Vector3(0.18f, 0.18f, 0f), new Vector3(0.3f, 0.1f, 0.24f), pumpRed);
+        Shape(pump, PrimitiveType.Cylinder, new Vector3(0.02f, 0.37f, 0f), new Vector3(0.14f, 0.05f, 0.14f), pumpRed, rot90Z);
+
+        var cover = Group(root, "Pump access cover", "pump_cover");
+        Shape(cover, PrimitiveType.Cylinder, new Vector3(0.18f, 0.37f, 0.115f), new Vector3(0.3f, 0.015f, 0.3f), pumpRed, rot90X);
+        for (var i = 0; i < 6; i++)
+        {
+            var a = i * Mathf.PI / 3f;
+            Shape(cover, PrimitiveType.Cylinder, new Vector3(0.18f + Mathf.Cos(a) * 0.12f, 0.37f + Mathf.Sin(a) * 0.12f, 0.135f),
+                new Vector3(0.025f, 0.01f, 0.025f), dark, rot90X);
+        }
+
+        var seat = Group(root, "Relief valve seat", "relief_valve_seat");
+        Shape(seat, PrimitiveType.Cylinder, new Vector3(0.18f, 0.37f, 0.14f), new Vector3(0.08f, 0.02f, 0.08f), steel, rot90X);
+
+        var inlet = Group(root, "Inlet valve", "inlet_valve");
+        Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.58f, 0.37f, 0f), new Vector3(0.09f, 0.18f, 0.09f), steel, rot90Z);
+        Shape(inlet, PrimitiveType.Sphere, new Vector3(0.58f, 0.37f, 0f), new Vector3(0.13f, 0.13f, 0.13f), safety);
+        Shape(inlet, PrimitiveType.Cube, new Vector3(0.58f, 0.46f, 0.05f), new Vector3(0.03f, 0.02f, 0.18f), safety);
+        Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.36f, 0.37f, 0f), new Vector3(0.09f, 0.08f, 0.09f), steel, rot90Z);
+
+        var line = Group(root, "Discharge line", "pressure_line");
+        Shape(line, PrimitiveType.Cylinder, new Vector3(0.18f, 0.8f, 0f), new Vector3(0.07f, 0.23f, 0.07f), steel);
+        Shape(line, PrimitiveType.Cylinder, new Vector3(0.47f, 1.03f, 0f), new Vector3(0.07f, 0.29f, 0.07f), steel, rot90Z);
+        Shape(line, PrimitiveType.Sphere, new Vector3(0.18f, 1.03f, 0f), new Vector3(0.08f, 0.08f, 0.08f), steel);
+
+        var gauge = Group(root, "Pressure gauge", "pressure_gauge");
+        Shape(gauge, PrimitiveType.Cylinder, new Vector3(0.18f, 0.78f, 0.06f), new Vector3(0.16f, 0.02f, 0.16f), dark, rot90X);
+        Shape(gauge, PrimitiveType.Cylinder, new Vector3(0.18f, 0.78f, 0.075f), new Vector3(0.14f, 0.005f, 0.14f), dial, rot90X);
+        Shape(gauge, PrimitiveType.Cube, new Vector3(0.2f, 0.795f, 0.08f), new Vector3(0.05f, 0.006f, 0.004f), breakerRed, Quaternion.Euler(0f, 0f, 35f));
+
+        var relief = Group(root, "Relief valve", "relief_valve");
+        Shape(relief, PrimitiveType.Cylinder, new Vector3(0.18f, 1.13f, 0f), new Vector3(0.1f, 0.07f, 0.1f), brass);
+        Shape(relief, PrimitiveType.Cylinder, new Vector3(0.18f, 1.22f, 0f), new Vector3(0.06f, 0.03f, 0.06f), brass);
+        Shape(relief, PrimitiveType.Cylinder, new Vector3(0.18f, 1.13f, 0.08f), new Vector3(0.04f, 0.04f, 0.04f), brass, rot90X);
+
+        var outlet = Group(root, "Outlet valve", "outlet_valve");
+        Shape(outlet, PrimitiveType.Cube, new Vector3(0.66f, 1.03f, 0f), new Vector3(0.11f, 0.12f, 0.1f), dark);
+        Shape(outlet, PrimitiveType.Cylinder, new Vector3(0.66f, 1.15f, 0f), new Vector3(0.02f, 0.06f, 0.02f), steel);
+        Shape(outlet, PrimitiveType.Cylinder, new Vector3(0.66f, 1.21f, 0f), new Vector3(0.16f, 0.008f, 0.16f), breakerRed);
+
+        var cabinet = Group(root, "Electrical cabinet", "electrical_cabinet");
+        Shape(cabinet, PrimitiveType.Cube, new Vector3(-1.2f, 0.62f, 0f), new Vector3(0.5f, 0.9f, 0.28f), cabinetGrey);
+        Shape(cabinet, PrimitiveType.Cube, new Vector3(-1.2f, 0.62f, 0.142f), new Vector3(0.004f, 0.84f, 0.004f), dark);
+        foreach (var x in new[] { -1.4f, -1.0f })
+        {
+            Shape(cabinet, PrimitiveType.Cube, new Vector3(x, 0.09f, 0f), new Vector3(0.05f, 0.18f, 0.24f), dark);
+        }
+
+        var breaker = Group(root, "Main breaker", "main_breaker");
+        Shape(breaker, PrimitiveType.Cube, new Vector3(-1.2f, 0.82f, 0.145f), new Vector3(0.16f, 0.16f, 0.01f), safety);
+        Shape(breaker, PrimitiveType.Cylinder, new Vector3(-1.2f, 0.82f, 0.16f), new Vector3(0.11f, 0.015f, 0.11f), breakerRed, rot90X);
+        Shape(breaker, PrimitiveType.Cube, new Vector3(-1.2f, 0.82f, 0.18f), new Vector3(0.14f, 0.03f, 0.03f), breakerRed);
+
+        var spare = Group(root, "Spare relief cartridge", "relief_cartridge");
+        Shape(spare, PrimitiveType.Cube, new Vector3(0.7f, 0.13f, 0.26f), new Vector3(0.2f, 0.02f, 0.12f), dark);
+        Shape(spare, PrimitiveType.Cylinder, new Vector3(0.7f, 0.17f, 0.26f), new Vector3(0.05f, 0.06f, 0.05f), brass, rot90Z);
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, SkidPrefabPath);
         Object.DestroyImmediate(root);
         return prefab;
     }
 
-    private static GameObject Part(GameObject parent, string partId, PrimitiveType shape, Vector3 localPosition, Vector3 localScale,
-        Material material, Quaternion? rotation = null)
+    /// <summary>An unscaled group; tagged with a manual part id when <paramref name="partId"/> is set.</summary>
+    private static GameObject Group(GameObject parent, string name, string partId)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent.transform, false);
+        if (partId != null)
+        {
+            Set(go.AddComponent<PartTag>(), "partId", partId);
+        }
+
+        return go;
+    }
+
+    private static void Shape(GameObject parent, PrimitiveType shape, Vector3 localPosition, Vector3 localScale, Material material,
+        Quaternion? rotation = null)
     {
         var go = GameObject.CreatePrimitive(shape);
-        go.name = partId;
+        go.name = shape.ToString();
         go.transform.SetParent(parent.transform, false);
         go.transform.localPosition = localPosition;
         go.transform.localRotation = rotation ?? Quaternion.identity;
         go.transform.localScale = localScale;
         go.GetComponent<Renderer>().sharedMaterial = material;
-        var tag = go.AddComponent<PartTag>();
-        Set(tag, "partId", partId);
-        return go;
     }
 
-    private static void Box(GameObject parent, string name, Vector3 localPosition, Vector3 localScale, Material material)
+    private static InputAction Action(string name, string controlType, params string[] bindings)
     {
-        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        go.name = name;
-        go.transform.SetParent(parent.transform, false);
-        go.transform.localPosition = localPosition;
-        go.transform.localScale = localScale;
-        go.GetComponent<Renderer>().sharedMaterial = material;
+        var action = new InputAction(name, expectedControlType: controlType);
+        foreach (var binding in bindings)
+        {
+            action.AddBinding(binding);
+        }
+
+        return action;
     }
 
-    private static Material Mat(string name, Color color)
+    /// <summary>Collider-only mesh chunk: the room scan is used for placement, not drawn.</summary>
+    private static MeshFilter SceneMeshColliderPrefab()
+    {
+        const string path = "Assets/_Project/Placeholders/SceneMeshCollider.prefab";
+        var go = new GameObject("SceneMeshCollider", typeof(MeshFilter), typeof(MeshCollider));
+        var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+        Object.DestroyImmediate(go);
+        return prefab.GetComponent<MeshFilter>();
+    }
+
+    /// <summary>Vertex-coloured unlit material for the placement line and floor ring.</summary>
+    private static Material GuideMaterial()
+    {
+        var path = $"{MaterialsDir}/PlacementGuide.mat";
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+            AssetDatabase.CreateAsset(material, path);
+        }
+
+        material.SetColor("_BaseColor", new Color(0.2f, 0.9f, 1f, 1f));
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static Material Mat(string name, Color color, float metallic = 0f, float smoothness = 0.5f)
     {
         var path = $"{MaterialsDir}/{name}.mat";
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -167,6 +318,9 @@ public static class AssistantBenchBuilder
         }
 
         material.SetColor("_BaseColor", color);
+        material.SetFloat("_Metallic", metallic);
+        material.SetFloat("_Smoothness", smoothness);
+        material.enableInstancing = true;
         EditorUtility.SetDirty(material);
         return material;
     }

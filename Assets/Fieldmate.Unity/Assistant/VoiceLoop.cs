@@ -8,9 +8,6 @@ using Fieldmate.Procedures;
 using Fieldmate.Providers;
 using UnityEngine;
 using UnityEngine.InputSystem;
-#if UNITY_ANDROID && !UNITY_EDITOR
-using UnityEngine.Android;
-#endif
 
 namespace Fieldmate.Assistant
 {
@@ -53,8 +50,6 @@ namespace Fieldmate.Assistant
             talkAction.started += _ => OnTalkPressed();
             talkAction.canceled += _ => OnTalkReleased();
             talkAction.Enable();
-
-            RequestMicrophone();
 
             var providers = AssistantProviders.Load();
             if (providers.IsEnabled)
@@ -318,16 +313,6 @@ namespace Fieldmate.Assistant
             var step = machine.Runner.State == RunnerState.Running ? machine.Runner.CurrentStep.Id : null;
             var slice = machine.Retriever.Retrieve(new RetrievalQuery(gaze?.Id, step, userText));
             return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice);
-        }
-
-        private static void RequestMicrophone()
-        {
-    #if UNITY_ANDROID && !UNITY_EDITOR
-            if (!Permission.HasUserAuthorizedPermission(Permission.Microphone))
-            {
-                Permission.RequestUserPermission(Permission.Microphone);
-            }
-    #endif
         }
 
         // ---------- IAssistantScene ----------
