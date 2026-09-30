@@ -41,7 +41,31 @@ namespace Fieldmate.XR
             }
 
             nextPoll = Time.unscaledTime + PollSeconds;
-            Set(ControllersTracked() ? Modality.Controllers : Modality.Hands);
+            var wanted = ModalityDecision.Wanted(Current, HandsTracked(), ControllersTracked());
+            // Two polls in a row (1 s) before switching: controllers lying nearby stay tracked while the hands come up,
+            // and the two flip-flopped every second on device (2026-09-30).
+            pendingPolls = wanted == lastWanted ? pendingPolls + 1 : 1;
+            lastWanted = wanted;
+            if (pendingPolls >= 2)
+            {
+                Set(wanted);
+            }
+        }
+
+        private Modality lastWanted;
+        private int pendingPolls;
+
+        private static bool HandsTracked()
+        {
+            foreach (var device in InputSystem.devices)
+            {
+                if (device is TrackedDevice tracked && device.layout.Contains("MetaAimHand") && tracked.isTracked.isPressed)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool ControllersTracked()
@@ -57,5 +81,12 @@ namespace Fieldmate.XR
 
             return false;
         }
+    }
+
+    /// <summary>The rule, kept pure for tests: tracked hands win; controllers only without hands; otherwise stay.</summary>
+    public static class ModalityDecision
+    {
+        public static Modality Wanted(Modality current, bool handsTracked, bool controllersTracked) =>
+            handsTracked ? Modality.Hands : controllersTracked ? Modality.Controllers : current;
     }
 }

@@ -8,7 +8,11 @@ namespace Fieldmate.Interaction
     /// <summary>
     /// A part that is taken off by hand, like the pump access cover. It is "fitted" at its home pose and becomes "removed"
     /// once pulled more than <see cref="removeDistance"/> away. Released close to home, it snaps back and is fitted again;
-    /// released elsewhere, it stays there (kinematic, no gravity), still parented to the machine.
+    /// released elsewhere, it stays there (kinematic, no gravity), still parented to the machine. Brought back within
+    /// <see cref="clickDistance"/> while still held, it clicks on by itself (#67). It is grabbed where the hand touches it
+    /// and keeps its rotation relative to the hand (dynamic attach), and distances are measured at its centre, not its
+    /// pivot (the builder's pivot is the machine origin). While an <see cref="Interlock"/> holds it, a grab doesn't
+    /// move it (#65).
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(HoverTint))]
@@ -19,11 +23,15 @@ namespace Fieldmate.Interaction
 
         [SerializeField] private string partId;
         [SerializeField] private float removeDistance = 0.12f;
-        [SerializeField] private float snapDistance = 0.06f;
+        [SerializeField] private float snapDistance = 0.15f;
+        [SerializeField] private float clickDistance = 0.05f;
 
         private Transform home; // the machine; XRI may unparent the part while it is held
         private Vector3 homePosition;
         private Quaternion homeRotation;
+        private Vector3 localCentre; // the part's visual centre in its own space
+        private Vector3 seatedCentre; // ...and in the machine's space when fitted
+        private bool clickPending;
         private AudioSource clickSource;
         private string state = Fitted;
 
@@ -31,10 +39,27 @@ namespace Fieldmate.Interaction
         public string State => state;
         public float Normalized => state == Removed ? 1f : 0f;
 
-        /// <summary>Distance from the home pose, in the machine's space.</summary>
-        public float Offset => Vector3.Distance(home != null ? home.InverseTransformPoint(transform.position) : transform.position, homePosition);
+        /// <summary>How far the part's centre is from its seated position, in the machine's space.</summary>
+        public float Offset
+        {
+            get
+            {
+                var centre = transform.TransformPoint(localCentre);
+                return Vector3.Distance(home != null ? home.InverseTransformPoint(centre) : centre, seatedCentre);
+            }
+        }
+
+        /// <summary>The part's visual centre in world space (where a hand takes it).</summary>
+        public Vector3 Centre => transform.TransformPoint(localCentre);
 
         public event Action<string, string> StateReached;
+
+        public IInterlock Interlock { get; set; }
+
+        public event Action<string> Refused;
+
+        /// <summary>True while a grab is being held still by the interlock.</summary>
+        public bool IsHeldByInterlock { get; private set; }
 
         public void Configure(string part) => partId = part;
 
@@ -46,28 +71,106 @@ namespace Fieldmate.Interaction
             body.useGravity = false;
             movementType = MovementType.Instantaneous;
             throwOnDetach = false;
+            useDynamicAttach = true; // held where the hand is, turning with it; no jump to the pivot
+            matchAttachPosition = true;
+            matchAttachRotation = true;
+            snapToColliderVolume = false;
+            localCentre = LocalCentre();
             home = transform.parent;
             homePosition = transform.localPosition;
             homeRotation = transform.localRotation;
+            seatedCentre = home != null ? home.InverseTransformPoint(Centre) : Centre;
             clickSource = InteractionFeedback.CreateSource(gameObject);
         }
 
         public override void ProcessInteractable(XRInteractionUpdateOrder.UpdatePhase updatePhase)
         {
             base.ProcessInteractable(updatePhase);
-            if (updatePhase == XRInteractionUpdateOrder.UpdatePhase.Late && isSelected && state == Fitted && Offset > removeDistance)
+            if (updatePhase != XRInteractionUpdateOrder.UpdatePhase.Late || !isSelected)
+            {
+                return;
+            }
+
+            if (state == Fitted && Offset > removeDistance)
             {
                 SetState(Removed);
+            }
+            else if (state == Removed && Offset < clickDistance)
+            {
+                clickPending = true; // released after the manager's update, not inside it
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (!clickPending)
+            {
+                return;
+            }
+
+            clickPending = false;
+            if (isSelected)
+            {
+                interactionManager.CancelInteractableSelection((IXRSelectInteractable)this); // the exit puts it home
+            }
+        }
+
+        private Vector3 LocalCentre()
+        {
+            var renderers = GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0)
+            {
+                return Vector3.zero;
+            }
+
+            var bounds = renderers[0].bounds;
+            for (var i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            return transform.InverseTransformPoint(bounds.center);
+        }
+
+        protected override void OnSelectEntering(SelectEnterEventArgs args)
+        {
+            // Decided before XRI starts tracking the hand, so a held part never moves at all.
+            var first = !isSelected;
+            if (first && Interlock != null && !Interlock.Allows(partId))
+            {
+                IsHeldByInterlock = true;
+                SetTracking(false);
+            }
+
+            base.OnSelectEntering(args);
+            if (first && IsHeldByInterlock)
+            {
+                InteractionFeedback.Refused(interactorsSelecting);
+                Refused?.Invoke(partId);
             }
         }
 
         protected override void OnSelectExited(SelectExitEventArgs args)
         {
             base.OnSelectExited(args);
+            if (!isSelected && IsHeldByInterlock)
+            {
+                IsHeldByInterlock = false;
+                SetTracking(true);
+            }
+
             if (!isSelected && Offset <= snapDistance)
             {
                 ReturnHome();
             }
+        }
+
+        private void SetTracking(bool follow)
+        {
+            trackPosition = follow;
+            trackRotation = follow;
+            trackScale = follow;
+            unparentTransformOnGrab = follow;
         }
 
         /// <summary>Puts the part back on its seat (release near home, or a reset).</summary>

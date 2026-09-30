@@ -35,6 +35,7 @@ namespace Fieldmate.Interaction
         private bool turning;
         private int handsHolding;
         private float graceUntil = -1f;
+        private bool refusedThisGrab;
 
         /// <summary>A hand that slips for a moment (pinch flicker) doesn't end the turn.</summary>
         private const float GraceSeconds = 0.5f;
@@ -73,6 +74,10 @@ namespace Fieldmate.Interaction
         }
 
         public event Action<string, string> StateReached;
+
+        public IInterlock Interlock { get; set; }
+
+        public event Action<string> Refused;
 
         /// <summary>Sets up the control in code (the scene builder and tests); call before the first frame.</summary>
         public void Configure(string part, Transform turningHandle, Vector3 turnAxis, float min, float max, float start,
@@ -137,6 +142,16 @@ namespace Fieldmate.Interaction
                 HoldingChanged?.Invoke(this, count);
             }
 
+            if (count == 0)
+            {
+                refusedThisGrab = false;
+            }
+
+            if (count > 0 && !turning && !Allowed())
+            {
+                return; // held by a safety rule: the handle stays where it is
+            }
+
             var holding = interactorsSelecting.Count >= requiredHands;
             if (holding && !turning)
             {
@@ -170,6 +185,24 @@ namespace Fieldmate.Interaction
                 tracker.Update(GripVector());
                 Apply(feedback: true);
             }
+        }
+
+        // Asked when a turn would begin; a refused grab buzzes and is reported once.
+        private bool Allowed()
+        {
+            if (Interlock == null || Interlock.Allows(partId))
+            {
+                return true;
+            }
+
+            if (!refusedThisGrab)
+            {
+                refusedThisGrab = true;
+                InteractionFeedback.Refused(interactorsSelecting);
+                Refused?.Invoke(partId);
+            }
+
+            return false;
         }
 
         protected override void OnSelectEntered(SelectEnterEventArgs args)

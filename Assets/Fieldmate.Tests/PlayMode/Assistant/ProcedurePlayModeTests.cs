@@ -96,9 +96,10 @@ public class ProcedurePlayModeTests
         if (b != null) Object.Destroy(b.gameObject);
     }
 
+    /// <summary>Takes the cover at its centre and carries that centre to <paramref name="to"/>.</summary>
     private IEnumerator MoveCover(RemovablePart cover, Vector3 to)
     {
-        var hand = hands.Hand(cover.transform.position);
+        var hand = hands.Hand(cover.Centre); // grabbed where it is (dynamic attach), moved by the hand's travel
         hands.Grab(hand, cover);
         yield return null;
         var from = hand.transform.position;
@@ -110,7 +111,7 @@ public class ProcedurePlayModeTests
 
         hand.transform.position = to;
         yield return new WaitForSeconds(0.5f); // XRI eases the held object into the hand
-        hands.Release(hand, cover);
+        if (hand.IsSelecting(cover)) hands.Release(hand, cover); // brought back to its seat, it already clicked on
         yield return null;
         Object.Destroy(hand.gameObject);
     }
@@ -187,7 +188,8 @@ public class ProcedurePlayModeTests
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("remove_cover"));
 
         var cover = Object.FindAnyObjectByType<RemovablePart>();
-        yield return MoveCover(cover, cover.transform.position + skid.forward * 0.3f);
+        var seated = cover.Centre;
+        yield return MoveCover(cover, seated + skid.forward * 0.3f);
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("replace"));
 
         hands.Seat(Object.FindAnyObjectByType<ToolSocket>(), Object.FindAnyObjectByType<ToolItem>());
@@ -195,7 +197,7 @@ public class ProcedurePlayModeTests
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("restore"));
         Assert.That(machine.Telemetry.Faults.IsActive(FaultModel.Overpressure), Is.False, "the new cartridge fixed the fault");
 
-        yield return MoveCover(cover, skid.position); // refit: released near its seat, it snaps on
+        yield return MoveCover(cover, seated); // refit: brought back to its seat, it clicks on
         Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted));
         yield return Turn(Rotary("inlet_valve"), Vector3.down, 90f, 0f, twoHands: false);
         yield return Turn(Rotary("main_breaker"), Vector3.back, 135f, 0f, twoHands: true);
@@ -212,16 +214,56 @@ public class ProcedurePlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator OpeningTheCoverBeforeLockout_IsASafetyViolation_OnThePanel()
+    public IEnumerator OpeningTheCoverBeforeLockout_IsHeldByTheInterlock_AndIsASafetyViolation()
     {
         yield return PlaceMachine();
         StartButton().Press();
         yield return null;
         var cover = Object.FindAnyObjectByType<RemovablePart>();
-        yield return MoveCover(cover, cover.transform.position + cover.transform.root.forward * 0.3f);
+        var home = cover.transform.position;
+        yield return MoveCover(cover, cover.Centre + cover.transform.root.forward * 0.3f);
 
+        Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted), "#65: the cover stays on until the breaker is locked");
+        Assert.That(Vector3.Distance(cover.transform.position, home), Is.LessThan(0.001f));
+        Assert.That(cover.transform.parent, Is.Not.Null, "held still, never unparented");
         Assert.That(machine.Runner.Violations.Select(v => v.Id), Does.Contain("loto_cover"));
         Assert.That(panel.StatusText, Does.StartWith("Safety: Lock out the breaker before opening the pump."));
+    }
+
+    [UnityTest]
+    public IEnumerator InletValveBeforeLockout_DoesNotTurn_AndIsASafetyViolation()
+    {
+        var runner = machine.Runner;
+        yield return PlaceMachine();
+        StartButton().Press();
+        yield return null;
+        var inlet = Rotary("inlet_valve");
+
+        yield return Turn(inlet, Vector3.down, 0f, 90f, twoHands: false);
+
+        Assert.That(inlet.Angle, Is.EqualTo(0f).Within(0.01f), "#65: the valve is held until the breaker is locked");
+        Assert.That(runner.GetPartState("inlet_valve"), Is.EqualTo("open"));
+        Assert.That(runner.Violations.Select(v => v.Id), Is.EqualTo(new[] { "loto_inlet" }));
+        Assert.That(panel.StatusText, Does.StartWith("Safety: Lock out the breaker before touching the inlet valve."));
+
+        // After lockout the same valve turns.
+        yield return LookAt("relief_valve", 2f);
+        yield return Turn(Rotary("main_breaker"), Vector3.back, 0f, 135f, twoHands: true);
+        yield return Turn(inlet, Vector3.down, 0f, 90f, twoHands: false);
+        Assert.That(runner.GetPartState("inlet_valve"), Is.EqualTo("closed"));
+    }
+
+    [UnityTest]
+    public IEnumerator ReliefSeat_RefusesTheCartridge_WhileTheInletIsOpen()
+    {
+        yield return PlaceMachine();
+        StartButton().Press();
+        yield return null;
+        var seat = Object.FindAnyObjectByType<ToolSocket>();
+        var cartridge = Object.FindAnyObjectByType<ToolItem>();
+        seat.socketActive = true; // as if the cover were off: only the interlock can refuse now
+        Assert.That(seat.CanSelect((UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)cartridge), Is.False, "#65: isolate_seat holds the seat until the inlet is closed");
+        Assert.That(machine.Runner.Interlock("relief_valve_seat")?.Id, Is.EqualTo("isolate_seat"));
     }
 
     [UnityTest]

@@ -3,7 +3,10 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Fieldmate.Interaction
 {
-    /// <summary>A loose tool or spare part the user carries to a <see cref="ToolSocket"/> (e.g. the relief cartridge).</summary>
+    /// <summary>
+    /// A loose tool or spare part the user carries to a <see cref="ToolSocket"/> (e.g. the relief cartridge). Held where the
+    /// hand takes it, turning with the hand (dynamic attach, #67); a socket still seats it by its pivot.
+    /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(HoverTint))]
     public sealed class ToolItem : XRGrabInteractable
@@ -26,6 +29,10 @@ namespace Fieldmate.Interaction
             body.useGravity = false;
             movementType = MovementType.Instantaneous;
             throwOnDetach = false;
+            useDynamicAttach = true;
+            matchAttachPosition = true;
+            matchAttachRotation = true;
+            snapToColliderVolume = false;
             home = transform.parent;
             homePosition = transform.localPosition;
             homeRotation = transform.localRotation;

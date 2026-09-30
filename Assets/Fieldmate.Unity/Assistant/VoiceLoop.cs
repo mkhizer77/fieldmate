@@ -25,6 +25,7 @@ namespace Fieldmate.Assistant
         [SerializeField] private AssistantPanel panel;
         [SerializeField] private PartHighlighter highlighter;
         [SerializeField] private StreamingAudioPlayer player;
+        [SerializeField] private UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor leftHand;
         [SerializeField] private Transform head;
 
         private readonly List<string> notes = new();
@@ -98,6 +99,12 @@ namespace Fieldmate.Assistant
             tools.LanguageChanged += language => session.Language = language;
             session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
+            session.Fallback = new FallbackResponses(machine.Manual, machine.Runner, machine.Telemetry);
+            session.OfflineChanged += offline =>
+            {
+                panel.ShowBanner(offline ? "Offline: scripted answers from the manual until the service is back." : null);
+                Debug.Log(offline ? "[Assistant] offline: scripted answers" : "[Assistant] back online");
+            };
 
             DisabledReason = null;
             panel.ShowBanner(null);
@@ -130,6 +137,12 @@ namespace Fieldmate.Assistant
         private void OnTalkPressed()
         {
             if (session == null)
+            {
+                return;
+            }
+
+            // Grabbing a control with the left hand also closes the middle finger: not a talk press (device 2026-09-30).
+            if (leftHand != null && leftHand.hasSelection)
             {
                 return;
             }
@@ -192,6 +205,13 @@ namespace Fieldmate.Assistant
             {
                 speakingTail = false;
                 panel.SetState(session != null ? session.State : AssistantState.Idle, idleHint);
+            }
+
+            if (pendingNarration != null && session != null && session.State == AssistantState.Idle && !player.IsPlaying && !gate.IsRecording)
+            {
+                var text = pendingNarration;
+                pendingNarration = null;
+                Narrate(text, interrupt: false);
             }
 
             if (gate.IsRecording && recorder.IsRecording &&
@@ -319,12 +339,68 @@ namespace Fieldmate.Assistant
         {
             turn?.Cancel();
             turn = null;
-            player.Stop();
+            if (player != null)
+            {
+                player.Stop();
+            }
+        }
+
+        private string pendingNarration;
+
+        /// <summary>Records a machine event for the model's context (#61).</summary>
+        public void RecordEvent(string text) => session?.SceneEvents.Add(Time.realtimeSinceStartupAsDouble, text);
+
+        /// <summary>
+        /// Speaks a line without being asked (#61). <paramref name="interrupt"/> stops whatever is playing first (violations,
+        /// wrong order); otherwise a line waits until the assistant is idle so it never talks over an answer.
+        /// </summary>
+        public void Narrate(string text, bool interrupt)
+        {
+            if (session == null)
+            {
+                panel.Add(new TranscriptEntry(TranscriptKind.Assistant, text));
+                return;
+            }
+
+            if (player == null)
+            {
+                return; // scene torn down
+            }
+
+            var busy = session.State != AssistantState.Idle || player.IsPlaying || gate.IsRecording;
+            if (busy && !interrupt)
+            {
+                pendingNarration = text; // the newest wins; the step card shows the rest
+                return;
+            }
+
+            if (interrupt)
+            {
+                CancelTurn();
+                gate.Reset();
+                recorder.Stop();
+            }
+
+            pendingNarration = null;
+            turn = new CancellationTokenSource();
+            Debug.Log($"[Assistant] narrate{(interrupt ? " (interrupt)" : "")}: \"{Clip(text)}\"");
+            _ = RunAndLog(NarrateAsync(text, turn.Token));
+        }
+
+        private async Task<TurnResult> NarrateAsync(string text, CancellationToken token)
+        {
+            await session.SpeakAsync(text, player, token);
+            return session.LastTurn;
         }
 
         // The session is idle once the last audio has arrived; the panel keeps "Speaking…" until it has been heard.
         private void ShowState(AssistantState state)
         {
+            if (player == null || panel == null)
+            {
+                return; // a narration finishing after the scene was torn down (tests)
+            }
+
             speakingTail = state == AssistantState.Idle && player.IsPlaying;
             panel.SetState(speakingTail ? AssistantState.Speaking : state, idleHint);
         }
@@ -334,7 +410,42 @@ namespace Fieldmate.Assistant
             var gaze = head != null ? machine.PartAlong(new Ray(head.position, head.forward)) : null;
             var step = machine.Runner.State == RunnerState.Running ? machine.Runner.CurrentStep.Id : null;
             var slice = machine.Retriever.Retrieve(new RetrievalQuery(gaze?.Id, step, userText));
-            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice);
+            var events = session != null ? session.SceneEvents.ToPromptText(Time.realtimeSinceStartupAsDouble) : null;
+            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice, events, WhereLine(step));
+        }
+
+        // The step's part and the highlighted part relative to the head, so "where is it" gets a direction, not a shrug.
+        private string WhereLine(string stepPartId)
+        {
+            if (head == null)
+            {
+                return null;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var id in new[] { stepPartId, highlighter != null ? highlighter.ActivePartId : null })
+            {
+                if (id == null || (sb.Length > 0 && sb.ToString().Contains(id)) || !machine.TryGetPart(id, out var part))
+                {
+                    continue;
+                }
+
+                var bounds = new Bounds(part.transform.position, Vector3.zero);
+                foreach (var r in part.GetComponentsInChildren<Renderer>())
+                {
+                    bounds.Encapsulate(r.bounds);
+                }
+
+                if (sb.Length > 0)
+                {
+                    sb.Append("; ");
+                }
+
+                sb.Append(machine.Catalog.DisplayName(id)).Append(" (").Append(id).Append("): ")
+                  .Append(SpatialHints.Describe(head.position, head.forward, bounds.center));
+            }
+
+            return sb.Length > 0 ? sb.ToString() : null;
         }
 
         // ---------- IAssistantScene ----------

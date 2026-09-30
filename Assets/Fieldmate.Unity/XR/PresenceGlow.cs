@@ -12,6 +12,7 @@ namespace Fieldmate.XR
     {
         private const float Speed = 6f;
         private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [SerializeField] private Renderer target;
         [SerializeField] private XRBaseInteractor interactor;
@@ -71,7 +72,17 @@ namespace Fieldmate.XR
             }
 
             target.GetPropertyBlock(block);
-            block.SetFloat(IntensityId, current);
+            if (target.sharedMaterial != null && target.sharedMaterial.HasProperty(IntensityId))
+            {
+                block.SetFloat(IntensityId, current);
+            }
+            else if (target.sharedMaterial != null && target.sharedMaterial.HasProperty(BaseColorId))
+            {
+                var color = target.sharedMaterial.GetColor(BaseColorId);
+                color.a = Mathf.Clamp01(0.45f * current); // the grip ring: dimmer at rest, solid while grabbing
+                block.SetColor(BaseColorId, color);
+            }
+
             target.SetPropertyBlock(block);
         }
     }

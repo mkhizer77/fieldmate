@@ -29,6 +29,18 @@ namespace Fieldmate.Interaction
             }
         }
 
+        /// <summary>A long, firm pulse: the part is held by a safety interlock and did not move.</summary>
+        public static void Refused(IReadOnlyList<IXRSelectInteractor> interactors)
+        {
+            for (var i = 0; i < interactors.Count; i++)
+            {
+                if (interactors[i] is XRBaseInputInteractor input)
+                {
+                    input.SendHapticImpulse(1f, 0.25f);
+                }
+            }
+        }
+
         /// <summary>A quiet spatial AudioSource for part clicks.</summary>
         public static AudioSource CreateSource(GameObject owner)
         {

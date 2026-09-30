@@ -28,6 +28,9 @@ public static class AssistantBenchBuilder
     public const string ScenePath = "Assets/_Project/Scenes/AssistantBench.unity";
     public const string SkidPrefabPath = "Assets/_Project/Placeholders/PlaceholderSkid.prefab";
     private const string MaterialsDir = "Assets/_Project/Placeholders/Materials";
+
+    /// <summary>Depth (machine z) of the seated cartridge's centre: 12 cm long, it ends flush with the seat face at 0.10.</summary>
+    private const float ReliefSeatDepth = 0.04f;
     private const string ManualPath = "Assets/_Project/Manual/manual.json";
 
     [MenuItem("Fieldmate/Build Assistant Bench Scene")]
@@ -124,6 +127,7 @@ public static class AssistantBenchBuilder
         Set(loop, "highlighter", assistant.GetComponent<PartHighlighter>());
         Set(loop, "player", audio.GetComponent<StreamingAudioPlayer>());
         Set(loop, "head", cameraGo.transform);
+        Set(loop, "leftHand", leftHand); // the talk pinch is ignored while this hand holds a control
 
         var placementGo = new GameObject("Machine Placement", typeof(MachinePlacement));
         var placement = placementGo.GetComponent<MachinePlacement>();
@@ -153,6 +157,9 @@ public static class AssistantBenchBuilder
             placement, guideGo.GetComponent<ControlGuide>());
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
             .Configure(Button(skid, "Move Button"), placement);
+
+        new GameObject("Narrator", typeof(ProactiveNarrator)).GetComponent<ProactiveNarrator>()
+            .Configure(services.GetComponent<MachineServices>(), loop); // speaks on its own for steps, violations, debrief (#61)
 
         var occlusion = new GameObject("Occlusion Settings", typeof(OcclusionSettings), typeof(FrameTimeProbe));
         occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
@@ -255,6 +262,12 @@ public static class AssistantBenchBuilder
         socketGo.GetComponent<SphereCollider>().isTrigger = true;
         socketGo.GetComponent<SphereCollider>().radius = 0.07f;
         socketGo.GetComponent<ToolSocket>().Configure("relief_valve_seat");
+        // The cartridge (12 cm) goes into the pump body: its outer end sits flush with the seat face (z 0.10), behind the
+        // refitted cover (z 0.10–0.13), not hanging out of it (#67). Pointing into the pump, like the tray's.
+        var seated = new GameObject("Seated cartridge").transform;
+        seated.SetParent(seat.transform, false);
+        seated.localPosition = new Vector3(0.18f, 0.37f, ReliefSeatDepth);
+        socketGo.GetComponent<ToolSocket>().attachTransform = seated;
 
         var inlet = Group(root, "Inlet valve", "inlet_valve");
         Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.58f, 0.37f, 0f), new Vector3(0.09f, 0.18f, 0.09f), steel, rot90Z);
@@ -440,7 +453,7 @@ public static class AssistantBenchBuilder
         ray.selectInput.inputActionPerformed = select;
 
         var line = pointer.AddComponent<LineRenderer>();
-        line.sharedMaterial = GuideMaterial();
+        line.sharedMaterial = RayMaterial(); // white: the gradient alone decides white / blue (a cyan tint made it blue)
         line.widthMultiplier = 0.004f;
         line.numCapVertices = 2;
         var visual = pointer.AddComponent<XRInteractorLineVisual>();
@@ -459,7 +472,7 @@ public static class AssistantBenchBuilder
         Object.DestroyImmediate(dot.GetComponent<Collider>()); // must never catch the gaze or the ray
         dot.transform.SetParent(pointer.transform, false);
         dot.transform.localScale = Vector3.one * 0.012f;
-        dot.GetComponent<Renderer>().sharedMaterial = GuideMaterial();
+        dot.GetComponent<Renderer>().sharedMaterial = RayMaterial();
         pointer.AddComponent<PointerRayStyle>().Configure(dot.transform);
     }
 
@@ -529,7 +542,26 @@ public static class AssistantBenchBuilder
         return prefab.GetComponent<MeshFilter>();
     }
 
-    /// <summary>Vertex-coloured unlit overlay material for the placement line, floor ring, step guide and pointer rays.</summary>
+    /// <summary>White unlit overlay material for the pointer rays and their dots; colour comes from the line gradient.</summary>
+    private static Material RayMaterial()
+    {
+        var path = $"{MaterialsDir}/PointerRay.mat";
+        var overlay = Shader.Find("Fieldmate/UnlitOverlay")
+            ?? throw new System.InvalidOperationException("Shader Fieldmate/UnlitOverlay not found (Assets/_Project/Shaders).");
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(overlay);
+            AssetDatabase.CreateAsset(material, path);
+        }
+
+        material.shader = overlay;
+        material.SetColor("_BaseColor", Color.white);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    /// <summary>Vertex-coloured unlit overlay material for the placement line, floor ring and step guide.</summary>
     private static Material GuideMaterial()
     {
         var path = $"{MaterialsDir}/PlacementGuide.mat";

@@ -44,6 +44,11 @@ namespace Fieldmate.Assistant
 
         public void Begin(int rate)
         {
+            if (source == null)
+            {
+                return;
+            }
+
             if (ring == null || rate != sampleRate)
             {
                 sampleRate = rate;
@@ -68,6 +73,11 @@ namespace Fieldmate.Assistant
         /// <summary>Lowers the reply while the user may be about to speak, so they know they're heard.</summary>
         public void Duck(bool ducked)
         {
+            if (source == null)
+            {
+                return;
+            }
+
             if (source != null)
             {
                 source.volume = ducked ? DuckedVolume : 1f;
@@ -79,6 +89,11 @@ namespace Fieldmate.Assistant
         /// <summary>Stops immediately (barge-in).</summary>
         public void Stop()
         {
+            if (source == null)
+            {
+                return;
+            }
+
             ring?.Clear();
             ended = true;
             if (source != null)
