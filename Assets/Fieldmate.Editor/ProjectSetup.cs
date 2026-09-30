@@ -32,7 +32,7 @@ public static class ProjectSetup
         "MetaQuestFeature",
         "ARSessionFeature", "ARCameraFeature", "ARPlaneFeature", "ARAnchorFeature",
         "AROcclusionFeature", "ARMeshFeature", "ARRaycastFeature", "DisplayUtilitiesFeature",
-        "HandTracking", "MetaHandTrackingAim",
+        "HandTracking", "MetaHandTrackingAim", "MetaOpenXRHandMeshData", // fitted hand mesh for the presence glow (#55)
         "OculusTouchControllerProfile", "MetaQuestTouchPlusControllerProfile", "HandInteractionProfile",
     };
 

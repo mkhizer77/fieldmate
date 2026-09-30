@@ -38,7 +38,8 @@ public static class AssistantBenchBuilder
         foreach (var type in new[] { typeof(VoiceLoop), typeof(AssistantPanel), typeof(MachineServices), typeof(PartTag), typeof(MachinePlacement), typeof(PermissionsBootstrap),
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
-                     typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe) })
+                     typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
+                     typeof(PresenceGlow), typeof(ModalityVisibility) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -95,6 +96,7 @@ public static class AssistantBenchBuilder
         new GameObject("XR Interaction Manager", typeof(XRInteractionManager));
         var leftHand = HandInteractor(offset, "Left");
         var rightHand = HandInteractor(offset, "Right");
+        PresenceBuilder.AddToScene(offset, leftHand, rightHand); // light-yellow glow around hands / controllers (#55)
 
         // Room-scan mesh as invisible colliders, so placement snaps to the real floor (child of the origin, scale = volume).
         var meshingGo = new GameObject("Scene Mesh", typeof(ARMeshManager));
