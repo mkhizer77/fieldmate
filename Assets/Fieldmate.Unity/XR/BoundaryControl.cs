@@ -46,21 +46,15 @@ namespace Fieldmate.XR
             }
 
             var result = feature.TryRequestBoundaryVisibility(XrBoundaryVisibility.VisibilitySuppressed);
-            if ((int)result == BoundaryVisibilityFeature.XR_BOUNDARY_VISIBILITY_SUPPRESSION_NOT_ALLOWED_META)
+            // NOT_ALLOWED and RuntimeFailure both happen before passthrough renders (device 2026-09-30: RuntimeFailure at
+            // launch); keep asking for a minute, then leave the Guardian as it is.
+            if ((int)result == BoundaryVisibilityFeature.XR_BOUNDARY_VISIBILITY_SUPPRESSION_NOT_ALLOWED_META || (int)result < 0)
             {
                 if (Time.unscaledTime > GiveUpSeconds)
                 {
-                    Debug.LogWarning("[Boundary] runtime refused to suppress the boundary; giving up");
+                    Debug.LogWarning($"[Boundary] runtime kept refusing ({result}); the Guardian stays on");
                     done = true;
                 }
-
-                return; // passthrough not rendering yet: try again
-            }
-
-            if ((int)result < 0)
-            {
-                Debug.LogWarning($"[Boundary] request failed: {result}");
-                done = true;
             }
         }
     }
