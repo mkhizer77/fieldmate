@@ -50,6 +50,7 @@ public class PointerRayPlayModeTests
             Assert.That(style.CurrentColor, Is.EqualTo(Fieldmate.XR.PointerRayStyle.Idle));
             Assert.That(ray.transform.Find("Ray Dot"), Is.Not.Null, "end dot");
             Assert.That(ray.transform.Find("Ray Dot").GetComponent<Collider>(), Is.Null, "the dot never blocks a ray or the gaze");
+            Assert.That(ray.GetComponent<LineRenderer>().sharedMaterial.GetColor("_BaseColor"), Is.EqualTo(Color.white), "no tint: the gradient sets white / blue");
             style.Apply(true);
             Assert.That(style.CurrentColor, Is.EqualTo(Fieldmate.XR.PointerRayStyle.Pressing));
             Assert.That(ray.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals.XRInteractorLineVisual>().validColorGradient.Evaluate(0.5f).b,

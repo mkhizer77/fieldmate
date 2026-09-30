@@ -25,6 +25,7 @@ namespace Fieldmate.Assistant
         [SerializeField] private AssistantPanel panel;
         [SerializeField] private PartHighlighter highlighter;
         [SerializeField] private StreamingAudioPlayer player;
+        [SerializeField] private UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor leftHand;
         [SerializeField] private Transform head;
 
         private readonly List<string> notes = new();
@@ -130,6 +131,12 @@ namespace Fieldmate.Assistant
         private void OnTalkPressed()
         {
             if (session == null)
+            {
+                return;
+            }
+
+            // Grabbing a control with the left hand also closes the middle finger: not a talk press (device 2026-09-30).
+            if (leftHand != null && leftHand.hasSelection)
             {
                 return;
             }
