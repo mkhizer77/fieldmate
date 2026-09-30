@@ -70,7 +70,37 @@ namespace Fieldmate.Procedures
             }
 
             panel.SetHead(head);
+            if (controls != null)
+            {
+                foreach (var control in controls.Controls)
+                {
+                    if (control is RotaryInteractable rotary && rotary.RequiredHands > 1)
+                    {
+                        rotary.HoldingChanged += OnHoldingChanged;
+                    }
+                }
+            }
+
             ShowIdle();
+        }
+
+        // One hand on a two-hand control during its step: say what the other hand has to do (device test 2026-09-30).
+        private void OnHoldingChanged(RotaryInteractable control, int hands)
+        {
+            var runner = machine.Runner;
+            if (runner.State != RunnerState.Running || runner.CurrentStep?.PartId != control.PartId)
+            {
+                return;
+            }
+
+            if (hands == 1)
+            {
+                panel.ShowStatus(InteractionTips.SecondHand(InputModalityProbe.Current), Theme.Accent, 8f);
+            }
+            else if (hands == 2)
+            {
+                panel.ShowStatus("Both hands on. Turn them together.", Theme.Accent, 3f);
+            }
         }
 
         private void OnPlacementChanged(PlacementState state)
@@ -138,6 +168,17 @@ namespace Fieldmate.Procedures
         private void OnDestroy()
         {
             InputModalityProbe.Changed -= OnModalityChanged; // static event: always unsubscribe, even if services are gone
+            if (controls != null)
+            {
+                foreach (var control in controls.Controls)
+                {
+                    if (control is RotaryInteractable rotary)
+                    {
+                        rotary.HoldingChanged -= OnHoldingChanged;
+                    }
+                }
+            }
+
             if (placement != null)
             {
                 placement.StateChanged -= OnPlacementChanged;

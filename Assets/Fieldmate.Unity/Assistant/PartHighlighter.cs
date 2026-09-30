@@ -58,13 +58,6 @@ namespace Fieldmate.Assistant
                 var material = renderers[i].sharedMaterial;
                 originals[i] = material != null && material.HasProperty(BaseColor) ? material.GetColor(BaseColor) : Color.white;
                 bounds.Encapsulate(renderers[i].bounds);
-                if (markerMaterial == null && material != null)
-                {
-                    markerMaterial = new Material(material);
-                    markerMaterial.SetColor(BaseColor, highlight);
-                    diamond.GetComponent<Renderer>().sharedMaterial = markerMaterial;
-                    stem.GetComponent<Renderer>().sharedMaterial = markerMaterial;
-                }
             }
 
             partTop = new Vector3(bounds.center.x, bounds.max.y, bounds.center.z);
@@ -157,6 +150,12 @@ namespace Fieldmate.Assistant
             diamond.localScale = Vector3.one * 0.05f;
             diamond.localRotation = Quaternion.Euler(45f, 0f, 45f);
             stem = Primitive(PrimitiveType.Cylinder, "Stem");
+            // Drawn on top of the machine (no depth test), so the marker never sinks into a pipe above the part.
+            var overlay = Shader.Find("Fieldmate/UnlitOverlay");
+            markerMaterial = new Material(overlay != null ? overlay : Shader.Find("Universal Render Pipeline/Unlit")) { name = "Highlight Marker" };
+            markerMaterial.SetColor(BaseColor, highlight);
+            diamond.GetComponent<Renderer>().sharedMaterial = markerMaterial;
+            stem.GetComponent<Renderer>().sharedMaterial = markerMaterial;
 
             var canvasGo = new GameObject("Label", typeof(RectTransform));
             label = canvasGo.transform;

@@ -140,6 +140,28 @@ public class ProcedurePlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Breaker_OneHandDuringItsStep_AsksForTheOtherHand()
+    {
+        var runner = machine.Runner;
+        yield return PlaceMachine();
+        StartButton().Press();
+        yield return null;
+        yield return LookAt("relief_valve", 2f);
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("lockout"));
+
+        var breaker = Rotary("main_breaker");
+        var hand = hands.Hand(ScriptedHands.AroundAxis(breaker.transform, Vector3.back, new Vector3(0.12f, 0f, 0f), 0f));
+        hands.Grab(hand, breaker);
+        yield return null;
+        yield return null;
+        Assert.That(breaker.HandsHolding, Is.EqualTo(1));
+        Assert.That(panel.StatusText, Does.Contain("other hand"), "the step card says what the second hand must do");
+        hands.Release(hand, breaker);
+        yield return null;
+        Object.Destroy(hand.gameObject);
+    }
+
+    [UnityTest]
     public IEnumerator FullProcedure_WithRealControls_CompletesWithoutErrorsOrViolations()
     {
         var runner = machine.Runner;

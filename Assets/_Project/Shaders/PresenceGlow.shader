@@ -26,6 +26,7 @@ Shader "Fieldmate/PresenceGlow"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_instancing
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -39,6 +40,7 @@ Shader "Fieldmate/PresenceGlow"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -46,11 +48,14 @@ Shader "Fieldmate/PresenceGlow"
                 float4 positionCS : SV_POSITION;
                 float3 normalWS : TEXCOORD0;
                 float3 viewWS : TEXCOORD1;
+                UNITY_VERTEX_OUTPUT_STEREO
             };
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
                 VertexPositionInputs positions = GetVertexPositionInputs(input.positionOS.xyz);
                 output.positionCS = positions.positionCS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
@@ -60,6 +65,7 @@ Shader "Fieldmate/PresenceGlow"
 
             half4 Frag(Varyings input) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 half facing = saturate(dot(normalize(input.normalWS), normalize(input.viewWS)));
                 half rim = pow(1.0h - facing, _RimPower);
                 half alpha = saturate((rim + _Fill) * _Intensity);

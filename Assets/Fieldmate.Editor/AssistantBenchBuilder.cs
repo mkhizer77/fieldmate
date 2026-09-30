@@ -513,17 +513,20 @@ public static class AssistantBenchBuilder
         return prefab.GetComponent<MeshFilter>();
     }
 
-    /// <summary>Vertex-coloured unlit material for the placement line and floor ring.</summary>
+    /// <summary>Vertex-coloured unlit overlay material for the placement line, floor ring, step guide and pointer rays.</summary>
     private static Material GuideMaterial()
     {
         var path = $"{MaterialsDir}/PlacementGuide.mat";
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        var overlay = Shader.Find("Fieldmate/UnlitOverlay")
+            ?? throw new System.InvalidOperationException("Shader Fieldmate/UnlitOverlay not found (Assets/_Project/Shaders).");
         if (material == null)
         {
-            material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+            material = new Material(overlay);
             AssetDatabase.CreateAsset(material, path);
         }
 
+        material.shader = overlay; // lines and rings draw over the machine, never inside it
         material.SetColor("_BaseColor", new Color(0.2f, 0.9f, 1f, 1f));
         EditorUtility.SetDirty(material);
         return material;

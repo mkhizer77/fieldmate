@@ -33,6 +33,16 @@ namespace Fieldmate.Interaction
         private Quaternion baseRotation;
         private AudioSource clickSource;
         private bool turning;
+        private int handsHolding;
+        private float graceUntil = -1f;
+
+        /// <summary>A hand that slips for a moment (pinch flicker) doesn't end the turn.</summary>
+        private const float GraceSeconds = 0.5f;
+
+        /// <summary>How many hands hold it right now (0–2); <see cref="HoldingChanged"/> reports changes.</summary>
+        public int HandsHolding => handsHolding;
+
+        public event Action<RotaryInteractable, int> HoldingChanged;
 
         public string PartId => partId;
         public string State => detents?.State;
@@ -120,6 +130,13 @@ namespace Fieldmate.Interaction
                 return;
             }
 
+            var count = Mathf.Min(interactorsSelecting.Count, 2);
+            if (count != handsHolding)
+            {
+                handsHolding = count;
+                HoldingChanged?.Invoke(this, count);
+            }
+
             var holding = interactorsSelecting.Count >= requiredHands;
             if (holding && !turning)
             {
@@ -128,6 +145,18 @@ namespace Fieldmate.Interaction
             }
             else if (!holding && turning)
             {
+                // Keep the turn alive briefly: a pinch that flickers off for a few frames must not snap the handle.
+                if (graceUntil < 0f)
+                {
+                    graceUntil = Time.unscaledTime + GraceSeconds;
+                }
+
+                if (Time.unscaledTime < graceUntil)
+                {
+                    return;
+                }
+
+                graceUntil = -1f;
                 turning = false;
                 tracker.End();
                 tracker.Set(detents.SnapTarget(tracker.Angle));
@@ -135,8 +164,9 @@ namespace Fieldmate.Interaction
                 return;
             }
 
-            if (turning)
+            if (turning && holding)
             {
+                graceUntil = -1f;
                 tracker.Update(GripVector());
                 Apply(feedback: true);
             }

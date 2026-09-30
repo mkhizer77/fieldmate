@@ -28,6 +28,11 @@ public static class InteractionTips
         };
     }
 
+    /// <summary>While one hand holds a two-hand control.</summary>
+    public static string SecondHand(Modality modality) => modality == Modality.Controllers
+        ? "One controller on the bar. Hold the grip on the other end with the second controller, then turn together."
+        : "One hand on the bar. Pinch the other end with your other hand, keep both pinched, and turn together.";
+
     public static string For(StepDefinition step, int hands, Modality modality)
     {
         var controllers = modality == Modality.Controllers;
