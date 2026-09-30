@@ -114,7 +114,7 @@ public class InteractionPlayModeTests
         var socket = Object.FindAnyObjectByType<ToolSocket>();
         Assert.That(socket.socketActive, Is.False, "seat is closed while the cover is on");
 
-        var start = cover.transform.position;
+        var start = cover.Centre;
         var away = cover.transform.parent.forward; // the skid's front; read before the grab (XRI unparents held objects)
         var hand = hands.Hand(start);
         hands.Grab(hand, cover);
@@ -129,6 +129,104 @@ public class InteractionPlayModeTests
 
         Assert.That(cover.State, Is.EqualTo(RemovablePart.Removed));
         Assert.That(socket.socketActive, Is.True);
+    }
+
+    /// <summary>Pulls the cover <paramref name="distance"/> straight out, held at its centre; returns the hand.</summary>
+    private IEnumerator PullCover(RemovablePart cover, XRDirectInteractor hand, Vector3 start, Vector3 away, float distance)
+    {
+        for (var d = 0f; d <= distance; d += 0.02f)
+        {
+            hand.transform.position = start + away * d;
+            yield return null;
+        }
+
+        hand.transform.position = start + away * distance;
+        yield return new WaitForSeconds(0.3f);
+    }
+
+    [UnityTest]
+    public IEnumerator Cover_GrabbedAtAnAngle_StaysPut_AndTurnsWithTheHand()
+    {
+        var cover = Object.FindAnyObjectByType<RemovablePart>();
+        var position = cover.transform.position;
+        var rotation = cover.transform.rotation;
+        var hand = hands.Hand(cover.Centre + new Vector3(0.03f, 0.02f, 0f));
+        hand.transform.rotation = Quaternion.Euler(20f, 60f, 35f); // a wrist at an odd angle
+        hands.Grab(hand, cover);
+        yield return new WaitForSeconds(0.3f);
+
+        Assert.That(Vector3.Distance(cover.transform.position, position), Is.LessThan(0.002f), "#67: no jump to the hand on grab");
+        Assert.That(Quaternion.Angle(cover.transform.rotation, rotation), Is.LessThan(0.5f), "#67: no twist on grab");
+
+        var turn = Quaternion.AngleAxis(30f, Vector3.up);
+        hand.transform.rotation = turn * hand.transform.rotation;
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(Quaternion.Angle(cover.transform.rotation, turn * rotation), Is.LessThan(1f), "turns with the hand");
+        hands.Release(hand, cover);
+        Object.Destroy(hand.gameObject);
+    }
+
+    [UnityTest]
+    public IEnumerator Cover_BroughtBackWhileHeld_ClicksOn()
+    {
+        var cover = Object.FindAnyObjectByType<RemovablePart>();
+        var start = cover.Centre;
+        var away = cover.transform.parent.forward;
+        var hand = hands.Hand(start);
+        hands.Grab(hand, cover);
+        yield return PullCover(cover, hand, start, away, 0.25f);
+        Assert.That(cover.State, Is.EqualTo(RemovablePart.Removed));
+
+        hand.transform.position = start + away * 0.1f;
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(cover.State, Is.EqualTo(RemovablePart.Removed), "10 cm out and still held: not yet");
+
+        hand.transform.position = start + away * 0.03f;
+        yield return null;
+        yield return null;
+        Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted), "#67: within 5 cm it clicks on by itself");
+        Assert.That(cover.Offset, Is.LessThan(0.001f));
+        if (hand.IsSelecting(cover)) hands.Release(hand, cover);
+        Object.Destroy(hand.gameObject);
+    }
+
+    [UnityTest]
+    public IEnumerator Cover_ReleasedNearItsSeat_GoesBackOn()
+    {
+        var cover = Object.FindAnyObjectByType<RemovablePart>();
+        var start = cover.Centre;
+        var away = cover.transform.parent.forward;
+        var side = cover.transform.parent.right; // read before the grab: XRI unparents held objects
+        var scale = cover.transform.parent.lossyScale.x; // the cover measures in the machine's space
+        var hand = hands.Hand(start);
+        hands.Grab(hand, cover);
+        yield return PullCover(cover, hand, start, away, 0.25f);
+        hand.transform.position = start + (away * 0.12f + side * 0.04f) * scale;
+        yield return new WaitForSeconds(0.3f);
+        hands.Release(hand, cover);
+        yield return null;
+
+        Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted), "#67: released 13 cm from its seat, it goes back on");
+        Assert.That(cover.Offset, Is.LessThan(0.001f));
+        Object.Destroy(hand.gameObject);
+    }
+
+    [UnityTest]
+    public IEnumerator Cartridge_Seated_SitsInsideThePump_BehindTheCover()
+    {
+        var socket = Object.FindAnyObjectByType<ToolSocket>();
+        socket.socketActive = true;
+        var cartridge = Object.FindAnyObjectByType<ToolItem>();
+        hands.Seat(socket, cartridge);
+        yield return new WaitForSeconds(0.3f);
+
+        var machine = Object.FindAnyObjectByType<RemovablePart>().transform.parent;
+        var along = machine.InverseTransformDirection(cartridge.transform.forward);
+        Assert.That(Mathf.Abs(along.z), Is.GreaterThan(0.99f), "points into the pump");
+        var centre = machine.InverseTransformPoint(cartridge.GetComponentInChildren<Renderer>().bounds.center);
+        // 12 cm long: its outer end must not pass the seat face (z 0.10), where the refitted cover begins.
+        Assert.That(centre.z + 0.06f, Is.LessThanOrEqualTo(0.101f), $"#67: the seated cartridge ends at z {centre.z + 0.06f:0.000}");
+        Assert.That(centre.z - 0.06f, Is.GreaterThan(-0.1f), "and stays inside the pump body");
     }
 
     [UnityTest]

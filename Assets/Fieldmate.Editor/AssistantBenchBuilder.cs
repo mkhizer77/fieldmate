@@ -28,6 +28,9 @@ public static class AssistantBenchBuilder
     public const string ScenePath = "Assets/_Project/Scenes/AssistantBench.unity";
     public const string SkidPrefabPath = "Assets/_Project/Placeholders/PlaceholderSkid.prefab";
     private const string MaterialsDir = "Assets/_Project/Placeholders/Materials";
+
+    /// <summary>Depth (machine z) of the seated cartridge's centre: 12 cm long, it ends flush with the seat face at 0.10.</summary>
+    private const float ReliefSeatDepth = 0.04f;
     private const string ManualPath = "Assets/_Project/Manual/manual.json";
 
     [MenuItem("Fieldmate/Build Assistant Bench Scene")]
@@ -259,6 +262,12 @@ public static class AssistantBenchBuilder
         socketGo.GetComponent<SphereCollider>().isTrigger = true;
         socketGo.GetComponent<SphereCollider>().radius = 0.07f;
         socketGo.GetComponent<ToolSocket>().Configure("relief_valve_seat");
+        // The cartridge (12 cm) goes into the pump body: its outer end sits flush with the seat face (z 0.10), behind the
+        // refitted cover (z 0.10–0.13), not hanging out of it (#67). Pointing into the pump, like the tray's.
+        var seated = new GameObject("Seated cartridge").transform;
+        seated.SetParent(seat.transform, false);
+        seated.localPosition = new Vector3(0.18f, 0.37f, ReliefSeatDepth);
+        socketGo.GetComponent<ToolSocket>().attachTransform = seated;
 
         var inlet = Group(root, "Inlet valve", "inlet_valve");
         Shape(inlet, PrimitiveType.Cylinder, new Vector3(0.58f, 0.37f, 0f), new Vector3(0.09f, 0.18f, 0.09f), steel, rot90Z);
