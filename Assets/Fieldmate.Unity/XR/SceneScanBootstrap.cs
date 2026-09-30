@@ -76,7 +76,7 @@ namespace Fieldmate.XR
     public static class SceneScan
     {
         /// <summary>How long to wait for existing scene data before asking for a scan.</summary>
-        public const float WaitSeconds = 4f;
+        public const float WaitSeconds = 10f; // an already-scanned room delivered its mesh 8.8 s after launch (device 2026-09-30)
 
         public static bool ShouldRequest(int meshChunks, float secondsSincePermission) =>
             meshChunks == 0 && secondsSincePermission >= WaitSeconds;
