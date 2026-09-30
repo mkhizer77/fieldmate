@@ -97,7 +97,7 @@ public static class UiKit
 
     private static Sprite ring;
 
-    /// <summary>An anti-aliased ring (outer radius 46 px, inner 36 px of 96) for radial progress.</summary>
+    /// <summary>An anti-aliased ring (outer radius 46 px, inner 39 px of 96) for radial progress.</summary>
     public static Sprite Ring
     {
         get
@@ -109,7 +109,7 @@ public static class UiKit
 
             var texture = new Texture2D(SpriteSize, SpriteSize, TextureFormat.RGBA32, false) { name = "UiKit Ring", wrapMode = TextureWrapMode.Clamp };
             var pixels = new Color32[SpriteSize * SpriteSize];
-            const float outer = 46f, inner = 36f;
+            const float outer = 46f, inner = 39f; // a 7 px band: thin at 64 mm
             for (var y = 0; y < SpriteSize; y++)
             {
                 for (var x = 0; x < SpriteSize; x++)
