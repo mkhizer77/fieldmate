@@ -1,5 +1,7 @@
 using System;
 using Fieldmate.Assistant;
+using Fieldmate.UI;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.ARFoundation;
@@ -37,9 +39,13 @@ namespace Fieldmate.XR
         private InputAction confirmAction;
         private InputAction moveAction;
         private InputAction rotateAction;
+        private const int RingPoints = 64;
+        private const float RingRadius = 1f;
+
         private LineRenderer line;
-        private Transform ring;
-        private TextMesh hint;
+        private LineRenderer ring;
+        private Transform hint;
+        private TMP_Text hintText;
         private ARAnchor anchor;
         private float extraYaw;
         private float nextConfirm;
@@ -305,16 +311,18 @@ namespace Fieldmate.XR
         {
             line.SetPosition(0, pointer.position);
             line.SetPosition(1, target);
-            line.startColor = line.endColor = valid ? new Color(0.2f, 0.9f, 1f) : new Color(1f, 0.4f, 0.3f);
-            ring.position = target + Vector3.up * 0.005f;
-            hint.transform.position = target + Vector3.up * 1.45f;
-            hint.transform.rotation = Quaternion.LookRotation(hint.transform.position - head.position, Vector3.up);
+            var color = valid ? Theme.Accent : Theme.Danger;
+            line.startColor = line.endColor = color;
+            ring.startColor = ring.endColor = color;
+            ring.transform.position = target + Vector3.up * 0.01f;
+            hint.position = target + Vector3.up * 1.5f;
+            UiKit.FaceAway(hint, head.position);
         }
 
         private void OnModalityChanged(Modality modality) =>
-            hint.text = $"{InputWords.Place(modality)}\n{InputWords.Move(modality)} to move it later";
+            hintText.text = $"{InputWords.Place(modality)}\n<color={Theme.MutedHex}>{InputWords.Move(modality)} to move it later</color>";
 
-        public string HintText => hint != null ? hint.text : string.Empty;
+        public string HintText => hintText != null ? hintText.text : string.Empty;
 
         private void BuildVisuals()
         {
@@ -324,23 +332,38 @@ namespace Fieldmate.XR
             line.sharedMaterial = pointerMaterial;
             line.enabled = false;
 
-            ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder).transform;
-            ring.name = "Placement ring";
-            Destroy(ring.GetComponent<Collider>());
-            ring.localScale = new Vector3(1.8f, 0.002f, 1.8f);
-            ring.GetComponent<Renderer>().sharedMaterial = pointerMaterial;
-            ring.gameObject.SetActive(false);
+            // Footprint ring on the floor: an outline, not a disc, so the real floor stays visible inside it.
+            var ringGo = new GameObject("Placement ring", typeof(LineRenderer));
+            ring = ringGo.GetComponent<LineRenderer>();
+            ring.useWorldSpace = false;
+            ring.loop = true;
+            ring.widthMultiplier = 0.014f;
+            ring.sharedMaterial = pointerMaterial;
+            ring.positionCount = RingPoints;
+            for (var i = 0; i < RingPoints; i++)
+            {
+                var a = i * Mathf.PI * 2f / RingPoints;
+                ring.SetPosition(i, new Vector3(Mathf.Cos(a) * RingRadius, 0f, Mathf.Sin(a) * RingRadius));
+            }
 
-            hint = new GameObject("Placement hint").AddComponent<TextMesh>();
-            hint.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hint.GetComponent<MeshRenderer>().sharedMaterial = hint.font.material;
+            ringGo.SetActive(false);
+
+            // Hint card above the target, in the panel style.
+            var hintGo = new GameObject("Placement hint", typeof(RectTransform));
+            hint = hintGo.transform;
+            UiKit.WorldCanvas(hintGo, 640f, 190f);
+            var card = UiKit.Card("Background", hint, Vector2.zero, Vector2.one, Theme.Surface, stroke: true).transform;
+            var pad = new Vector2(Theme.Pad, 0f);
+            var eyebrow = UiKit.Eyebrow("Eyebrow", card, new Vector2(0f, 0.72f), new Vector2(1f, 0.92f), Theme.TextMuted);
+            eyebrow.rectTransform.offsetMin = pad;
+            eyebrow.text = "Setup";
+            var title = UiKit.Label("Title", card, new Vector2(0f, 0.46f), new Vector2(1f, 0.74f), Theme.Title - 4f, Theme.TextPrimary,
+                TextAlignmentOptions.MidlineLeft, semiBold: true, pad, -pad);
+            title.text = "Place the machine";
+            hintText = UiKit.Label("Hint", card, new Vector2(0f, 0.06f), new Vector2(1f, 0.46f), Theme.Caption + 2f, Theme.TextSecondary,
+                TextAlignmentOptions.TopLeft, semiBold: false, pad, -pad);
             OnModalityChanged(InputModalityProbe.Current);
-            hint.characterSize = 0.012f;
-            hint.fontSize = 48;
-            hint.anchor = TextAnchor.MiddleCenter;
-            hint.alignment = TextAlignment.Center;
-            hint.color = Color.white;
-            hint.gameObject.SetActive(false);
+            hintGo.SetActive(false);
         }
     }
 }

@@ -320,22 +320,15 @@ public static class AssistantBenchBuilder
         spare.GetComponent<Rigidbody>().isKinematic = true;
         spare.GetComponent<Rigidbody>().useGravity = false;
 
-        // Step card above the machine and the Start / Restart button below it, within reach.
+        // Step card above the machine and the buttons below it, within reach: Start (primary) with Move machine beside
+        // it and the occlusion setting underneath. The buttons build their own bezel, cap and label (#53).
         var stepPanel = new GameObject("Procedure Panel", typeof(RectTransform), typeof(ProcedurePanel));
         stepPanel.transform.SetParent(root.transform, false);
-        stepPanel.transform.localPosition = new Vector3(-0.4f, 1.55f, 0.3f);
-        var startButton = new GameObject("Start Button", typeof(PressButton));
-        startButton.transform.SetParent(root.transform, false);
-        startButton.transform.localPosition = new Vector3(-0.4f, 1.22f, 0.34f);
-        Shape(startButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, safety);
-        var moveButton = new GameObject("Move Button", typeof(PressButton));
-        moveButton.transform.SetParent(root.transform, false);
-        moveButton.transform.localPosition = new Vector3(-0.2f, 1.22f, 0.34f);
-        Shape(moveButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, dark);
-        var occlusionButton = new GameObject("Occlusion Button", typeof(PressButton));
-        occlusionButton.transform.SetParent(root.transform, false);
-        occlusionButton.transform.localPosition = new Vector3(-0.4f, 1.13f, 0.34f);
-        Shape(occlusionButton, PrimitiveType.Cube, Vector3.zero, PressButton.CapSize, dark);
+        // Over the cabinet side, clear of the highlight marker above the relief valve.
+        stepPanel.transform.localPosition = new Vector3(-0.78f, 1.72f, 0.3f);
+        MachineButton(root, "Start Button", new Vector3(-0.88f, 1.34f, 0.34f), ButtonStyle.Primary);
+        MachineButton(root, "Move Button", new Vector3(-0.68f, 1.34f, 0.34f), ButtonStyle.Secondary);
+        MachineButton(root, "Occlusion Button", new Vector3(-0.88f, 1.25f, 0.34f), ButtonStyle.Secondary);
 
         // 80 %: the full-size skid (2.3 m with the cabinet) didn't fit the test room (device test 2026-09-28).
         root.transform.localScale = Vector3.one * 0.8f;
@@ -377,6 +370,14 @@ public static class AssistantBenchBuilder
         interactor.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.InputAction;
         interactor.selectInput.inputActionPerformed = select;
         return interactor;
+    }
+
+    private static void MachineButton(GameObject root, string name, Vector3 localPosition, ButtonStyle style)
+    {
+        var go = new GameObject(name, typeof(PressButton));
+        go.transform.SetParent(root.transform, false);
+        go.transform.localPosition = localPosition;
+        Set(go.GetComponent<PressButton>(), "style", style);
     }
 
     private static PressButton Button(GameObject skid, string name) =>
@@ -483,6 +484,10 @@ public static class AssistantBenchBuilder
         if (value is string s)
         {
             p.stringValue = s;
+        }
+        else if (value is System.Enum e)
+        {
+            p.enumValueIndex = System.Convert.ToInt32(e);
         }
         else
         {

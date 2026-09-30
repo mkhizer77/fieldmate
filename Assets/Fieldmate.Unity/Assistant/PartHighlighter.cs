@@ -1,6 +1,7 @@
 using Fieldmate.Twin;
+using Fieldmate.UI;
+using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Fieldmate.Assistant
 {
@@ -13,7 +14,7 @@ namespace Fieldmate.Assistant
     {
         private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
 
-        [SerializeField] private Color highlight = new(0.1f, 0.9f, 1f, 1f);
+        [SerializeField] private Color highlight = Theme.Accent;
         [SerializeField] private float seconds = 12f;
         [SerializeField] private float markerHeight = 0.22f;
 
@@ -26,7 +27,7 @@ namespace Fieldmate.Assistant
         private Transform diamond;
         private Transform stem;
         private Transform label;
-        private Text labelText;
+        private TMP_Text labelText;
         private Material markerMaterial;
         private Vector3 partTop;
         private Camera viewer;
@@ -143,12 +144,7 @@ namespace Fieldmate.Assistant
 
             if (viewer != null)
             {
-                var away = label.position - viewer.transform.position;
-                away.y = 0f;
-                if (away.sqrMagnitude > 1e-4f)
-                {
-                    label.rotation = Quaternion.LookRotation(away, Vector3.up);
-                }
+                UiKit.FaceAway(label, viewer.transform.position);
             }
         }
 
@@ -162,32 +158,16 @@ namespace Fieldmate.Assistant
             diamond.localRotation = Quaternion.Euler(45f, 0f, 45f);
             stem = Primitive(PrimitiveType.Cylinder, "Stem");
 
-            var canvasGo = new GameObject("Label", typeof(RectTransform), typeof(Canvas));
+            var canvasGo = new GameObject("Label", typeof(RectTransform));
             label = canvasGo.transform;
             label.SetParent(marker, false);
-            label.localPosition = Vector3.up * 0.09f;
-            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-            var rect = (RectTransform)label;
-            rect.sizeDelta = new Vector2(600f, 150f); // name + a short "what to do" line
-            rect.localScale = Vector3.one * 0.001f;
-
-            var textGo = new GameObject("Text", typeof(RectTransform), typeof(Text));
-            textGo.transform.SetParent(label, false);
-            var textRect = (RectTransform)textGo.transform;
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
-            labelText = textGo.GetComponent<Text>();
-            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            labelText.fontSize = 56;
-            labelText.fontStyle = FontStyle.Bold;
-            labelText.alignment = TextAnchor.MiddleCenter;
-            labelText.color = highlight;
-            labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
-            labelText.verticalOverflow = VerticalWrapMode.Overflow;
-            labelText.supportRichText = true;
-            textGo.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.8f);
+            label.localPosition = Vector3.up * 0.1f;
+            UiKit.WorldCanvas(canvasGo, 420f, 116f); // name + a short "what to do" line
+            var pill = UiKit.Card("Pill", label, new Vector2(0.08f, 0.08f), new Vector2(0.92f, 0.92f), Theme.Scrim).transform;
+            labelText = UiKit.Label("Text", pill, Vector2.zero, Vector2.one, 36f, highlight, TextAlignmentOptions.Center, semiBold: true);
+            labelText.textWrappingMode = TextWrappingModes.NoWrap;
+            labelText.overflowMode = TextOverflowModes.Overflow;
+            labelText.lineSpacing = -8f;
 
             marker.gameObject.SetActive(false);
         }

@@ -175,7 +175,7 @@ public class ProcedurePlayModeTests
         Assert.That(result.Errors.Select(e => e.Message), Is.Empty);
         Assert.That(result.Violations.Select(v => v.Id), Is.Empty);
         Assert.That(result.Passed, Is.True);
-        Assert.That(panel.TitleText, Does.EndWith("passed"));
+        Assert.That(panel.ChipText, Is.EqualTo("Passed"));
     }
 
     [UnityTest]

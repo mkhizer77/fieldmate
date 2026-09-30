@@ -22,10 +22,12 @@ namespace Fieldmate.Interaction
 
         public bool IsTinted { get; private set; }
 
-        private void Awake()
+        private void Awake() => block = new MaterialPropertyBlock();
+
+        // After every Awake: a PressButton builds its cap in its own Awake, and the order of Awakes on one object is not defined.
+        private void Start()
         {
-            interactable = GetComponent<XRBaseInteractable>();
-            block = new MaterialPropertyBlock();
+            Hook();
             renderers = GetComponentsInChildren<Renderer>();
             originals = new Color[renderers.Length];
             for (var i = 0; i < renderers.Length; i++)
@@ -35,16 +37,36 @@ namespace Fieldmate.Interaction
             }
         }
 
-        private void OnEnable()
-        {
-            interactable.hoverEntered.AddListener(OnHoverEntered);
-            interactable.hoverExited.AddListener(OnHoverExited);
-        }
+        // The interactable may be added after this component (RequireComponent adds HoverTint first): hook up whenever it exists.
+        private void OnEnable() => Hook();
 
         private void OnDisable()
         {
+            if (interactable == null)
+            {
+                return;
+            }
+
             interactable.hoverEntered.RemoveListener(OnHoverEntered);
             interactable.hoverExited.RemoveListener(OnHoverExited);
+            interactable = null;
+        }
+
+        private void Hook()
+        {
+            if (interactable != null)
+            {
+                return;
+            }
+
+            interactable = GetComponent<XRBaseInteractable>();
+            if (interactable == null)
+            {
+                return;
+            }
+
+            interactable.hoverEntered.AddListener(OnHoverEntered);
+            interactable.hoverExited.AddListener(OnHoverExited);
         }
 
         private void OnHoverEntered(HoverEnterEventArgs args)
@@ -68,6 +90,11 @@ namespace Fieldmate.Interaction
         private void Apply(bool tinted)
         {
             IsTinted = tinted;
+            if (renderers == null)
+            {
+                return;
+            }
+
             for (var i = 0; i < renderers.Length; i++)
             {
                 if (renderers[i] == null)
