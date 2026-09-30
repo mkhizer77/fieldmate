@@ -21,8 +21,9 @@ public class PresenceTests
         Assert.That(material.shader.name, Is.EqualTo(PresenceBuilder.ShaderName));
         var glow = material.GetColor("_GlowColor");
         Assert.That(glow.r, Is.GreaterThan(0.9f).And.GreaterThan(glow.b), "light yellow");
-        Assert.That(material.GetFloat("_Fill"), Is.EqualTo(0f), "outline only, no glowing fill (device test 2026-09-30)");
-        Assert.That(material.GetFloat("_RimPower"), Is.GreaterThanOrEqualTo(3f), "thin rim");
+        Assert.That(material.HasProperty("_Fill"), Is.False, "no glowing fill any more: a stencil-masked silhouette band (device test 2026-09-30)");
+        Assert.That(material.GetFloat("_OutlineWidth"), Is.EqualTo(0.004f).Within(1e-4f));
+        Assert.That(material.shader.passCount, Is.EqualTo(3), "stencil mask, outline, stencil clear");
     }
 
     [TestCase(PresenceBuilder.LeftHandPrefabPath, Handedness.Left)]

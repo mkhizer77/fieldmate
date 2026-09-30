@@ -27,6 +27,7 @@ Material:
     m_Floats:
     - _Fill: 0
     - _Intensity: 0.5
+    - _OutlineWidth: 0.004
     - _RimPower: 3.6
     m_Colors:
     - _GlowColor: {r: 1, g: 0.94, b: 0.62, a: 1}

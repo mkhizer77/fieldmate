@@ -32,6 +32,9 @@ namespace Fieldmate.Procedures
         private readonly DwellTracker dwell = new();
         private readonly System.Collections.Generic.HashSet<string> shownTips = new();
         private RotaryInteractable watched;
+        private GazeRing gazeRing;
+        private Vector3 gazeTarget;
+        private string gazeTargetPart;
         private float restartArmedUntil = -1f;
         private bool dwellReported;
         private int readsTaken;
@@ -72,7 +75,39 @@ namespace Fieldmate.Procedures
             }
 
             panel.SetHead(head);
+            gazeRing = GazeRing.Create(head);
             ShowIdle();
+        }
+
+        // Ring over the step's part while the gaze rests on it: fills over the dwell the step needs.
+        private void UpdateGazeRing(StepDefinition step, float seconds)
+        {
+            if (gazeRing == null)
+            {
+                return;
+            }
+
+            var needed = step.Kind == StepKind.Inspect ? step.DwellSeconds : step.Kind == StepKind.Measure ? GaugeCheck.ReadSeconds : 0f;
+            if (needed <= 0f || dwell.PartId == null || dwell.PartId != step.PartId)
+            {
+                gazeRing.Hide();
+                return;
+            }
+
+            if (gazeTargetPart != step.PartId && machine.TryGetPart(step.PartId, out var part))
+            {
+                gazeTargetPart = step.PartId;
+                var bounds = new Bounds(part.transform.position, Vector3.zero);
+                foreach (var renderer in part.GetComponentsInChildren<Renderer>())
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+
+                gazeTarget = bounds.center;
+            }
+
+            var cycle = step.Kind == StepKind.Measure ? seconds % needed : seconds; // a reading repeats every ReadSeconds
+            gazeRing.Show(gazeTarget, cycle / needed);
         }
 
         // The step's two-hand control, watched while its step runs (controls register in their own Start, so this is
@@ -272,6 +307,8 @@ namespace Fieldmate.Procedures
                 Debug.Log($"[Procedure] gaze {dwell.PartId ?? "none"}"); // only on change
             }
 
+            UpdateGazeRing(step, seconds);
+
             if (dwell.PartId == null || dwell.PartId != step.PartId)
             {
                 dwellReported = false;
@@ -456,6 +493,7 @@ namespace Fieldmate.Procedures
         private void OnCompleted(ProcedureResult result)
         {
             guide?.Hide();
+            gazeRing?.Hide();
             WatchControl(null);
             highlighter.Clear();
             panel.ShowDebrief(result, machine.Runner.Definition.Title);

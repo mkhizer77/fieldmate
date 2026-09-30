@@ -95,6 +95,41 @@ public static class UiKit
         }
     }
 
+    private static Sprite ring;
+
+    /// <summary>An anti-aliased ring (outer radius 46 px, inner 36 px of 96) for radial progress.</summary>
+    public static Sprite Ring
+    {
+        get
+        {
+            if (ring != null)
+            {
+                return ring;
+            }
+
+            var texture = new Texture2D(SpriteSize, SpriteSize, TextureFormat.RGBA32, false) { name = "UiKit Ring", wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color32[SpriteSize * SpriteSize];
+            const float outer = 46f, inner = 36f;
+            for (var y = 0; y < SpriteSize; y++)
+            {
+                for (var x = 0; x < SpriteSize; x++)
+                {
+                    var dx = x + 0.5f - SpriteSize * 0.5f;
+                    var dy = y + 0.5f - SpriteSize * 0.5f;
+                    var r = Mathf.Sqrt(dx * dx + dy * dy);
+                    var alpha = Mathf.Clamp01(outer + 0.5f - r) * Mathf.Clamp01(r - inner + 0.5f);
+                    pixels[y * SpriteSize + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            ring = Sprite.Create(texture, new Rect(0, 0, SpriteSize, SpriteSize), new Vector2(0.5f, 0.5f), 100f);
+            ring.name = "UiKit Ring";
+            return ring;
+        }
+    }
+
     /// <summary>Turns <paramref name="go"/> into a world-space canvas of the given size in millimetres.</summary>
     public static Canvas WorldCanvas(GameObject go, float widthMm, float heightMm, float unitsPerMm = 1f)
     {

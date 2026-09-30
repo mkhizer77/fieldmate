@@ -144,8 +144,7 @@ public static class PresenceBuilder
 
         material.shader = shader;
         material.SetColor("_GlowColor", new Color(1f, 0.94f, 0.62f, 1f));
-        material.SetFloat("_RimPower", 3.6f); // outline only, like the system hand visual (device test: no glowing fill)
-        material.SetFloat("_Fill", 0f);
+        material.SetFloat("_OutlineWidth", 0.004f); // a 4 mm silhouette band, like the system hand visual (device test: no glow)
         EditorUtility.SetDirty(material);
         return material;
     }

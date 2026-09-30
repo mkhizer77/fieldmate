@@ -44,6 +44,7 @@ public static class ProjectSetup
     {
         ConfigurePlayer();
         ConfigureUrp();
+        EnsureAlwaysIncludedShaders();
         ConfigureXr();
         EnsureMainScene();
         AssetDatabase.SaveAssets();
@@ -74,6 +75,53 @@ public static class ProjectSetup
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
         }
+    }
+
+    /// <summary>Shaders the runtime UI looks up by name (Shader.Find) and no built asset references: without this the
+    /// Android build strips them and the kit silently falls back to depth-tested materials (device test 2026-09-30).</summary>
+    public static readonly string[] RuntimeShaders =
+    {
+        "Fieldmate/UIOverlay", "Fieldmate/UnlitOverlay", "Fieldmate/PresenceGlow",
+        "TextMeshPro/Mobile/Distance Field", "TextMeshPro/Mobile/Distance Field Overlay",
+    };
+
+    public static void EnsureAlwaysIncludedShaders()
+    {
+        var graphics = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset").FirstOrDefault();
+        if (graphics == null)
+        {
+            Debug.LogWarning("[ProjectSetup] GraphicsSettings.asset not found; runtime shaders may be stripped.");
+            return;
+        }
+
+        var so = new SerializedObject(graphics);
+        var list = so.FindProperty("m_AlwaysIncludedShaders");
+        foreach (var name in RuntimeShaders)
+        {
+            var shader = Shader.Find(name);
+            if (shader == null)
+            {
+                Debug.LogWarning($"[ProjectSetup] shader {name} not found; skipped.");
+                continue;
+            }
+
+            var present = false;
+            for (var i = 0; i < list.arraySize; i++)
+            {
+                if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader)
+                {
+                    present = true;
+                }
+            }
+
+            if (!present)
+            {
+                list.InsertArrayElementAtIndex(list.arraySize);
+                list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+            }
+        }
+
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void ConfigureUrp()
