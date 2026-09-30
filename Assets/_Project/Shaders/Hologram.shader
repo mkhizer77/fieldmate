@@ -12,12 +12,13 @@ Shader "Fieldmate/Hologram"
         _Intensity ("Intensity", Range(0, 3)) = 1
         _Fill ("Body fill", Range(0, 1)) = 0.22
         _RimPower ("Rim power", Range(0.5, 8)) = 2.2
-        _ScanDensity ("Scanlines per metre", Float) = 38
+        _ScanDensity ("Scanlines per metre", Float) = 26
         _ScanSpeed ("Scan speed (m/s)", Float) = 0.12
         _Interlace ("Interlace lines per metre", Float) = 420
         _Glitch ("Glitch amount", Range(0, 1)) = 0.35
         _FadeStart ("Fade start (world y, m)", Float) = -10000
-        _FadeRange ("Fade range (m)", Float) = 0.25
+        _FadeRange ("Fade range (m; negative fades out upwards)", Float) = 0.25
+        [Toggle] _DepthWrite ("Hide own back surfaces (depth pre-pass)", Float) = 1
         _Dim ("Passthrough dimming", Range(0, 1)) = 0.18
     }
 
@@ -41,6 +42,7 @@ Shader "Fieldmate/Hologram"
         float _FadeStart;
         float _FadeRange;
         half _Dim;
+        half _DepthWrite;
         CBUFFER_END
 
         struct Attributes
@@ -82,7 +84,7 @@ Shader "Fieldmate/Hologram"
         {
             Name "HologramDepth"
             Tags { "LightMode" = "SRPDefaultUnlit" }
-            ZWrite On
+            ZWrite [_DepthWrite]
             ColorMask 0
             Cull Back
 
@@ -116,12 +118,14 @@ Shader "Fieldmate/Hologram"
                 half rim = pow(1.0h - saturate(dot(n, v)), _RimPower);
 
                 float y = input.positionWS.y;
-                half scan = pow(frac(y * _ScanDensity - _Time.y * _ScanSpeed * _ScanDensity), 6.0h); // bright leading edge
+                half scan = pow(frac(y * _ScanDensity - _Time.y * _ScanSpeed * _ScanDensity), 24.0h); // a thin bright line with a short trail
                 half interlace = 0.8h + 0.2h * step(0.5, frac(y * _Interlace));
                 half flicker = 0.93h + 0.07h * sin(_Time.y * 37.0) * sin(_Time.y * 11.3);
-                half fade = saturate((input.positionWS.y - _FadeStart) / max(_FadeRange, 1e-3));
+                float range = abs(_FadeRange) < 1e-3 ? 1e-3 : _FadeRange;
+                half fade = saturate((input.positionWS.y - _FadeStart) / range);
+                fade *= fade; // soft at the waist, quickly solid above it
 
-                half3 colour = _BaseColor.rgb * (_Fill + 0.35h * scan) + _RimColor.rgb * rim;
+                half3 colour = _BaseColor.rgb * (_Fill + 0.6h * scan) + _RimColor.rgb * rim;
                 half light = _Intensity * interlace * flicker * fade;
                 half alpha = saturate(_Dim * (0.4h + rim) * fade);
                 return half4(colour * light, alpha);

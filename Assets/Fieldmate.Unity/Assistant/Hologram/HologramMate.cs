@@ -28,6 +28,7 @@ namespace Fieldmate.Assistant
         private static readonly int FadeStartId = Shader.PropertyToID("_FadeStart");
         private static readonly int FadeRangeId = Shader.PropertyToID("_FadeRange");
         private static readonly int FillId = Shader.PropertyToID("_Fill");
+        private static readonly int DepthWriteId = Shader.PropertyToID("_DepthWrite");
 
         private static readonly Color Cyan = new(0.25f, 0.85f, 1f, 1f);
         private static readonly Color ListenTint = new(0.35f, 1f, 0.8f, 1f);
@@ -51,6 +52,7 @@ namespace Fieldmate.Assistant
         private Transform ring;
         private Material skin;
         private Material features;
+        private Material beamMaterial;
         private AssistantState state;
         private float intensity = 1f;
         private float scanSpeed = 0.12f;
@@ -140,7 +142,8 @@ namespace Fieldmate.Assistant
             // Breathing and a slow hover.
             body.localScale = new Vector3(1f, 1f + 0.012f * Mathf.Sin(now * 1.6f), 1f + 0.018f * Mathf.Sin(now * 1.6f));
             figure.localPosition = new Vector3(0f, PedestalHeight + 0.02f + 0.006f * Mathf.Sin(now * 0.9f), 0f);
-            skin.SetFloat(FadeStartId, figure.position.y - 0.02f); // the waist dissolves into the beam
+            skin.SetFloat(FadeStartId, figure.position.y - 0.01f); // the waist dissolves into the beam
+            beamMaterial.SetFloat(FadeStartId, transform.position.y + PedestalHeight + 0.23f);
 
             // Look state on the light itself.
             var (targetIntensity, targetScan, targetTint) = state switch
@@ -206,7 +209,7 @@ namespace Fieldmate.Assistant
         {
             var shader = Shader.Find("Fieldmate/Hologram");
             skin = new Material(shader != null ? shader : Shader.Find("Universal Render Pipeline/Unlit")) { name = "Hologram" };
-            skin.SetFloat(FadeRangeId, 0.2f);
+            skin.SetFloat(FadeRangeId, 0.24f);
             features = new Material(skin) { name = "Hologram Features" };
             features.SetFloat(FillId, 0.9f);
             features.SetFloat(FadeStartId, -10000f); // eyes, lips, lens and ring never fade
@@ -230,6 +233,17 @@ namespace Fieldmate.Assistant
             {
                 new Vector2(0.15f, 0f), new Vector2(0.155f, 0.004f), new Vector2(0.15f, 0.008f), new Vector2(0.145f, 0.004f), new Vector2(0.15f, 0f),
             }, 48), features, new Vector3(0f, PedestalHeight + 0.01f, 0f)).transform;
+            // The projector's beam: a faint open cone from the lens up past the waist, all rim and no fill.
+            var beam = new Material(skin) { name = "Hologram Beam" };
+            beam.SetFloat(FillId, 0.02f);
+            beam.SetFloat(IntensityId, 0.5f);
+            beam.SetFloat(DepthWriteId, 0f); // light, not a surface: it must not hide the waist behind it
+            beam.SetFloat(FadeRangeId, -0.22f); // bright at the lens, gone by the waist
+            beamMaterial = beam;
+            Part("Beam", transform, LatheMesh.Build("Beam", new[]
+            {
+                new Vector2(0.09f, 0f), new Vector2(0.16f, 0.22f),
+            }, 40), beam, new Vector3(0f, PedestalHeight + 0.008f, 0f));
 
             figure = new GameObject("Figure").transform;
             figure.SetParent(transform, false);
@@ -243,17 +257,20 @@ namespace Fieldmate.Assistant
             {
                 new Vector2(0.13f, 0f), new Vector2(0.14f, 0.08f), new Vector2(0.155f, 0.18f), new Vector2(0.175f, 0.28f),
                 new Vector2(0.19f, 0.36f), new Vector2(0.19f, 0.42f), new Vector2(0.165f, 0.47f), new Vector2(0.11f, 0.505f),
-                new Vector2(0.055f, 0.52f), new Vector2(0.048f, 0.56f), new Vector2(0.046f, 0.6f), new Vector2(0f, 0.6f),
+                new Vector2(0.055f, 0.52f), new Vector2(0.046f, 0.56f), new Vector2(0.04f, 0.61f), new Vector2(0.036f, 0.645f),
+                new Vector2(0f, 0.648f), // the neck runs up under the jaw; the depth pass hides the inside
             }, 40, depth: 0.58f), skin, Vector3.zero);
             foreach (var side in new[] { -1f, 1f })
             {
                 // Upper arms hang from the shoulders, slightly away from the body; the beam fades them at the elbow.
+                // The rounded top (deltoid) sits inside the shoulder line so the arm grows out of the body.
                 var arm = Part(side < 0f ? "Left Arm" : "Right Arm", body, LatheMesh.Build("Arm", new[]
                 {
-                    new Vector2(0f, -0.3f), new Vector2(0.03f, -0.29f), new Vector2(0.04f, -0.24f), new Vector2(0.046f, -0.1f),
-                    new Vector2(0.05f, -0.02f), new Vector2(0.04f, 0.02f), new Vector2(0f, 0.035f),
-                }, 20), skin, new Vector3(side * 0.2f, 0.44f, 0f));
-                arm.transform.localRotation = Quaternion.Euler(0f, 0f, side * 7f);
+                    new Vector2(0f, -0.32f), new Vector2(0.03f, -0.31f), new Vector2(0.04f, -0.25f), new Vector2(0.046f, -0.12f),
+                    new Vector2(0.054f, -0.03f), new Vector2(0.056f, 0.01f), new Vector2(0.046f, 0.045f), new Vector2(0.02f, 0.062f),
+                    new Vector2(0f, 0.065f),
+                }, 24, depth: 0.9f), skin, new Vector3(side * 0.172f, 0.43f, 0f));
+                arm.transform.localRotation = Quaternion.Euler(0f, 0f, side * 4f);
             }
 
             headPivot = new GameObject("Head").transform;
@@ -261,13 +278,20 @@ namespace Fieldmate.Assistant
             headPivot.localPosition = new Vector3(0f, HeadHeight, 0.01f);
             Part("Skull", headPivot, LatheMesh.Build("Head", new[]
             {
-                new Vector2(0f, -0.125f), new Vector2(0.03f, -0.122f), new Vector2(0.055f, -0.108f), new Vector2(0.07f, -0.085f),
+                new Vector2(0f, -0.125f), new Vector2(0.038f, -0.12f), new Vector2(0.06f, -0.105f), new Vector2(0.072f, -0.085f),
                 new Vector2(0.079f, -0.05f), new Vector2(0.085f, -0.01f), new Vector2(0.088f, 0.03f), new Vector2(0.085f, 0.07f),
                 new Vector2(0.073f, 0.1f), new Vector2(0.05f, 0.122f), new Vector2(0.02f, 0.132f), new Vector2(0f, 0.134f),
             }, 36, depth: 1.12f), skin, Vector3.zero);
+            // Hair: a slightly larger cap over the crown and the back of the head gives the figure a character silhouette.
+            var hair = Part("Hair", headPivot, LatheMesh.Build("Hair", new[]
+            {
+                new Vector2(0.086f, 0.045f), new Vector2(0.092f, 0.065f), new Vector2(0.091f, 0.09f), new Vector2(0.08f, 0.115f),
+                new Vector2(0.058f, 0.135f), new Vector2(0.03f, 0.145f), new Vector2(0f, 0.147f),
+            }, 36, depth: 1.13f), skin, new Vector3(0f, 0f, -0.006f));
+            hair.transform.localRotation = Quaternion.Euler(-12f, 0f, 0f); // swept back: the hairline rises off the forehead
 
             // Face: glowing eyes and lips, drawn a hair in front of the skull so they read from any angle.
-            var quad = QuadMesh();
+            var quad = DiscMesh();
             leftEye = Part("Left Eye", headPivot, quad, features, new Vector3(-0.032f, 0f, 0.1f)).transform;
             rightEye = Part("Right Eye", headPivot, quad, features, new Vector3(0.032f, 0f, 0.1f)).transform;
             Part("Brow", headPivot, LatheMesh.Arc("Brow", 0.1f, 0.006f, 0.003f), features, new Vector3(0f, 0.022f, 0.101f));
@@ -289,16 +313,25 @@ namespace Fieldmate.Assistant
             return go;
         }
 
-        // A unit quad facing +Z (an eye, the mouth opening); scaled per frame.
-        private static Mesh QuadMesh()
+        // A unit-diameter disc facing +Z (an eye, the mouth opening); scaled per frame into an ellipse.
+        private static Mesh DiscMesh(int segments = 20)
         {
-            var mesh = new Mesh
+            var vertices = new Vector3[segments + 1];
+            var normals = new Vector3[segments + 1];
+            var triangles = new int[segments * 3];
+            normals[0] = Vector3.forward;
+            for (var i = 0; i < segments; i++)
             {
-                name = "Feature",
-                vertices = new[] { new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f), new Vector3(0.5f, 0.5f, 0f) },
-                normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward },
-                triangles = new[] { 0, 1, 2, 2, 1, 3 }, // clockwise seen from +Z
-            };
+                var a = i * Mathf.PI * 2f / segments;
+                vertices[i + 1] = new Vector3(Mathf.Cos(a) * 0.5f, Mathf.Sin(a) * 0.5f, 0f);
+                normals[i + 1] = Vector3.forward;
+                // Seen from +Z the x axis is mirrored, so rising angles run clockwise on screen: Unity's front face.
+                triangles[i * 3] = 0;
+                triangles[i * 3 + 1] = i + 1;
+                triangles[i * 3 + 2] = (i + 1) % segments + 1;
+            }
+
+            var mesh = new Mesh { name = "Feature", vertices = vertices, normals = normals, triangles = triangles };
             mesh.RecalculateBounds();
             return mesh;
         }
