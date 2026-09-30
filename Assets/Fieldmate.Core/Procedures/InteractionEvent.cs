@@ -19,6 +19,12 @@ public enum InteractionKind
 
     /// <summary>User asked the assistant for help (counts towards assistant reliance).</summary>
     HelpRequested,
+
+    /// <summary>
+    /// User tried to operate <see cref="InteractionEvent.PartId"/> while a safety rule held it (the interlock kept it
+    /// still). Counts as touching the part for the rule; changes no state.
+    /// </summary>
+    Attempted,
 }
 
 /// <summary>
@@ -48,9 +54,10 @@ public readonly struct InteractionEvent
     public static InteractionEvent Measured(double time, float value) => new(InteractionKind.MeasurementReported, time, number: value);
     public static InteractionEvent Confirmed(double time) => new(InteractionKind.Confirmed, time);
     public static InteractionEvent Help(double time) => new(InteractionKind.HelpRequested, time);
+    public static InteractionEvent Attempt(double time, string partId) => new(InteractionKind.Attempted, time, partId);
 
     /// <summary>Events that act on a part (and can therefore break a safety rule).</summary>
-    public bool IsPhysicalAction => Kind is InteractionKind.StateChanged or InteractionKind.ToolSocketed;
+    public bool IsPhysicalAction => Kind is InteractionKind.StateChanged or InteractionKind.ToolSocketed or InteractionKind.Attempted;
 
     public override string ToString() => $"{Kind}@{Time:0.##} part={PartId} value={Value} n={Number:0.##}";
 }

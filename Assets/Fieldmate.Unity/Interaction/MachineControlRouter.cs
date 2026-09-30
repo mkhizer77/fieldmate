@@ -12,9 +12,10 @@ namespace Fieldmate.Interaction
     /// Connects the machine's controls to the rest of the app: named states and seated tools become
     /// <see cref="InteractionEvent"/>s for the procedure runner (or its initial state before a procedure runs), valve
     /// positions and the breaker drive the telemetry simulation, removing the pump cover opens the relief seat, and the
-    /// hand interactors are off while the machine is being placed (the right pinch places it).
+    /// hand interactors are off while the machine is being placed (the right pinch places it). It is also every control's
+    /// <see cref="IInterlock"/>: during a run, a part a safety rule holds stays still, and the attempt goes to the runner.
     /// </summary>
-    public sealed class MachineControlRouter : MonoBehaviour
+    public sealed class MachineControlRouter : MonoBehaviour, IInterlock
     {
         [SerializeField] private MachineServices machine;
         [SerializeField] private MachinePlacement placement;
@@ -42,6 +43,8 @@ namespace Fieldmate.Interaction
                 {
                     controls.Add(control);
                     control.StateReached += OnStateReached;
+                    control.Interlock = this;
+                    control.Refused += OnRefused;
                     if (TwinInputMapper.IsContinuous(control.PartId))
                     {
                         continuous.Add(control);
@@ -53,6 +56,8 @@ namespace Fieldmate.Interaction
             foreach (var socket in sockets)
             {
                 socket.ToolSocketed += OnToolSocketed;
+                socket.Interlock = this;
+                socket.Refused += OnRefused;
                 socket.socketActive = false; // opened by removing the pump cover
             }
 
@@ -70,11 +75,13 @@ namespace Fieldmate.Interaction
             foreach (var control in controls)
             {
                 control.StateReached -= OnStateReached;
+                control.Refused -= OnRefused;
             }
 
             foreach (var socket in sockets)
             {
                 socket.ToolSocketed -= OnToolSocketed;
+                socket.Refused -= OnRefused;
             }
 
             if (placement != null)
@@ -143,6 +150,14 @@ namespace Fieldmate.Interaction
             {
                 machine.Runner.SetInitialState(partId, state); // keeps the runner in step before a procedure starts
             }
+        }
+
+        public bool Allows(string partId) => machine == null || machine.Runner.Interlock(partId) == null;
+
+        private void OnRefused(string partId)
+        {
+            Debug.Log($"[Interaction] {partId} held by the interlock: {machine.Runner.Interlock(partId)?.Id}");
+            machine.Runner.Handle(InteractionEvent.Attempt(machine.Now, partId));
         }
 
         private void OnToolSocketed(string socketId, string toolId)
