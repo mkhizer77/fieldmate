@@ -38,6 +38,7 @@ namespace Fieldmate.Assistant
         public string TranscriptText => transcriptText != null ? transcriptText.text : string.Empty;
         public string StateLabel => stateText != null ? stateText.text : string.Empty;
         public bool IsPulsing => pulse != null && pulse.IsPulsing;
+        public string BannerText => banner != null && banner.activeSelf ? bannerText.text : string.Empty;
 
         private void Awake() => Build();
 
