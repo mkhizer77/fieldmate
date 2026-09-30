@@ -214,16 +214,56 @@ public class ProcedurePlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator OpeningTheCoverBeforeLockout_IsASafetyViolation_OnThePanel()
+    public IEnumerator OpeningTheCoverBeforeLockout_IsHeldByTheInterlock_AndIsASafetyViolation()
     {
         yield return PlaceMachine();
         StartButton().Press();
         yield return null;
         var cover = Object.FindAnyObjectByType<RemovablePart>();
+        var home = cover.transform.position;
         yield return MoveCover(cover, cover.Centre + cover.transform.root.forward * 0.3f);
 
+        Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted), "#65: the cover stays on until the breaker is locked");
+        Assert.That(Vector3.Distance(cover.transform.position, home), Is.LessThan(0.001f));
+        Assert.That(cover.transform.parent, Is.Not.Null, "held still, never unparented");
         Assert.That(machine.Runner.Violations.Select(v => v.Id), Does.Contain("loto_cover"));
         Assert.That(panel.StatusText, Does.StartWith("Safety: Lock out the breaker before opening the pump."));
+    }
+
+    [UnityTest]
+    public IEnumerator InletValveBeforeLockout_DoesNotTurn_AndIsASafetyViolation()
+    {
+        var runner = machine.Runner;
+        yield return PlaceMachine();
+        StartButton().Press();
+        yield return null;
+        var inlet = Rotary("inlet_valve");
+
+        yield return Turn(inlet, Vector3.down, 0f, 90f, twoHands: false);
+
+        Assert.That(inlet.Angle, Is.EqualTo(0f).Within(0.01f), "#65: the valve is held until the breaker is locked");
+        Assert.That(runner.GetPartState("inlet_valve"), Is.EqualTo("open"));
+        Assert.That(runner.Violations.Select(v => v.Id), Is.EqualTo(new[] { "loto_inlet" }));
+        Assert.That(panel.StatusText, Does.StartWith("Safety: Lock out the breaker before touching the inlet valve."));
+
+        // After lockout the same valve turns.
+        yield return LookAt("relief_valve", 2f);
+        yield return Turn(Rotary("main_breaker"), Vector3.back, 0f, 135f, twoHands: true);
+        yield return Turn(inlet, Vector3.down, 0f, 90f, twoHands: false);
+        Assert.That(runner.GetPartState("inlet_valve"), Is.EqualTo("closed"));
+    }
+
+    [UnityTest]
+    public IEnumerator ReliefSeat_RefusesTheCartridge_WhileTheInletIsOpen()
+    {
+        yield return PlaceMachine();
+        StartButton().Press();
+        yield return null;
+        var seat = Object.FindAnyObjectByType<ToolSocket>();
+        var cartridge = Object.FindAnyObjectByType<ToolItem>();
+        seat.socketActive = true; // as if the cover were off: only the interlock can refuse now
+        Assert.That(seat.CanSelect((UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)cartridge), Is.False, "#65: isolate_seat holds the seat until the inlet is closed");
+        Assert.That(machine.Runner.Interlock("relief_valve_seat")?.Id, Is.EqualTo("isolate_seat"));
     }
 
     [UnityTest]

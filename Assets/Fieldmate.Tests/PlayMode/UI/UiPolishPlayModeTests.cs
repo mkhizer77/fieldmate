@@ -135,8 +135,10 @@ public class UiPolishPlayModeTests
         spawned.Add(ring.gameObject);
         yield return null;
         Assert.That(ring.IsShowing, Is.False);
-        ring.Show(new Vector3(0f, 1f, 1f), 0.5f);
+        head.position = new Vector3(0f, 1f, 0f);
+        ring.ShowInFront(new Vector3(0f, 1f, 1f), 0.1f, 0.5f);
         Assert.That(ring.IsShowing, Is.True);
+        Assert.That(ring.transform.position.z, Is.EqualTo(1f - 0.1f - 0.06f).Within(1e-3f), "just in front of the part, toward the viewer");
         Assert.That(ring.Progress, Is.EqualTo(0.5f).Within(1e-4f));
         foreach (var image in ring.GetComponentsInChildren<UnityEngine.UI.Image>())
         {

@@ -9,7 +9,8 @@ namespace Fieldmate.Interaction
     /// <summary>
     /// A seat that takes a <see cref="ToolItem"/> (design.md §5.3 Tool steps). Only tools are accepted, so the user can't
     /// socket a valve handle; which tool is right is the procedure's call (a wrong one is an error there, not a refusal
-    /// here). Inactive until opened (e.g. the relief seat behind the pump cover).
+    /// here). Inactive until opened (e.g. the relief seat behind the pump cover). While an <see cref="Interlock"/> holds
+    /// the seat, it takes nothing and reports a tool brought to it as a refused attempt (#65).
     /// </summary>
     public sealed class ToolSocket : XRSocketInteractor
     {
@@ -23,11 +24,28 @@ namespace Fieldmate.Interaction
         /// <summary>Raised with (socket id, tool id) when a tool is seated.</summary>
         public event Action<string, string> ToolSocketed;
 
+        public IInterlock Interlock { get; set; }
+
+        /// <summary>Raised with the socket id when a tool is brought to the seat while the interlock holds it.</summary>
+        public event Action<string> Refused;
+
+        private bool Open => Interlock == null || Interlock.Allows(socketId);
+
         public void Configure(string socket) => socketId = socket;
 
         public override bool CanHover(IXRHoverInteractable interactable) => interactable is ToolItem && base.CanHover(interactable);
 
-        public override bool CanSelect(IXRSelectInteractable interactable) => interactable is ToolItem && base.CanSelect(interactable);
+        public override bool CanSelect(IXRSelectInteractable interactable) =>
+            interactable is ToolItem && Open && base.CanSelect(interactable);
+
+        protected override void OnHoverEntered(HoverEnterEventArgs args)
+        {
+            base.OnHoverEntered(args);
+            if (args.interactableObject is ToolItem && !Open)
+            {
+                Refused?.Invoke(socketId);
+            }
+        }
 
         protected override void OnSelectEntered(SelectEnterEventArgs args)
         {

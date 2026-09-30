@@ -15,4 +15,10 @@ public interface IMachineControl
 
     /// <summary>Raised with (part id, state) when a named state is reached.</summary>
     event Action<string, string> StateReached;
+
+    /// <summary>Asked before the control moves; null lets it move freely.</summary>
+    IInterlock Interlock { get; set; }
+
+    /// <summary>Raised with the part id once per grab that the interlock held still.</summary>
+    event Action<string> Refused;
 }

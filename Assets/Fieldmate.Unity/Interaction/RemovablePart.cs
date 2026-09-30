@@ -11,7 +11,8 @@ namespace Fieldmate.Interaction
     /// released elsewhere, it stays there (kinematic, no gravity), still parented to the machine. Brought back within
     /// <see cref="clickDistance"/> while still held, it clicks on by itself (#67). It is grabbed where the hand touches it
     /// and keeps its rotation relative to the hand (dynamic attach), and distances are measured at its centre, not its
-    /// pivot (the builder's pivot is the machine origin).
+    /// pivot (the builder's pivot is the machine origin). While an <see cref="Interlock"/> holds it, a grab doesn't
+    /// move it (#65).
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(HoverTint))]
@@ -52,6 +53,13 @@ namespace Fieldmate.Interaction
         public Vector3 Centre => transform.TransformPoint(localCentre);
 
         public event Action<string, string> StateReached;
+
+        public IInterlock Interlock { get; set; }
+
+        public event Action<string> Refused;
+
+        /// <summary>True while a grab is being held still by the interlock.</summary>
+        public bool IsHeldByInterlock { get; private set; }
 
         public void Configure(string part) => partId = part;
 
@@ -124,13 +132,45 @@ namespace Fieldmate.Interaction
             return transform.InverseTransformPoint(bounds.center);
         }
 
+        protected override void OnSelectEntering(SelectEnterEventArgs args)
+        {
+            // Decided before XRI starts tracking the hand, so a held part never moves at all.
+            var first = !isSelected;
+            if (first && Interlock != null && !Interlock.Allows(partId))
+            {
+                IsHeldByInterlock = true;
+                SetTracking(false);
+            }
+
+            base.OnSelectEntering(args);
+            if (first && IsHeldByInterlock)
+            {
+                InteractionFeedback.Refused(interactorsSelecting);
+                Refused?.Invoke(partId);
+            }
+        }
+
         protected override void OnSelectExited(SelectExitEventArgs args)
         {
             base.OnSelectExited(args);
+            if (!isSelected && IsHeldByInterlock)
+            {
+                IsHeldByInterlock = false;
+                SetTracking(true);
+            }
+
             if (!isSelected && Offset <= snapDistance)
             {
                 ReturnHome();
             }
+        }
+
+        private void SetTracking(bool follow)
+        {
+            trackPosition = follow;
+            trackRotation = follow;
+            trackScale = follow;
+            unparentTransformOnGrab = follow;
         }
 
         /// <summary>Puts the part back on its seat (release near home, or a reset).</summary>

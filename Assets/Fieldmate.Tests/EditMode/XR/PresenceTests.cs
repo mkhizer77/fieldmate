@@ -23,7 +23,10 @@ public class PresenceTests
         Assert.That(glow.r, Is.GreaterThan(0.9f).And.GreaterThan(glow.b), "light yellow");
         Assert.That(material.HasProperty("_Fill"), Is.False, "no glowing fill any more: a stencil-masked silhouette band (device test 2026-09-30)");
         Assert.That(material.GetFloat("_OutlineWidth"), Is.EqualTo(0.004f).Within(1e-4f));
-        Assert.That(material.shader.passCount, Is.EqualTo(3), "stencil mask, outline, stencil clear");
+        Assert.That(material.shader.passCount, Is.EqualTo(2), "stencil mask, outline");
+        var lightMode = new UnityEngine.Rendering.ShaderTagId("LightMode");
+        Assert.That(material.shader.FindPassTagValue(0, lightMode).name, Is.EqualTo("SRPDefaultUnlit").IgnoreCase, "URP draws it first");
+        Assert.That(material.shader.FindPassTagValue(1, lightMode).name, Is.EqualTo("UniversalForward").IgnoreCase, "then the outline (untagged extra passes never draw on device)");
     }
 
     [TestCase(PresenceBuilder.LeftHandPrefabPath, Handedness.Left)]
@@ -63,6 +66,9 @@ public class PresenceTests
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PresenceBuilder.ControllerPrefabPath);
         Assert.That(prefab, Is.Not.Null);
         Assert.That(prefab.GetComponent<ModalityVisibility>().ShownFor, Is.EqualTo(Modality.Controllers));
-        Assert.That(prefab.GetComponentInChildren<MeshRenderer>().sharedMaterial.shader.name, Is.EqualTo(PresenceBuilder.ShaderName));
+        var ring = prefab.GetComponentInChildren<MeshRenderer>();
+        Assert.That(ring.name, Is.EqualTo("Grip Ring"), "a ring around the grip, not a model that never fitted");
+        Assert.That(ring.sharedMaterial.shader.name, Is.EqualTo("Fieldmate/UnlitOverlay"));
+        Assert.That(ring.GetComponent<MeshFilter>().sharedMesh.bounds.extents.x, Is.EqualTo(0.037f).Within(0.002f), "34 mm radius + 3 mm tube");
     }
 }

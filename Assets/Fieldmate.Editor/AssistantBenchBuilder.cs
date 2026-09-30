@@ -43,7 +43,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -127,6 +127,7 @@ public static class AssistantBenchBuilder
         Set(loop, "highlighter", assistant.GetComponent<PartHighlighter>());
         Set(loop, "player", audio.GetComponent<StreamingAudioPlayer>());
         Set(loop, "head", cameraGo.transform);
+        Set(loop, "leftHand", leftHand); // the talk pinch is ignored while this hand holds a control
 
         var placementGo = new GameObject("Machine Placement", typeof(MachinePlacement));
         var placement = placementGo.GetComponent<MachinePlacement>();
@@ -157,10 +158,15 @@ public static class AssistantBenchBuilder
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
             .Configure(Button(skid, "Move Button"), placement);
 
+        new GameObject("Narrator", typeof(ProactiveNarrator)).GetComponent<ProactiveNarrator>()
+            .Configure(services.GetComponent<MachineServices>(), loop); // speaks on its own for steps, violations, debrief (#61)
+
         var occlusion = new GameObject("Occlusion Settings", typeof(OcclusionSettings), typeof(FrameTimeProbe));
         occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
             cameraGo.GetComponent<ARShaderOcclusion>(), Button(skid, "Occlusion Button"));
         occlusion.GetComponent<FrameTimeProbe>().Configure(occlusion.GetComponent<OcclusionSettings>());
+        var perf = new GameObject("Perf Overlay", typeof(RectTransform), typeof(PerfOverlay)).GetComponent<PerfOverlay>();
+        perf.Configure(occlusion.GetComponent<FrameTimeProbe>(), Button(skid, "Stats Button"), skid.transform, new Vector3(-0.78f, 2.05f, 0.3f), cameraGo.transform);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
@@ -346,6 +352,7 @@ public static class AssistantBenchBuilder
         MachineButton(root, "Start Button", new Vector3(-0.88f, 1.34f, 0.34f), ButtonStyle.Primary);
         MachineButton(root, "Move Button", new Vector3(-0.68f, 1.34f, 0.34f), ButtonStyle.Secondary);
         MachineButton(root, "Occlusion Button", new Vector3(-0.88f, 1.25f, 0.34f), ButtonStyle.Secondary);
+        MachineButton(root, "Stats Button", new Vector3(-0.68f, 1.25f, 0.34f), ButtonStyle.Secondary); // perf overlay (#18)
 
         // 80 %: the full-size skid (2.3 m with the cabinet) didn't fit the test room (device test 2026-09-28).
         root.transform.localScale = Vector3.one * 0.8f;
@@ -446,7 +453,7 @@ public static class AssistantBenchBuilder
         ray.selectInput.inputActionPerformed = select;
 
         var line = pointer.AddComponent<LineRenderer>();
-        line.sharedMaterial = GuideMaterial();
+        line.sharedMaterial = RayMaterial(); // white: the gradient alone decides white / blue (a cyan tint made it blue)
         line.widthMultiplier = 0.004f;
         line.numCapVertices = 2;
         var visual = pointer.AddComponent<XRInteractorLineVisual>();
@@ -465,7 +472,7 @@ public static class AssistantBenchBuilder
         Object.DestroyImmediate(dot.GetComponent<Collider>()); // must never catch the gaze or the ray
         dot.transform.SetParent(pointer.transform, false);
         dot.transform.localScale = Vector3.one * 0.012f;
-        dot.GetComponent<Renderer>().sharedMaterial = GuideMaterial();
+        dot.GetComponent<Renderer>().sharedMaterial = RayMaterial();
         pointer.AddComponent<PointerRayStyle>().Configure(dot.transform);
     }
 
@@ -535,7 +542,26 @@ public static class AssistantBenchBuilder
         return prefab.GetComponent<MeshFilter>();
     }
 
-    /// <summary>Vertex-coloured unlit overlay material for the placement line, floor ring, step guide and pointer rays.</summary>
+    /// <summary>White unlit overlay material for the pointer rays and their dots; colour comes from the line gradient.</summary>
+    private static Material RayMaterial()
+    {
+        var path = $"{MaterialsDir}/PointerRay.mat";
+        var overlay = Shader.Find("Fieldmate/UnlitOverlay")
+            ?? throw new System.InvalidOperationException("Shader Fieldmate/UnlitOverlay not found (Assets/_Project/Shaders).");
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(overlay);
+            AssetDatabase.CreateAsset(material, path);
+        }
+
+        material.shader = overlay;
+        material.SetColor("_BaseColor", Color.white);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    /// <summary>Vertex-coloured unlit overlay material for the placement line, floor ring and step guide.</summary>
     private static Material GuideMaterial()
     {
         var path = $"{MaterialsDir}/PlacementGuide.mat";
