@@ -87,4 +87,18 @@ public class ProcedureAssetTests
             }
         }
     }
+
+    [Test]
+    public void Replaying_to_the_last_step_breaks_no_safety_rule()
+    {
+        var runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
+        runner.SetInitialState("main_breaker", "on");
+        runner.SetInitialState("inlet_valve", "open");
+        runner.SetInitialState("pump_cover", "fitted");
+        var clock = 0d;
+        ProcedureReplay.AdvanceTo(runner, "verify_running", ref clock);
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_running"));
+        Assert.That(runner.Violations, Is.Empty, "the cover is refitted before the breaker goes back on");
+        Assert.That(runner.Errors, Is.Empty);
+    }
 }
