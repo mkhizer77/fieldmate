@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
-using UnityEngine.XR.OpenXR;
 using UnityEngine.XR.OpenXR.Features;
 
 namespace Fieldmate.XR
@@ -104,17 +103,16 @@ namespace Fieldmate.XR
 
         protected override bool OnInstanceCreate(ulong xrInstance)
         {
-            if (!OpenXRRuntime.IsExtensionEnabled(ExtensionString))
-            {
-                Debug.LogWarning("[Presence] XR_FB_render_model not available: no runtime controller models");
-                return true; // optional: the app runs without the models
-            }
-
+            // Don't ask OpenXRRuntime.IsExtensionEnabled here: on device it answered false at this point although the
+            // extension was enabled (2026-10-01). The function lookups only succeed when the extension really is on.
             var getProc = Marshal.GetDelegateForFunctionPointer<GetInstanceProcAddr>(xrGetInstanceProcAddr);
             enumeratePaths = Load<EnumeratePaths>(getProc, xrInstance, "xrEnumerateRenderModelPathsFB");
             getProperties = Load<GetProperties>(getProc, xrInstance, "xrGetRenderModelPropertiesFB");
             loadModel = Load<LoadModel>(getProc, xrInstance, "xrLoadRenderModelFB");
-            return true;
+            Debug.Log(loadModel != null
+                ? "[Presence] XR_FB_render_model ready: runtime controller models"
+                : "[Presence] XR_FB_render_model unavailable: no runtime controller models");
+            return true; // optional either way: the app runs without the models
         }
 
         protected override void OnSessionCreate(ulong xrSession)
@@ -135,6 +133,17 @@ namespace Fieldmate.XR
         private static T Load<T>(GetInstanceProcAddr getProc, ulong instance, string name) where T : Delegate =>
             getProc(instance, name, out var pointer) == 0 && pointer != IntPtr.Zero ? Marshal.GetDelegateForFunctionPointer<T>(pointer) : null;
 
+        private static string lastLog;
+
+        private static void LogOnce(string message)
+        {
+            if (message != lastLog)
+            {
+                lastLog = message;
+                Debug.Log(message);
+            }
+        }
+
         /// <summary>The GLB of the left or right controller model, and its runtime name; false until it is available.</summary>
         public static bool TryLoadController(bool left, out byte[] glb, out string modelName)
         {
@@ -148,8 +157,10 @@ namespace Fieldmate.XR
             if (!pathsEnumerated)
             {
                 // The runtime expects the paths to be enumerated before properties are queried.
-                if (enumeratePaths(session, 0, out var count, null) != 0)
+                var first = enumeratePaths(session, 0, out var count, null);
+                if (first != 0)
                 {
+                    LogOnce($"[Presence] render model paths: result {first}");
                     return false;
                 }
 
@@ -177,6 +188,7 @@ namespace Fieldmate.XR
                 var result = getProperties(session, path, ref properties);
                 if (result != 0 || properties.modelKey == 0)
                 {
+                    LogOnce($"[Presence] {(left ? "left" : "right")} controller model not offered yet (result {result}, key {properties.modelKey})");
                     return false; // XR_RENDER_MODEL_UNAVAILABLE_FB until the controller is connected
                 }
 
