@@ -21,9 +21,10 @@ namespace Fieldmate.Procedures
     }
 
     /// <summary>
-    /// A physical button on the machine: pinch it (or press trigger with a controller) to press. Builds its own visuals:
-    /// a dark bezel, a cap that depresses on press, and a label. Presses are debounced so a flickering pinch doesn't
-    /// press twice. The GameObject is unscaled; the cap is a child (<see cref="CapSize"/>).
+    /// A button: pinch it (or press trigger with a controller, or point the ray and pinch) to press. Builds its own
+    /// visuals: either a physical cap in a bezel, or (<see cref="flat"/>, the hand menu's rows, #73) a flat rounded row in
+    /// the UI kit's style that dips back on press. Presses are debounced so a flickering pinch doesn't press twice. The
+    /// GameObject is unscaled; the cap is a child (<see cref="CapSize"/> / <see cref="RowSize"/>).
     /// </summary>
     [RequireComponent(typeof(HoverTint))]
     public sealed class PressButton : XRSimpleInteractable
@@ -32,6 +33,10 @@ namespace Fieldmate.Procedures
         private const float PressDepth = 0.012f;
         private const float PressSeconds = 0.09f;
         public static readonly Vector3 CapSize = new(0.16f, 0.06f, 0.03f);
+        public static readonly Vector3 RowSize = new(0.13f, 0.03f, 0.008f);
+
+        /// <summary>Canvas units per mm for flat rows: read at 40 cm, the kit's type sizes scale down by 2.5.</summary>
+        public const float RowUnitsPerMm = 2.5f;
         private static readonly Vector3 BezelSize = new(0.176f, 0.076f, 0.02f);
         private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
@@ -41,10 +46,12 @@ namespace Fieldmate.Procedures
 
         [SerializeField] private string label = "Start";
         [SerializeField] private ButtonStyle style = ButtonStyle.Secondary;
+        [SerializeField] private bool flat;
 
         private TMP_Text labelText;
         private Transform cap;
         private Renderer capRenderer;
+        private UnityEngine.UI.Image rowFill;
         private AudioSource clickSource;
         private float lastPress = -10f;
         private float pressedAt = -10f;
@@ -78,7 +85,7 @@ namespace Fieldmate.Procedures
         public void SetStyle(ButtonStyle buttonStyle)
         {
             style = buttonStyle;
-            if (capRenderer != null)
+            if (capRenderer != null || rowFill != null)
             {
                 ApplyStyle();
             }
@@ -115,13 +122,26 @@ namespace Fieldmate.Procedures
             // In over PressSeconds, back out over the same time.
             var t = (Time.unscaledTime - pressedAt) / PressSeconds;
             var depth = t < 1f ? t : t < 2f ? 2f - t : 0f;
-            cap.localPosition = new Vector3(0f, 0f, -PressDepth * depth);
+            cap.localPosition = new Vector3(0f, 0f, -(flat ? PressDepth * 0.3f : PressDepth) * depth);
             animating = t < 2f;
         }
 
         private void ApplyStyle()
         {
-            capRenderer.sharedMaterial = CapMaterials[(int)style];
+            if (rowFill != null)
+            {
+                rowFill.color = style switch
+                {
+                    ButtonStyle.Primary => Theme.ButtonPrimary,
+                    ButtonStyle.Secondary => Theme.ButtonSecondary,
+                    _ => Theme.ButtonMuted,
+                };
+            }
+            else
+            {
+                capRenderer.sharedMaterial = CapMaterials[(int)style];
+            }
+
             labelText.color = style switch
             {
                 ButtonStyle.Primary => Theme.TextOnAccent,
@@ -132,6 +152,12 @@ namespace Fieldmate.Procedures
 
         private void BuildVisuals()
         {
+            if (flat)
+            {
+                BuildRow();
+                return;
+            }
+
             var bezel = Block("Bezel", BezelSize, new Vector3(0f, 0f, -(CapSize.z + BezelSize.z) * 0.5f + 0.004f), collider: false);
             bezel.GetComponent<Renderer>().sharedMaterial = BezelMaterial;
             cap = Block("Cap", CapSize, Vector3.zero, collider: true);
@@ -151,6 +177,28 @@ namespace Fieldmate.Procedures
             labelText.enableAutoSizing = true; // "Confirm restart" and "Occlusion: Hard" shrink to fit the cap
             labelText.fontSizeMin = 15f;
             labelText.fontSizeMax = Theme.Body - 2f;
+            labelText.text = label;
+        }
+
+        // A flat rounded row: a thin collider for the ray and fingertip, the fill and the label on a small world canvas.
+        private void BuildRow()
+        {
+            cap = new GameObject("Cap").transform;
+            cap.SetParent(transform, false);
+            cap.gameObject.AddComponent<BoxCollider>().size = RowSize;
+            var canvasGo = new GameObject("Row", typeof(RectTransform));
+            canvasGo.transform.SetParent(cap, false);
+            canvasGo.transform.localPosition = new Vector3(0f, 0f, RowSize.z * 0.5f + 0.001f);
+            canvasGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f); // readable from +Z (the user)
+            var rowCanvas = UiKit.WorldCanvas(canvasGo, RowSize.x * 1000f, RowSize.y * 1000f, RowUnitsPerMm);
+            rowCanvas.sortingOrder = 10; // over the menu card behind it
+            rowFill = UiKit.Card("Fill", canvasGo.transform, Vector2.zero, Vector2.one, Theme.ButtonSecondary);
+            labelText = UiKit.Label("Text", canvasGo.transform, Vector2.zero, Vector2.one, Theme.Body, Theme.TextPrimary,
+                TextAlignmentOptions.Center, semiBold: true, new Vector2(Theme.Gap, 0f), new Vector2(-Theme.Gap, 0f));
+            labelText.textWrappingMode = TextWrappingModes.NoWrap;
+            labelText.enableAutoSizing = true;
+            labelText.fontSizeMin = Theme.Caption;
+            labelText.fontSizeMax = Theme.Body;
             labelText.text = label;
         }
 

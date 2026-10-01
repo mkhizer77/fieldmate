@@ -6,10 +6,12 @@ using UnityEngine.UI;
 namespace Fieldmate.Interaction
 {
     /// <summary>
-    /// A pill floating above a control so it is obvious what can be operated and what it does, e.g.
-    /// "Main breaker · motor power · ON", with a thin stem down to the control. The state follows the control
+    /// A pill floating above a part so it is obvious what it is and, for a control, what it does, e.g.
+    /// "Main breaker · motor power · ON", with a thin stem down to it. The state follows the control
     /// (<see cref="IMachineControl.StateReached"/>) and is coloured by meaning (energised / neutral / secured). Faces the
-    /// user around the vertical axis and fades when far away so the machine isn't wallpapered with labels.
+    /// user around the vertical axis and fades when far away. Hidden unless needed (#73): it shows while its step needs it
+    /// (<see cref="Relevant"/>) or when the user asked for every label (<see cref="ShowAll"/>), and steps aside while the
+    /// highlighter's callout takes its place (<see cref="Suppressed"/>).
     /// </summary>
     public sealed class ControlTag : MonoBehaviour
     {
@@ -23,10 +25,12 @@ namespace Fieldmate.Interaction
         [SerializeField] private string title;
         [SerializeField] private string purpose;
         [SerializeField] private Vector3 offset = new(0f, 0.12f, 0f);
+        [SerializeField] private float stemMetres = -1f; // < 0: down to the transform (controls); else this long (whole parts)
 
         private IMachineControl control;
         private Transform label;
         private CanvasGroup group;
+        private Canvas canvas;
         private TMP_Text text;
         private string plainText = string.Empty;
         private Camera viewer;
@@ -36,8 +40,16 @@ namespace Fieldmate.Interaction
 
         public float Alpha => group != null ? group.alpha : 1f;
 
+        /// <summary>Every label on the machine, when the user asks what is what (#73). Off by default.</summary>
+        public static bool ShowAll { get; set; }
+
+        /// <summary>The current step needs this part or tool (#73): its label shows until the step is done.</summary>
+        public bool Relevant { get; set; }
+
         /// <summary>While the assistant highlights this part, its callout takes the tag's place (#71).</summary>
         public bool Suppressed { get; set; }
+
+        public bool IsShown => (ShowAll || Relevant) && !Suppressed;
 
         /// <summary>Where the pill floats (world), for a callout that replaces it.</summary>
         public Vector3 LabelPosition => label != null ? label.position : transform.position + offset;
@@ -45,11 +57,12 @@ namespace Fieldmate.Interaction
         /// <summary>Who the tag faces and fades for; defaults to the main camera.</summary>
         public void SetViewer(Camera camera) => viewer = camera;
 
-        public void Configure(string tagTitle, string tagPurpose, Vector3 localOffset)
+        public void Configure(string tagTitle, string tagPurpose, Vector3 localOffset, float stem = -1f)
         {
             title = tagTitle;
             purpose = tagPurpose;
             offset = localOffset;
+            stemMetres = stem;
             if (text != null)
             {
                 Refresh(control?.State); // configured after Awake (tests)
@@ -100,7 +113,12 @@ namespace Fieldmate.Interaction
             {
                 UiKit.FaceAway(label, viewer.transform.position);
                 var distance = Vector3.Distance(label.position, viewer.transform.position);
-                group.alpha = Suppressed ? 0f : Mathf.Lerp(1f, FarAlpha, Mathf.InverseLerp(NearMetres, FarMetres, distance));
+                var target = IsShown ? Mathf.Lerp(1f, FarAlpha, Mathf.InverseLerp(NearMetres, FarMetres, distance)) : 0f;
+                group.alpha = Mathf.MoveTowards(group.alpha, target, Time.deltaTime / 0.25f);
+                if (canvas.enabled != group.alpha > 0.001f)
+                {
+                    canvas.enabled = group.alpha > 0.001f; // hidden labels cost no draw calls
+                }
             }
         }
 
@@ -109,11 +127,13 @@ namespace Fieldmate.Interaction
             var canvasGo = new GameObject($"{name} Tag", typeof(RectTransform));
             label = canvasGo.transform;
             label.SetParent(transform.parent != null ? transform.parent : transform, false);
-            UiKit.WorldCanvas(canvasGo, WidthUnits * CanvasScale * 1000f, HeightUnits * CanvasScale * 1000f, 1f / (CanvasScale * 1000f));
+            canvas = UiKit.WorldCanvas(canvasGo, WidthUnits * CanvasScale * 1000f, HeightUnits * CanvasScale * 1000f, 1f / (CanvasScale * 1000f));
             group = canvasGo.GetComponent<CanvasGroup>();
+            group.alpha = 0f;
+            canvas.enabled = false;
 
             // Stem from the pill down to the control, in canvas units (the canvas scale is the same in every axis).
-            var stemLength = Mathf.Max(0f, offset.y / CanvasScale - HeightUnits * 0.5f);
+            var stemLength = stemMetres >= 0f ? stemMetres / CanvasScale : Mathf.Max(0f, offset.y / CanvasScale - HeightUnits * 0.5f);
             if (stemLength > 0f)
             {
                 UiKit.Bar("Stem", label, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), Theme.Stroke, new Vector2(-1.5f, -stemLength), new Vector2(1.5f, 0f));

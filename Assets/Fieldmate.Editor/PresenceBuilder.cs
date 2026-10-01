@@ -114,11 +114,17 @@ public static class PresenceBuilder
     /// the grip where the palm holds it, in the grip pose's XY plane (the OpenXR grip Z axis runs along the handle), on
     /// the unlit overlay material; the glow brightens it while hovering and grabbing.
     /// </summary>
+    /// <summary>Distance up the handle from the grip pose to the ring, in metres.</summary>
+    public const float GripRingOffset = 0.045f;
+
     private static void BuildController(string prefabPath, Material outline)
     {
         var root = new GameObject("Controller Presence", typeof(ModalityVisibility), typeof(PresenceGlow));
         var visual = new GameObject("Grip Ring", typeof(MeshFilter), typeof(MeshRenderer));
         visual.transform.SetParent(root.transform, false);
+        // The grip pose's origin is the middle of the fist (device test 2026-10-01: the ring cut through the controller).
+        // Slide it up the handle (+Z, pinky to index) to sit just above the index finger, where the handle meets the head.
+        visual.transform.localPosition = new Vector3(0f, 0f, GripRingOffset);
         visual.GetComponent<MeshFilter>().sharedMesh = GripRingMesh();
         var renderer = visual.GetComponent<MeshRenderer>();
         renderer.sharedMaterial = RingMaterial();

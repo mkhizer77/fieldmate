@@ -75,7 +75,7 @@ public class AssistantSessionTests
         var request = chat.Requests.Single();
         Assert.That(request.SystemPrompt, Is.EqualTo("system-de"));
         Assert.That(request.Context, Is.EqualTo("context for: Hallo"));
-        Assert.That(request.Tools, Has.Count.EqualTo(9));
+        Assert.That(request.Tools, Has.Count.EqualTo(10));
         Assert.That(request.MaxOutputTokens, Is.EqualTo(AssistantSession.MaxReplyTokens));
     }
 

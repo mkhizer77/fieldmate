@@ -27,6 +27,11 @@ public static class InputWords
 
     public static string Move(Modality m) => m == Modality.Controllers ? "Y or Move machine" : "Move machine";
 
+    /// <summary>How to open the hand menu (#73).</summary>
+    public static string Menu(Modality m) => m == Modality.Controllers
+        ? "Press the menu button on the left controller for the menu"
+        : "Turn your left palm towards you for the menu";
+
     /// <summary>Spoken: how to put the hologram mate down (#71).</summary>
     public static string PlaceMate(Modality m) => m == Modality.Controllers
         ? "point the right controller where you want me and pull the trigger"

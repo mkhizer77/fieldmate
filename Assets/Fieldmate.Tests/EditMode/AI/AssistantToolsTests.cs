@@ -57,6 +57,17 @@ public class AssistantToolsTests
     }
 
     [Test]
+    public async Task ShowLabels_ShowsAndHidesEveryPartLabel()
+    {
+        var shown = await Run("show_labels", "{\"visible\":true}");
+        Assert.That(scene.LabelsVisible, Is.True);
+        Assert.That(shown.Content, Does.StartWith($"Name labels are now shown on all {manual.Parts.Count} parts."));
+        var hidden = await Run("show_labels", "{\"visible\":false}");
+        Assert.That(scene.LabelsVisible, Is.False);
+        Assert.That(hidden.IsError, Is.False);
+    }
+
+    [Test]
     public async Task StartProcedure_StartsOnceAndShowsStepOne()
     {
         var started = await Run("start_procedure", "{\"procedure_id\":\"relief_valve_replacement\"}");
@@ -213,7 +224,7 @@ public class AssistantPromptTests
         new AssistantTools(manual, runner, new TelemetryModel(FaultModel.CreateDefault()), new FakeScene()).AttachTo(registry);
 
         Assert.That(registry.Definitions.Select(d => d.Name), Has.No.Member(FieldmateTools.IdentifyView));
-        Assert.That(registry.Definitions, Has.Count.EqualTo(8));
+        Assert.That(registry.Definitions, Has.Count.EqualTo(9));
         Assert.That(registry.Definitions.All(d => registry.HasExecutor(d.Name)), Is.True);
     }
 

@@ -123,6 +123,11 @@ namespace Fieldmate.XR
                 return;
             }
 
+            if (!PointerReady)
+            {
+                return; // no hand or controller tracked yet: a ray from the rig's origin would place it at your feet
+            }
+
             var stick = rotateAction.ReadValue<Vector2>();
             if (Mathf.Abs(stick.x) > 0.3f)
             {
@@ -140,6 +145,9 @@ namespace Fieldmate.XR
             }
         }
 
+        // On device, the pointer has a real pose only once a hand or controller is tracked (2026-10-01: rays from the floor).
+        private bool PointerReady => !pointer.TryGetComponent<PointerPose>(out var pose) || pose.HasPose || !Application.isMobilePlatform;
+
         /// <summary>Starts (re)placement. The old anchor is erased when the new one is confirmed.</summary>
         public void BeginPlacing()
         {
@@ -156,7 +164,7 @@ namespace Fieldmate.XR
         /// <summary>Confirms the current pose (also used by tests).</summary>
         public async void OnConfirm()
         {
-            if (State != PlacementState.Placing || busy || Time.unscaledTime < nextConfirm)
+            if (State != PlacementState.Placing || busy || Time.unscaledTime < nextConfirm || !PointerReady)
             {
                 return;
             }

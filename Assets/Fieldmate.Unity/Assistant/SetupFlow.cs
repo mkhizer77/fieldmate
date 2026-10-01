@@ -99,7 +99,6 @@ namespace Fieldmate.Assistant
             if (!AutoRun)
             {
                 Stage = SetupStage.Done;
-            panel.HideDetail();
                 return;
             }
 
@@ -109,7 +108,7 @@ namespace Fieldmate.Assistant
         /// <summary>Puts the mate where it is being pointed (the confirm input, and tests).</summary>
         public void ConfirmMate()
         {
-            if (Stage == SetupStage.PlaceMate && Time.time >= confirmAfter)
+            if (Stage == SetupStage.PlaceMate && Time.time >= confirmAfter && PointerReady)
             {
                 mateConfirmed = true;
             }
@@ -168,13 +167,17 @@ namespace Fieldmate.Assistant
             yield return Say(SetupScript.Briefing(procedure, first));
 
             Stage = SetupStage.Done;
-            panel.HideDetail();
             if (machine.Runner.State != RunnerState.Running)
             {
                 director.StartProcedure();
             }
 
             Debug.Log("[Setup] done: procedure started");
+
+            // Where the app's controls went (#73): a short tip, then the card goes.
+            panel.ShowSetup("Menu", InputWords.Menu(InputModalityProbe.Current) + ": Start, Move machine, Occlusion, Stats, Labels.");
+            yield return new WaitForSeconds(10f);
+            panel.HideDetail();
         }
 
         // Speaks (or captions) a line; with waitForEnd, returns once it has been heard (or read).
@@ -213,12 +216,18 @@ namespace Fieldmate.Assistant
             }
         }
 
+        // A pointer driven by PointerPose has a real pose only once a hand or controller is tracked (tests have none).
+        private bool PointerReady => pointer == null || !pointer.TryGetComponent<PointerPose>(out var pose) || pose.HasPose || !Application.isMobilePlatform;
+
         private void FollowPointer()
         {
-            if (pointer == null)
+            if (pointer == null || !PointerReady)
             {
+                line.enabled = false;
                 return;
             }
+
+            line.enabled = true;
 
             var ray = new Ray(pointer.position, pointer.forward);
             var hit = Physics.Raycast(ray, out var info, MatePlacementMath.MaxSurfaceDistance + 2f, ~0, QueryTriggerInteraction.Ignore);

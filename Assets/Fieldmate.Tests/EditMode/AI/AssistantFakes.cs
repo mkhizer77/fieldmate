@@ -98,6 +98,8 @@ internal sealed class FakeScene : IAssistantScene
     public void ShowManualSection(ManualSection section) => Shown = section;
     public void ShowStep(ProcedureDefinition procedure, int stepNumber) => ShownStep = stepNumber;
     public void AddNote(string text) => Notes.Add(text);
+    public bool? LabelsVisible;
+    public void ShowPartLabels(bool visible) => LabelsVisible = visible;
     public string IdentifyView() => Identified;
 }
 
