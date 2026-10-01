@@ -106,4 +106,30 @@ public class UxPassPlayModeTests
 
         Assert.That(Vector3.Distance(panel.position, before), Is.LessThan(0.001f), "no head follow");
     }
+
+    [UnityTest]
+    public IEnumerator HologramMate_StandsBesideTheMachine_WithItsCaption_AndFollowsTheAssistantState()
+    {
+        var panel = Object.FindAnyObjectByType<AssistantPanel>();
+        var mate = Object.FindAnyObjectByType<HologramMate>();
+        Assert.That(panel.Mate, Is.SameAs(mate), "#69: the caption drives the figure");
+        yield return null;
+
+        var skid = Object.FindAnyObjectByType<RemovablePart>().transform.root;
+        var machine = skid.GetComponentsInChildren<MeshRenderer>().Where(r => r.GetComponentInParent<Canvas>() == null)
+            .Select(r => r.bounds).Aggregate((a, b) => { a.Encapsulate(b); return a; });
+        var foot = mate.transform.position;
+        Assert.That(foot.y, Is.EqualTo(skid.position.y).Within(0.001f), "the pedestal stands on the machine's floor");
+        var clearance = new Vector2(Mathf.Max(machine.min.x - foot.x, foot.x - machine.max.x), Mathf.Max(machine.min.z - foot.z, foot.z - machine.max.z));
+        Assert.That(Mathf.Max(clearance.x, clearance.y), Is.GreaterThan(0.2f), "pedestal clear of the machine");
+
+        var side = panel.transform.position - mate.HeadPivot.position;
+        side.y = 0f;
+        Assert.That(side.magnitude, Is.GreaterThan(0.3f), "the caption stands beside the figure, not over it");
+
+        panel.SetState(Fieldmate.AI.AssistantState.Listening, "Pinch to talk");
+        Assert.That(mate.State, Is.EqualTo(Fieldmate.AI.AssistantState.Listening));
+        panel.SetState(Fieldmate.AI.AssistantState.Idle, "Pinch to talk");
+        Assert.That(mate.State, Is.EqualTo(Fieldmate.AI.AssistantState.Idle));
+    }
 }

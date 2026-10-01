@@ -11,19 +11,22 @@ using UnityEngine.UI;
 namespace Fieldmate.Assistant
 {
     /// <summary>
-    /// The assistant's panel beside the machine: a status dot that breathes while it listens, thinks or speaks, the
-    /// transcript with tool calls, a detail card for the manual section, step or log the assistant opened, and a toast
-    /// banner when it is offline. Built once with the UI kit; pinned to the machine, turned to face the user.
+    /// The caption beside the hologram mate (#69; it was the chat panel): a status dot that breathes while the assistant
+    /// listens, thinks or speaks, the last few lines, a detail card for the manual section, step or log it opened, and a
+    /// toast banner when it is offline. The figure is the assistant; this card is its subtitles, so it is small and
+    /// forwards the state to the <see cref="HologramMate"/>. Built once with the UI kit; pinned to the machine, turned to
+    /// face the user.
     /// </summary>
     public sealed class AssistantPanel : MonoBehaviour
     {
-        private const int MaxLines = 9;
-        private const float WidthMm = 620f;
-        private const float HeightMm = 560f;
+        private const int MaxLines = 5;
+        private const float WidthMm = 440f;
+        private const float HeightMm = 360f;
 
         [SerializeField] private Transform head;
         [SerializeField] private Transform anchor;
         [SerializeField] private Vector3 anchorOffset = new(1.15f, 1.45f, 0.25f);
+        [SerializeField] private HologramMate mate;
 
         private readonly Queue<string> lines = new();
         private TMP_Text stateText;
@@ -42,7 +45,19 @@ namespace Fieldmate.Assistant
 
         private void Awake() => Build();
 
-        public void SetHead(Transform headTransform) => head = headTransform;
+        public HologramMate Mate => mate;
+
+        public void SetHead(Transform headTransform)
+        {
+            head = headTransform;
+            if (mate != null)
+            {
+                mate.SetHead(headTransform);
+            }
+        }
+
+        /// <summary>The figure that speaks these lines; it follows the same state.</summary>
+        public void SetMate(HologramMate figure) => mate = figure;
 
         public void SetState(AssistantState state, string hint)
         {
@@ -54,6 +69,11 @@ namespace Fieldmate.Assistant
                 AssistantState.Speaking => ("Speaking…", Theme.Accent, true),
                 _ => (hint, Theme.TextMuted, false),
             };
+            if (mate != null)
+            {
+                mate.SetState(state);
+            }
+
             stateText.text = label;
             stateText.color = busy ? Theme.TextPrimary : Theme.TextSecondary;
             pulse.Set(color, busy);

@@ -43,7 +43,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -149,7 +149,13 @@ public static class AssistantBenchBuilder
         new GameObject("Input Modality", typeof(InputModalityProbe));
         var guideGo = new GameObject("Step Guide", typeof(LineRenderer), typeof(ControlGuide));
         guideGo.GetComponent<LineRenderer>().sharedMaterial = GuideMaterial();
-        panel.GetComponent<AssistantPanel>().Anchor(skid.transform, new Vector3(1.2f, 1.8f, 0.3f)); // beside the outlet end
+        // The assistant is a hologram on a pedestal beside the outlet end (#69); its caption card stands to its side.
+        var mateGo = new GameObject("Hologram Mate", typeof(HologramMate));
+        mateGo.transform.SetParent(assistant.transform, false);
+        var mate = mateGo.GetComponent<HologramMate>();
+        mate.Configure(cameraGo.transform, skid.transform, new Vector3(1.35f, 0f, 0.3f), audio.GetComponent<StreamingAudioPlayer>());
+        panel.GetComponent<AssistantPanel>().SetMate(mate);
+        panel.GetComponent<AssistantPanel>().Anchor(skid.transform, new Vector3(1.95f, 1.65f, 0.35f));
 
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),

@@ -10,7 +10,7 @@ namespace Fieldmate.Assistant
     /// Unity reads streaming clips ahead by an unreported amount, which cut the end of every answer.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
-    public sealed class StreamingAudioPlayer : MonoBehaviour, IAudioSink
+    public sealed class StreamingAudioPlayer : MonoBehaviour, IAudioSink, ISpeechOutput
     {
         private const int BufferSeconds = 60;
         private const float DuckedVolume = 0.3f;
@@ -21,6 +21,7 @@ namespace Fieldmate.Assistant
         // Heard-time margin on top of the DSP buffer latency.
         private const double TailMarginSeconds = 0.15;
 
+        private readonly float[] outputBlock = new float[256]; // the hologram's lips read the speaker (#69)
         private AudioSource source;
         private AudioRingBuffer ring;
         private PlaybackCursor cursor;
@@ -33,6 +34,18 @@ namespace Fieldmate.Assistant
 
         /// <summary>True from <see cref="Begin"/> until the last sample has been heard (or <see cref="Stop"/>).</summary>
         public bool IsPlaying => source != null && source.isPlaying;
+
+        /// <summary>Loudness of the audio this source sent to the speaker in its latest output block (0 when silent).</summary>
+        public float OutputRms()
+        {
+            if (source == null || !source.isPlaying)
+            {
+                return 0f;
+            }
+
+            source.GetOutputData(outputBlock, 0);
+            return LipSync.Rms(outputBlock, outputBlock.Length);
+        }
 
         private void Awake()
         {
