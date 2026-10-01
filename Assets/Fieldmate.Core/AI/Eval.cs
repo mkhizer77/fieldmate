@@ -210,7 +210,7 @@ public sealed class EvalHarness
         var clock = 0d;
         if (evalCase.Step != null)
         {
-            AdvanceTo(runner, evalCase.Step, ref clock);
+            ProcedureReplay.AdvanceTo(runner, evalCase.Step, ref clock);
         }
 
         var scene = new EvalScene(() => clock);
@@ -243,31 +243,6 @@ public sealed class EvalHarness
         }
 
         return new EvalResult(evalCase, calls, answer, failures, (DateTime.UtcNow - started).TotalSeconds);
-    }
-
-    /// <summary>Starts the procedure and completes every step before <paramref name="stepId"/>, as a user would.</summary>
-    public static void AdvanceTo(ProcedureRunner runner, string stepId, ref double clock)
-    {
-        var steps = runner.Definition.Steps;
-        if (!steps.Any(s => s.Id == stepId))
-        {
-            throw new ArgumentException($"Unknown step '{stepId}'.", nameof(stepId));
-        }
-
-        runner.Start(clock);
-        while (runner.State == RunnerState.Running && runner.CurrentStep.Id != stepId)
-        {
-            var step = runner.CurrentStep;
-            clock += 10d;
-            runner.Handle(step.Kind switch
-            {
-                StepKind.Inspect => InteractionEvent.Gaze(clock, step.PartId, step.DwellSeconds + 0.5f),
-                StepKind.Operate => InteractionEvent.State(clock, step.PartId, step.TargetState),
-                StepKind.Tool => InteractionEvent.Socketed(clock, step.PartId, step.ToolId),
-                StepKind.Measure => InteractionEvent.Measured(clock, step.ExpectedValue),
-                _ => InteractionEvent.Confirmed(clock),
-            });
-        }
     }
 
     private sealed class EvalScene : IAssistantScene
