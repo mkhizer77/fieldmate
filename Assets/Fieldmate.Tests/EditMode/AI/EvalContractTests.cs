@@ -92,8 +92,8 @@ public class EvalContractTests
         runner.SetInitialState("inlet_valve", "open");
         runner.SetInitialState("pump_cover", "fitted");
         var clock = 0d;
-        ProcedureReplay.AdvanceTo(runner, "replace", ref clock);
-        Assert.That(runner.CurrentStep.Id, Is.EqualTo("replace"));
+        ProcedureReplay.AdvanceTo(runner, "verify_running", ref clock);
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_running"), "the eval's last-step case starts here");
         Assert.That(runner.Errors, Is.Empty);
         Assert.That(runner.Violations, Is.Empty);
     }

@@ -5,7 +5,8 @@ namespace Fieldmate.Procedures;
 
 /// <summary>
 /// Brings a runner to a step the way a user would (#11 play-from-step, #17 eval): starts it and completes every step
-/// before the target with the interaction that step expects, so there are no errors or violations on the way.
+/// before the target with the interaction that step expects (meeting a safety rule's requirement first when the step's
+/// part is guarded), so there are no errors or violations on the way.
 /// </summary>
 public static class ProcedureReplay
 {
@@ -26,6 +27,15 @@ public static class ProcedureReplay
         {
             var step = runner.CurrentStep;
             clock += 10d;
+            foreach (var rule in runner.Definition.SafetyRules)
+            {
+                // A user satisfies a guard first (refits the cover before switching the breaker back on).
+                if (rule.GuardedPartId == step.PartId && runner.GetPartState(rule.RequiredPartId) != rule.RequiredState)
+                {
+                    runner.Handle(InteractionEvent.State(clock, rule.RequiredPartId, rule.RequiredState));
+                }
+            }
+
             runner.Handle(step.Kind switch
             {
                 StepKind.Inspect => InteractionEvent.Gaze(clock, step.PartId, step.DwellSeconds + 0.5f),
