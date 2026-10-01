@@ -53,6 +53,14 @@ namespace Fieldmate.XR
         private bool busy;
         private bool heldForSetup;
 
+        // Following the pointer (device test 2026-10-01: jitter): eased position and turn, and the last real floor height.
+        private const float FollowSeconds = 0.12f;
+        private const float TurnSeconds = 0.25f;
+        private bool following;
+        private Vector3 smoothedPosition;
+        private float smoothedYaw;
+        private float floorHeight;
+
         public PlacementState State { get; private set; } = PlacementState.Loading;
 
         /// <summary>Whether the last placement found real scene data (false: tracked-floor fallback).</summary>
@@ -136,8 +144,19 @@ namespace Fieldmate.XR
 
             if (TryGetTarget(out var position))
             {
-                machine.SetPositionAndRotation(position, PlacementMath.FacingViewer(position, head.position, extraYaw));
-                ShowGuide(position, true);
+                // Eased, not snapped (device test 2026-10-01: it jittered with every tremor of the ray until placed).
+                var yaw = PlacementMath.FacingViewer(position, head.position, extraYaw).eulerAngles.y;
+                if (!following)
+                {
+                    following = true;
+                    smoothedPosition = position;
+                    smoothedYaw = yaw;
+                }
+
+                smoothedPosition = Vector3.Lerp(smoothedPosition, position, 1f - Mathf.Exp(-Time.deltaTime / FollowSeconds));
+                smoothedYaw = Mathf.LerpAngle(smoothedYaw, yaw, 1f - Mathf.Exp(-Time.deltaTime / TurnSeconds));
+                machine.SetPositionAndRotation(smoothedPosition, Quaternion.Euler(0f, smoothedYaw, 0f));
+                ShowGuide(smoothedPosition, true);
             }
             else
             {
@@ -151,6 +170,7 @@ namespace Fieldmate.XR
         /// <summary>Starts (re)placement. The old anchor is erased when the new one is confirmed.</summary>
         public void BeginPlacing()
         {
+            following = false;
             if (busy)
             {
                 return;
@@ -315,7 +335,13 @@ namespace Fieldmate.XR
             }
 
             LastHitWasSceneMesh = best < float.MaxValue;
-            return LastHitWasSceneMesh || PlacementMath.TryHitFloorPlane(ray, 0f, out position);
+            if (LastHitWasSceneMesh)
+            {
+                floorHeight = position.y; // remembered: the fallback plane below must not jump to y = 0 and back
+                return true;
+            }
+
+            return PlacementMath.TryHitFloorPlane(ray, floorHeight, out position);
         }
 
         private void SetState(PlacementState state)

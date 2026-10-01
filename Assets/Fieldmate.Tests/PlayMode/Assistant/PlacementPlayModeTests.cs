@@ -44,5 +44,31 @@ namespace Fieldmate.Tests.PlayMode.Assistant
             Assert.That(Vector3.Distance(skid.position, target.position), Is.LessThan(1e-3f));
             Assert.That(Quaternion.Angle(skid.rotation, target.rotation), Is.LessThan(0.1f));
         }
+    
+        [UnityTest]
+        public IEnumerator FollowingThePointer_IsSmooth_ATremblingRayDoesNotShakeTheMachine()
+        {
+            var placement = Object.FindAnyObjectByType<MachinePlacement>();
+            Assert.That(placement.State, Is.EqualTo(PlacementState.Placing));
+            var pointer = GameObject.Find("Right Pointer").transform;
+            var skid = GameObject.Find("PlaceholderSkid").transform;
+            pointer.position = new Vector3(0f, 1.3f, 0f);
+            var aim = Quaternion.LookRotation(new Vector3(0f, 0f, 1.8f) - pointer.position);
+            pointer.rotation = aim;
+            yield return new WaitForSeconds(1f);
+
+            // A hand's tremor: ±1° every frame, about ±3.5 cm at the floor 2 m away.
+            var min = skid.position;
+            var max = skid.position;
+            for (var i = 0; i < 40; i++)
+            {
+                pointer.rotation = aim * Quaternion.Euler(i % 2 == 0 ? 1f : -1f, i % 2 == 0 ? -1f : 1f, 0f);
+                yield return null;
+                min = Vector3.Min(min, skid.position);
+                max = Vector3.Max(max, skid.position);
+            }
+
+            Assert.That(Vector3.Distance(min, max), Is.LessThan(0.02f), "device test 2026-10-01: eased, not jittering with the ray");
+        }
     }
 }

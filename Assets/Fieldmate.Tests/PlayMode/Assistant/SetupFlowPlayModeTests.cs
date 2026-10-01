@@ -61,9 +61,10 @@ public class SetupFlowPlayModeTests
         yield return new WaitForSeconds(1f);
         flow.ConfirmMate();
         yield return new WaitUntil(() => flow.Stage == SetupStage.PlaceMachine);
-        Assert.That(flow.MachineHidden, Is.False, "the machine appears for placement");
-        Assert.That(placement.State, Is.EqualTo(PlacementState.Placing));
         Assert.That(panel.TranscriptText, Does.Contain("let's bring in the machine"));
+        Assert.That(flow.MachineHidden, Is.True, "#71 device test: the mate asks first, the machine comes after the line");
+        yield return new WaitUntil(() => placement.State == PlacementState.Placing);
+        Assert.That(flow.MachineHidden, Is.False, "the machine appears for placement");
 
         yield return placement.ConfirmAsync(new Pose(new Vector3(0f, 0f, 1.8f), Quaternion.Euler(0f, 180f, 0f)));
         yield return new WaitUntil(() => flow.Stage == SetupStage.Briefing);
