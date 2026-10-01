@@ -39,6 +39,15 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.cloud.ktx": {
+      "version": "3.7.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.modules.unitywebrequest": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.collections": {
       "version": "6.4.0",
       "depth": 1,

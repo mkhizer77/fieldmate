@@ -91,4 +91,14 @@ public class PresenceTests
         Assert.That(Marshal.SizeOf<RenderModelFeature.LoadInfo>(), Is.EqualTo(24));
         Assert.That(Marshal.SizeOf<RenderModelFeature.Buffer>(), Is.EqualTo(32));
     }
+
+    [Test]
+    public void Manifest_asks_for_the_render_model_feature_and_permission()
+    {
+        // Device log 2026-10-01: without these Quest leaves XR_FB_render_model out of the runtime's extension list.
+        var names = new RenderModelManifest().ProvideManifestRequirement().OverrideElements
+            .Select(e => e.Attributes["name"]).ToList();
+        Assert.That(names, Does.Contain(RenderModelManifest.Feature));
+        Assert.That(names, Does.Contain(RenderModelManifest.Permission));
+    }
 }
