@@ -61,7 +61,7 @@ public class SessionOfflineTests
 
         var third = await Ask("what now?"); // no reply queued: the model must not be called
         Assert.That(third.UsedFallback, Is.True);
-        Assert.That(third.AssistantText, Does.Contain("Pinch Start"));
+        Assert.That(third.AssistantText, Does.Contain("Press Start"));
         Assert.That(chat.Requests, Has.Count.EqualTo(2), "no model call while offline");
     }
 

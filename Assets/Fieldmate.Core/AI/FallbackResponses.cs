@@ -81,7 +81,7 @@ public sealed class FallbackResponses
 
         if (Start.IsMatch(text) && runner.State != RunnerState.Running)
         {
-            return new FallbackReply("start", "I'm offline, so I can't start it by voice. Pinch Start under the step card and I'll guide you from the card.");
+            return new FallbackReply("start", "I'm offline right now, so I can't start it by voice. Press Start in your hand menu and the step card will guide you.");
         }
 
         return new FallbackReply(Next.IsMatch(text) ? "next" : "default", StepGuidance());
@@ -92,16 +92,16 @@ public sealed class FallbackResponses
     {
         if (runner.State == RunnerState.Completed)
         {
-            return $"The procedure is complete with a score of {runner.Result?.Score}. Pinch Run again to repeat it.";
+            return $"We're all done: you scored {runner.Result?.Score} out of 100. Press Restart in your hand menu to go again.";
         }
 
         if (runner.State != RunnerState.Running)
         {
-            return "No procedure is running. Pinch Start under the step card to begin; the card will guide each step.";
+            return "We haven't started yet. Press Start in your hand menu and I'll guide you through each step.";
         }
 
         var step = runner.CurrentStep;
-        var head = $"Step {runner.CurrentStepIndex + 1} of {runner.Definition.Steps.Count}: {step.Title}.";
+        var head = $"Right now, let's {char.ToLowerInvariant(step.Title[0]) + step.Title.Substring(1)}.";
         return manual.TryGetSection($"proc.rv.{step.Id}", out var section) ? $"{head} {Trim(section.Text, 200)}" : head;
     }
 

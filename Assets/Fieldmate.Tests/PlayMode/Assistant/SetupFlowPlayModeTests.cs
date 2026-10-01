@@ -67,7 +67,7 @@ public class SetupFlowPlayModeTests
 
         yield return placement.ConfirmAsync(new Pose(new Vector3(0f, 0f, 1.8f), Quaternion.Euler(0f, 180f, 0f)));
         yield return new WaitUntil(() => flow.Stage == SetupStage.Briefing);
-        Assert.That(panel.TranscriptText, Does.Contain("Here's today's job: replace the relief valve cartridge"));
+        Assert.That(panel.TranscriptText, Does.Contain("Today we're going to replace the relief valve cartridge"));
         Assert.That(machine.Runner.State, Is.Not.EqualTo(RunnerState.Running), "not before the briefing ends");
 
         yield return new WaitUntil(() => flow.Stage == SetupStage.Done);

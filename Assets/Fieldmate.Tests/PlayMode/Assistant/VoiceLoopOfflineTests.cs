@@ -50,6 +50,6 @@ public class VoiceLoopOfflineTests
         var calls = chat.Calls;
         yield return Await(loop.AskAsync("what now?", speak: false));
         Assert.That(chat.Calls, Is.EqualTo(calls), "no model call while offline");
-        Assert.That(panel.TranscriptText, Does.Contain("Pinch Start"));
+        Assert.That(panel.TranscriptText, Does.Contain("Press Start"));
     }
 }

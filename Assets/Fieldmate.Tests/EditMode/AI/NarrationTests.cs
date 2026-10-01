@@ -9,29 +9,40 @@ namespace Fieldmate.Tests.EditMode.AI;
 public class NarrationTests
 {
     [Test]
-    public void Step_done_names_the_next_step_and_its_instruction()
+    public void Step_done_sounds_like_a_colleague_not_a_counter()
     {
         var next = StepDefinition.Operate("lockout", "Lock out the main breaker", "main_breaker", "locked");
         Assert.That(Narration.StepDone(1, 8, next, "Pinch the red bar with both hands."),
-            Is.EqualTo("Step 1 done. Next, step 2 of 8: Lock out the main breaker. Pinch the red bar with both hands."));
-        Assert.That(Narration.StepDone(8, 8, null, null), Is.EqualTo("Step 8 done."));
+            Is.EqualTo("Nice work. Now let's lock out the main breaker. Pinch the red bar with both hands."));
+        Assert.That(Narration.StepDone(2, 8, next, null), Is.EqualTo("Good, that's done. Next, let's lock out the main breaker."), "varied");
+        Assert.That(Narration.StepDone(7, 8, next, null), Does.Contain("Last step:"));
+        Assert.That(Narration.StepDone(8, 8, null, null), Is.EqualTo("Perfect. That was the last one."));
+        for (var i = 1; i <= 8; i++)
+        {
+            Assert.That(Narration.StepDone(i, 8, next, null), Does.Not.Contain("of 8").And.Not.Contain("Step "), "device test 2026-10-01: no status readout");
+        }
     }
 
     [Test]
-    public void Violation_and_mistake_say_stop_and_what_comes_first()
+    public void Violation_holds_on_and_a_mistake_says_what_comes_first_without_blame()
     {
         var rule = new SafetyRule("loto_inlet", "Lock out the breaker before touching the inlet valve.", "inlet_valve", "main_breaker", "locked");
-        Assert.That(Narration.Violation(rule), Is.EqualTo("Stop. Lock out the breaker before touching the inlet valve."));
+        Assert.That(Narration.Violation(rule), Is.EqualTo("Hold on. Lock out the breaker before touching the inlet valve."));
         var current = StepDefinition.Operate("lockout", "Lock out the main breaker", "main_breaker", "locked");
-        var text = Narration.Mistake(new ProcedureError(3, "close_inlet", "'Close the inlet valve' done before 'Lock out the main breaker'."), 2, current, "Both hands on the bar.");
-        Assert.That(text, Is.EqualTo("'Close the inlet valve' done before 'Lock out the main breaker'. First, step 2: Lock out the main breaker. Both hands on the bar."));
+        var early = Narration.Mistake(new ProcedureError(3, "close_inlet", "'Close the inlet valve' done before 'Lock out the main breaker'."), 2, current, "Both hands on the bar.");
+        Assert.That(early, Is.EqualTo("Careful, that one comes a bit later. First, let's lock out the main breaker. Both hands on the bar."));
+        var reading = Narration.Mistake(new ProcedureError(3, "lockout", "Reported 2 bar, expected 0 ± 0.2 bar."), 2, current, null);
+        Assert.That(reading, Does.StartWith("Hmm, not quite. Reported 2 bar"));
     }
 
     [Test]
-    public void Completed_reads_the_score()
+    public void Completed_reads_the_score_like_a_person()
     {
-        var result = new ProcedureResult("p", 300, new double[0], new List<ProcedureError>(), new List<SafetyRule>(), 0, 96, true);
-        Assert.That(Narration.Completed(result), Is.EqualTo("Procedure complete, passed. Score 96 out of 100, 0 errors, 0 safety violations."));
+        var clean = new ProcedureResult("p", 300, new double[0], new List<ProcedureError>(), new List<SafetyRule>(), 0, 96, true);
+        Assert.That(Narration.Completed(clean), Is.EqualTo("All done, and you passed: 96 out of 100, not a single slip. The pump's back in service."));
+        var rule = new SafetyRule("loto_inlet", "Lock out first.", "inlet_valve", "main_breaker", "locked");
+        var failed = new ProcedureResult("p", 300, new double[0], new List<ProcedureError>(), new List<SafetyRule> { rule }, 0, 55, false);
+        Assert.That(Narration.Completed(failed), Is.EqualTo("That's the job finished, but it didn't pass this time: 55 out of 100, one safety issue. Let's go over what happened."));
     }
 
     [Test]

@@ -33,7 +33,7 @@ public static class SetupScript
         "Great, I'll stay right here. Now let's bring in the machine. " +
         $"{Capitalise(placeHint)} to place it, and leave enough room to walk around it.";
 
-    /// <summary>What today is about, from the procedure itself; ends with the first step's instruction.</summary>
+    /// <summary>What today is about, from the procedure itself, said like a colleague; ends with the first instruction.</summary>
     public static string Briefing(ProcedureDefinition procedure, string firstInstruction)
     {
         if (procedure == null)
@@ -42,12 +42,15 @@ public static class SetupScript
         }
 
         var steps = procedure.Steps;
-        var first = steps[0].Title;
-        var last = steps[steps.Count - 1].Title;
-        var text = $"Here's today's job: {Lower(procedure.Title)}. It's {steps.Count} steps, from {Lower(first)} " +
-                   $"to {Lower(last)}. I'll tell you each step, check your work, and stop you if anything is unsafe. Let's start. ";
-        return string.IsNullOrWhiteSpace(firstInstruction) ? text + $"Step 1: {first}." : text + $"Step 1: {firstInstruction}";
+        var text = $"Today we're going to {Lower(procedure.Title)}. It's {Words(steps.Count)} steps, and I'll walk you through " +
+                   "each one and stop you if anything isn't safe. Let's start. ";
+        return string.IsNullOrWhiteSpace(firstInstruction) ? text + $"First, {Lower(steps[0].Title)}." : text + firstInstruction.Trim();
     }
+
+    private static readonly string[] SmallNumbers =
+        { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve" };
+
+    private static string Words(int n) => n >= 0 && n < SmallNumbers.Length ? SmallNumbers[n] : n.ToString();
 
     /// <summary>How long a caption stays up when there is no voice: about 15 characters a second, 2.5 to 9 seconds.</summary>
     public static float ReadSeconds(string line) =>
