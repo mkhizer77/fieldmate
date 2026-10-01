@@ -108,7 +108,7 @@ namespace Fieldmate.Assistant
         /// <summary>Puts the mate where it is being pointed (the confirm input, and tests).</summary>
         public void ConfirmMate()
         {
-            if (Stage == SetupStage.PlaceMate && Time.time >= confirmAfter)
+            if (Stage == SetupStage.PlaceMate && Time.time >= confirmAfter && PointerReady)
             {
                 mateConfirmed = true;
             }
@@ -216,12 +216,18 @@ namespace Fieldmate.Assistant
             }
         }
 
+        // A pointer driven by PointerPose has a real pose only once a hand or controller is tracked (tests have none).
+        private bool PointerReady => pointer == null || !pointer.TryGetComponent<PointerPose>(out var pose) || pose.HasPose || !Application.isMobilePlatform;
+
         private void FollowPointer()
         {
-            if (pointer == null)
+            if (pointer == null || !PointerReady)
             {
+                line.enabled = false;
                 return;
             }
+
+            line.enabled = true;
 
             var ray = new Ray(pointer.position, pointer.forward);
             var hit = Physics.Raycast(ray, out var info, MatePlacementMath.MaxSurfaceDistance + 2f, ~0, QueryTriggerInteraction.Ignore);
