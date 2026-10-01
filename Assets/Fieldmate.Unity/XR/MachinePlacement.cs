@@ -53,13 +53,12 @@ namespace Fieldmate.XR
         private bool busy;
         private bool heldForSetup;
 
-        // Following the pointer (device test 2026-10-01: jitter): eased position and turn, and the last real floor height.
+        // Following the pointer (device test 2026-10-01: jitter): eased position and turn.
         private const float FollowSeconds = 0.12f;
         private const float TurnSeconds = 0.25f;
         private bool following;
         private Vector3 smoothedPosition;
         private float smoothedYaw;
-        private float floorHeight;
 
         public PlacementState State { get; private set; } = PlacementState.Loading;
 
@@ -334,14 +333,10 @@ namespace Fieldmate.XR
                 position = hit.point;
             }
 
+            // Not "the last floor-like hit's height" for the fallback: a table or the machine's own frame is floor-like too,
+            // and the machine then followed a phantom floor. The easing absorbs a frame's switch between scan and plane.
             LastHitWasSceneMesh = best < float.MaxValue;
-            if (LastHitWasSceneMesh)
-            {
-                floorHeight = position.y; // remembered: the fallback plane below must not jump to y = 0 and back
-                return true;
-            }
-
-            return PlacementMath.TryHitFloorPlane(ray, floorHeight, out position);
+            return LastHitWasSceneMesh || PlacementMath.TryHitFloorPlane(ray, 0f, out position);
         }
 
         private void SetState(PlacementState state)
