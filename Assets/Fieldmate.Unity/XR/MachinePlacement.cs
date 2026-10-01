@@ -20,7 +20,8 @@ namespace Fieldmate.XR
     /// Places the machine on the real floor (design.md §3 step 1). On launch the saved anchor is restored; otherwise the
     /// machine follows the right controller / right-hand ray over the room-scan floor (or the tracked floor plane when
     /// there is no scan), facing the user. Trigger or right index pinch confirms and saves a persistent anchor; the
-    /// thumbstick rotates; Y on the left controller re-places it.
+    /// thumbstick rotates; Y on the left controller re-places it. Under the guided setup (#71) it waits: no restore, no
+    /// placing, until the setup reaches the machine and calls <see cref="BeginPlacing"/>.
     /// </summary>
     public sealed class MachinePlacement : MonoBehaviour
     {
@@ -50,6 +51,7 @@ namespace Fieldmate.XR
         private float extraYaw;
         private float nextConfirm;
         private bool busy;
+        private bool heldForSetup;
 
         public PlacementState State { get; private set; } = PlacementState.Loading;
 
@@ -98,9 +100,19 @@ namespace Fieldmate.XR
             rotateAction.Dispose();
         }
 
+        /// <summary>Called by the guided setup before Start: the machine is placed fresh when the setup gets to it.</summary>
+        public void HoldForSetup() => heldForSetup = true;
+
+        public bool IsHeldForSetup => heldForSetup;
+
         private async void Start()
         {
             PermissionsBootstrap.WhenAnswered(QuestPermissions.Scene, granted => meshManager.enabled = granted);
+            if (heldForSetup)
+            {
+                return;
+            }
+
             await RestoreAsync();
         }
 
@@ -136,6 +148,7 @@ namespace Fieldmate.XR
                 return;
             }
 
+            heldForSetup = false;
             SetState(PlacementState.Placing);
             nextConfirm = Time.unscaledTime + ConfirmCooldown;
         }

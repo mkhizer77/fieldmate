@@ -36,6 +36,12 @@ namespace Fieldmate.Interaction
 
         public float Alpha => group != null ? group.alpha : 1f;
 
+        /// <summary>While the assistant highlights this part, its callout takes the tag's place (#71).</summary>
+        public bool Suppressed { get; set; }
+
+        /// <summary>Where the pill floats (world), for a callout that replaces it.</summary>
+        public Vector3 LabelPosition => label != null ? label.position : transform.position + offset;
+
         /// <summary>Who the tag faces and fades for; defaults to the main camera.</summary>
         public void SetViewer(Camera camera) => viewer = camera;
 
@@ -94,7 +100,7 @@ namespace Fieldmate.Interaction
             {
                 UiKit.FaceAway(label, viewer.transform.position);
                 var distance = Vector3.Distance(label.position, viewer.transform.position);
-                group.alpha = Mathf.Lerp(1f, FarAlpha, Mathf.InverseLerp(NearMetres, FarMetres, distance));
+                group.alpha = Suppressed ? 0f : Mathf.Lerp(1f, FarAlpha, Mathf.InverseLerp(NearMetres, FarMetres, distance));
             }
         }
 

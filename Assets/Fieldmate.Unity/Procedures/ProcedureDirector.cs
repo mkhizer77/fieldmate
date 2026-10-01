@@ -345,8 +345,8 @@ namespace Fieldmate.Procedures
         {
             if (step?.PartId != null && highlighter.ActivePartId == null && machine.TryGetPart(step.PartId, out var part))
             {
-                var label = $"{machine.Catalog.DisplayName(step.PartId)}\n<size=26>{StepInstructions.Short(step, InputModalityProbe.Current)}</size>";
-                highlighter.Highlight(part, label, float.PositiveInfinity);
+                highlighter.Highlight(part, machine.Catalog.DisplayName(step.PartId), StepInstructions.Short(step, InputModalityProbe.Current),
+                    float.PositiveInfinity);
             }
         }
 

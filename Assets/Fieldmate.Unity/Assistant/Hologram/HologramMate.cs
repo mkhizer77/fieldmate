@@ -4,23 +4,29 @@ using UnityEngine;
 namespace Fieldmate.Assistant
 {
     /// <summary>
-    /// The assistant as a hologram (#69): a half-body figure projected above a pedestal beside the machine, in place of
-    /// the chat panel. It breathes, blinks and looks at the user; it brightens while listening, its scanlines race while
-    /// it thinks, and its lips move with the speech that is actually playing (<see cref="LipSync"/> on the player's
-    /// output). Built in code from lathe meshes (no downloaded or paid assets); a modelled figure can replace
-    /// <see cref="Build"/> later behind the same component. No per-frame allocations.
+    /// The assistant as a hologram (#69): a small half-body figure (0.42x life size, #71) projected from a floating puck
+    /// that the user puts where they want it during setup, in place of the chat panel. It materialises top-down when it
+    /// first appears, breathes, blinks and looks at the user; it brightens while listening, its scanlines race while it
+    /// thinks, and its lips move with the speech that is actually playing (<see cref="LipSync"/> on the player's output).
+    /// Built in code from lathe meshes (no downloaded or paid assets); a modelled figure can replace <see cref="Build"/>
+    /// later behind the same component. No per-frame allocations.
     /// </summary>
     public sealed class HologramMate : MonoBehaviour
     {
-        /// <summary>World height of the projector top (the figure's waist sits just above it).</summary>
-        public const float PedestalHeight = 0.92f;
+        /// <summary>Height of the figure's waist above the puck (the component's origin).</summary>
+        public const float WaistHeight = 0.05f;
 
-        /// <summary>The figure is a little under life size so it never looms over the user.</summary>
-        public const float FigureScale = 0.88f;
+        /// <summary>Small enough to sit on a table or float beside the user (device test 2026-10-01: 0.88 loomed).</summary>
+        public const float FigureScale = 0.42f;
+
+        /// <summary>Eye line above the puck, in metres.</summary>
+        public const float EyeHeight = WaistHeight + HeadHeight * FigureScale;
+
+        private const float MaterialiseSeconds = 1.4f;
 
         private const float HeadHeight = 0.745f; // eye line, figure space
         private const float MaxHeadYaw = 40f;
-        private const float MaxHeadPitch = 20f;
+        private const float MaxHeadPitch = 30f; // it usually sits below the user's eyes and looks up
 
         private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
         private static readonly int ScanSpeedId = Shader.PropertyToID("_ScanSpeed");
@@ -29,14 +35,14 @@ namespace Fieldmate.Assistant
         private static readonly int FadeRangeId = Shader.PropertyToID("_FadeRange");
         private static readonly int FillId = Shader.PropertyToID("_Fill");
         private static readonly int DepthWriteId = Shader.PropertyToID("_DepthWrite");
+        private static readonly int ScanDensityId = Shader.PropertyToID("_ScanDensity");
+        private static readonly int GlitchId = Shader.PropertyToID("_Glitch");
 
         private static readonly Color Cyan = new(0.25f, 0.85f, 1f, 1f);
         private static readonly Color ListenTint = new(0.35f, 1f, 0.8f, 1f);
         private static readonly Color ThinkTint = new(0.45f, 0.7f, 1f, 1f);
 
         [SerializeField] private Transform head;
-        [SerializeField] private Transform anchor;
-        [SerializeField] private Vector3 anchorOffset = new(1.2f, 0f, 0.35f);
         [SerializeField] private StreamingAudioPlayer player;
 
         private readonly LipSync lips = new();
@@ -60,6 +66,11 @@ namespace Fieldmate.Assistant
         private float nextBlink = 3f;
         private float blinkUntil;
         private float yaw;
+        private float presence = 1f; // 0 hidden .. 1 fully there
+        private float presenceTarget = 1f;
+        private Renderer[] renderers;
+        private bool renderersOn = true;
+        private Material lensMaterial;
 
         public AssistantState State => state;
 
@@ -73,13 +84,31 @@ namespace Fieldmate.Assistant
         public Transform HeadPivot => headPivot;
         public bool IsBlinking => Time.time < blinkUntil;
 
-        public void Configure(Transform headTransform, Transform machine, Vector3 localOffset, StreamingAudioPlayer speech)
+        /// <summary>True while any part of the figure is drawn.</summary>
+        public bool IsVisible => renderersOn;
+
+        /// <summary>0 hidden .. 1 fully materialised.</summary>
+        public float Presence => presence;
+
+        public void Configure(Transform headTransform, StreamingAudioPlayer speech)
         {
             head = headTransform;
-            anchor = machine;
-            anchorOffset = localOffset;
             player = speech;
         }
+
+        /// <summary>Hidden at once (setup's room scan) or materialising / dissolving over a second and a half.</summary>
+        public void SetVisible(bool visible, bool instant = false)
+        {
+            presenceTarget = visible ? 1f : 0f;
+            if (instant)
+            {
+                presence = presenceTarget;
+                ApplyPresence();
+            }
+        }
+
+        /// <summary>Puts the puck at <paramref name="position"/> (setup placement); the figure keeps facing the user.</summary>
+        public void Place(Vector3 position) => transform.position = position;
 
         public void SetHead(Transform headTransform) => head = headTransform;
 
@@ -88,11 +117,8 @@ namespace Fieldmate.Assistant
 
         private ISpeechOutput Speech => speechOverride ?? player;
 
-        public void Anchor(Transform machine, Vector3 localOffset)
-        {
-            anchor = machine;
-            anchorOffset = localOffset;
-        }
+        /// <summary>True while the user is hearing the mate (its caption reveals words in time with it, #71).</summary>
+        public bool IsSpeechPlaying => Speech != null && Speech.IsPlaying;
 
         public void SetState(AssistantState next)
         {
@@ -109,6 +135,16 @@ namespace Fieldmate.Assistant
         {
             var dt = Time.deltaTime;
             var now = Time.time;
+            if (!Mathf.Approximately(presence, presenceTarget))
+            {
+                presence = Mathf.MoveTowards(presence, presenceTarget, dt / MaterialiseSeconds);
+                ApplyPresence();
+            }
+
+            if (!renderersOn)
+            {
+                return;
+            }
 
             // Mouth: the loudness of what the user hears right now; shut the moment speech stops.
             var speech = Speech;
@@ -141,9 +177,11 @@ namespace Fieldmate.Assistant
 
             // Breathing and a slow hover.
             body.localScale = new Vector3(1f, 1f + 0.012f * Mathf.Sin(now * 1.6f), 1f + 0.018f * Mathf.Sin(now * 1.6f));
-            figure.localPosition = new Vector3(0f, PedestalHeight + 0.02f + 0.006f * Mathf.Sin(now * 0.9f), 0f);
-            skin.SetFloat(FadeStartId, figure.position.y - 0.01f); // the waist dissolves into the beam
-            beamMaterial.SetFloat(FadeStartId, transform.position.y + PedestalHeight + 0.23f);
+            figure.localPosition = new Vector3(0f, WaistHeight + 0.004f * Mathf.Sin(now * 0.9f), 0f);
+            // The waist dissolves into the beam; while materialising the cut sweeps down from above the head.
+            var waist = figure.position.y - 0.005f;
+            skin.SetFloat(FadeStartId, waist + (1f - presence) * (EyeHeight + 0.1f));
+            beamMaterial.SetFloat(FadeStartId, transform.position.y + 0.12f);
 
             // Look state on the light itself.
             var (targetIntensity, targetScan, targetTint) = state switch
@@ -162,24 +200,35 @@ namespace Fieldmate.Assistant
             intensity = Mathf.Lerp(intensity, targetIntensity + 0.25f * open, k);
             scanSpeed = Mathf.Lerp(scanSpeed, targetScan, k);
             tint = Color.Lerp(tint, targetTint, k);
-            skin.SetFloat(IntensityId, intensity);
+            skin.SetFloat(IntensityId, intensity * presence);
             skin.SetFloat(ScanSpeedId, scanSpeed);
             skin.SetColor(BaseColorId, tint);
-            features.SetFloat(IntensityId, 1.6f + 0.6f * open);
+            features.SetFloat(IntensityId, (1.6f + 0.6f * open) * presence);
+            lensMaterial.SetFloat(IntensityId, 1.6f * Mathf.Max(presence, 0.35f));
+            beamMaterial.SetFloat(IntensityId, 0.5f * presence);
             features.SetColor(BaseColorId, tint);
 
             ring.localRotation = Quaternion.Euler(0f, now * (state is AssistantState.Thinking or AssistantState.Transcribing ? 160f : 25f), 0f);
         }
 
-        private void LateUpdate()
+        private void ApplyPresence()
         {
-            if (anchor != null)
+            var on = presence > 0.001f;
+            if (on == renderersOn)
             {
-                var p = anchor.TransformPoint(anchorOffset);
-                transform.position = new Vector3(p.x, anchor.position.y, p.z); // stands on the machine's floor
+                return;
             }
 
-            if (head == null)
+            renderersOn = on;
+            foreach (var r in renderers)
+            {
+                r.enabled = on;
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (head == null || !renderersOn)
             {
                 return;
             }
@@ -209,45 +258,46 @@ namespace Fieldmate.Assistant
         {
             var shader = Shader.Find("Fieldmate/Hologram");
             skin = new Material(shader != null ? shader : Shader.Find("Universal Render Pipeline/Unlit")) { name = "Hologram" };
-            skin.SetFloat(FadeRangeId, 0.24f);
+            skin.SetFloat(FadeRangeId, 0.1f);
+            skin.SetFloat(ScanDensityId, 60f); // the same number of lines across a smaller figure
+            skin.SetFloat(GlitchId, 0.15f);
             features = new Material(skin) { name = "Hologram Features" };
             features.SetFloat(FillId, 0.9f);
             features.SetFloat(FadeStartId, -10000f); // eyes, lips, lens and ring never fade
 
-            // Projector: a dark pedestal (solid, occluded like the machine) with a glowing lens and a slow ring.
+            // Projector: a small dark puck (solid, occluded like the machine) with a glowing lens and a slow ring.
             var solid = Shader.Find("Fieldmate/OccludedLit");
-            var steel = new Material(solid != null ? solid : Shader.Find("Universal Render Pipeline/Lit")) { name = "Pedestal" };
+            var steel = new Material(solid != null ? solid : Shader.Find("Universal Render Pipeline/Lit")) { name = "Projector" };
             steel.SetColor(BaseColorId, new Color(0.13f, 0.14f, 0.16f));
-            Part("Pedestal", transform, LatheMesh.Build("Pedestal", new[]
+            Part("Projector", transform, LatheMesh.Build("Projector", new[]
             {
-                new Vector2(0.17f, 0f), new Vector2(0.17f, 0.03f), new Vector2(0.08f, 0.06f), new Vector2(0.06f, 0.2f),
-                new Vector2(0.06f, PedestalHeight - 0.08f), new Vector2(0.12f, PedestalHeight - 0.03f),
-                new Vector2(0.13f, PedestalHeight), new Vector2(0f, PedestalHeight),
+                new Vector2(0f, -0.022f), new Vector2(0.05f, -0.02f), new Vector2(0.075f, -0.008f), new Vector2(0.078f, 0f),
+                new Vector2(0f, 0.001f),
             }, 32), steel, Vector3.zero);
-            var lens = new Material(features) { name = "Projector Lens" };
+            lensMaterial = new Material(features) { name = "Projector Lens" };
             Part("Lens", transform, LatheMesh.Build("Lens", new[]
             {
-                new Vector2(0.1f, 0f), new Vector2(0.1f, 0.006f), new Vector2(0f, 0.008f),
-            }, 32), lens, new Vector3(0f, PedestalHeight, 0f));
+                new Vector2(0.055f, 0f), new Vector2(0.055f, 0.003f), new Vector2(0f, 0.004f),
+            }, 32), lensMaterial, new Vector3(0f, 0.001f, 0f));
             ring = Part("Ring", transform, LatheMesh.Build("Ring", new[]
             {
-                new Vector2(0.15f, 0f), new Vector2(0.155f, 0.004f), new Vector2(0.15f, 0.008f), new Vector2(0.145f, 0.004f), new Vector2(0.15f, 0f),
-            }, 48), features, new Vector3(0f, PedestalHeight + 0.01f, 0f)).transform;
+                new Vector2(0.09f, 0f), new Vector2(0.093f, 0.003f), new Vector2(0.09f, 0.006f), new Vector2(0.087f, 0.003f), new Vector2(0.09f, 0f),
+            }, 48), features, new Vector3(0f, 0.004f, 0f)).transform;
             // The projector's beam: a faint open cone from the lens up past the waist, all rim and no fill.
             var beam = new Material(skin) { name = "Hologram Beam" };
             beam.SetFloat(FillId, 0.02f);
             beam.SetFloat(IntensityId, 0.5f);
             beam.SetFloat(DepthWriteId, 0f); // light, not a surface: it must not hide the waist behind it
-            beam.SetFloat(FadeRangeId, -0.22f); // bright at the lens, gone by the waist
             beamMaterial = beam;
+            beam.SetFloat(FadeRangeId, -0.1f);
             Part("Beam", transform, LatheMesh.Build("Beam", new[]
             {
-                new Vector2(0.09f, 0f), new Vector2(0.16f, 0.22f),
-            }, 40), beam, new Vector3(0f, PedestalHeight + 0.008f, 0f));
+                new Vector2(0.05f, 0f), new Vector2(0.085f, 0.11f),
+            }, 40), beam, new Vector3(0f, 0.004f, 0f));
 
             figure = new GameObject("Figure").transform;
             figure.SetParent(transform, false);
-            figure.localPosition = new Vector3(0f, PedestalHeight + 0.02f, 0f);
+            figure.localPosition = new Vector3(0f, WaistHeight, 0f);
             figure.localScale = Vector3.one * FigureScale;
 
             // Torso from the waist (faded into the beam) to the neck; elliptical, shoulders wider than deep.
@@ -298,6 +348,7 @@ namespace Fieldmate.Assistant
             upperLip = Part("Upper Lip", headPivot, LatheMesh.Arc("Upper Lip", 0.042f, 0.002f, 0.0035f), features, new Vector3(0f, MouthY, MouthZ)).transform;
             lowerLip = Part("Lower Lip", headPivot, LatheMesh.Arc("Lower Lip", 0.04f, -0.004f, 0.004f), features, new Vector3(0f, MouthY - 0.003f, MouthZ)).transform;
             mouthGlow = Part("Mouth", headPivot, quad, skin, new Vector3(0f, MouthY, MouthZ - 0.002f)).transform;
+            renderers = GetComponentsInChildren<Renderer>();
         }
 
         private static GameObject Part(string name, Transform parent, Mesh mesh, Material material, Vector3 localPosition)

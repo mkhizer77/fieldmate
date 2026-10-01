@@ -41,6 +41,10 @@ namespace Fieldmate.Assistant
         public AssistantSession Session => session;
         public string DisabledReason { get; private set; }
         public IReadOnlyList<string> Notes => notes;
+
+        /// <summary>True while a line is queued, being prepared or still being heard (the setup waits on it, #71).</summary>
+        public bool IsSpeaking =>
+            pendingNarration != null || (session != null && session.State != AssistantState.Idle) || (player != null && player.IsPlaying);
         double IAssistantScene.Now => machine.Now;
 
         private void Start()

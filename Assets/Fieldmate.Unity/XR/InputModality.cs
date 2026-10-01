@@ -26,4 +26,14 @@ public static class InputWords
         : "Point your right hand at the floor · pinch to place";
 
     public static string Move(Modality m) => m == Modality.Controllers ? "Y or Move machine" : "Move machine";
+
+    /// <summary>Spoken: how to put the hologram mate down (#71).</summary>
+    public static string PlaceMate(Modality m) => m == Modality.Controllers
+        ? "point the right controller where you want me and pull the trigger"
+        : "point your right hand where you want me and pinch";
+
+    /// <summary>Spoken: how to put the machine down (#71).</summary>
+    public static string PlaceMachineSpoken(Modality m) => m == Modality.Controllers
+        ? "point the right controller at an open spot on the floor and pull the trigger"
+        : "point your right hand at an open spot on the floor and pinch";
 }
