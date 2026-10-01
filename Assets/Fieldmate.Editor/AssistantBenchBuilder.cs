@@ -390,15 +390,10 @@ public static class AssistantBenchBuilder
     /// </summary>
     private static XRDirectInteractor HandInteractor(Transform parent, string side)
     {
-        var go = new GameObject($"{side} Hand", typeof(TrackedPoseDriver), typeof(SphereCollider), typeof(Rigidbody), typeof(XRDirectInteractor));
+        // The controller's grip or the hand, by the active input, never mixed (#80: hands are tracked while holding controllers).
+        var go = new GameObject($"{side} Hand", typeof(PointerPose), typeof(SphereCollider), typeof(Rigidbody), typeof(XRDirectInteractor));
         go.transform.SetParent(parent, false);
-        var pose = go.GetComponent<TrackedPoseDriver>();
-        pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition",
-            $"<MetaAimHand>{{{side}Hand}}/devicePosition"));
-        pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation",
-            $"<MetaAimHand>{{{side}Hand}}/deviceRotation"));
+        go.GetComponent<PointerPose>().Configure(side, "device");
 
         var sphere = go.GetComponent<SphereCollider>();
         sphere.isTrigger = true;
@@ -574,17 +569,6 @@ public static class AssistantBenchBuilder
         go.transform.localRotation = rotation ?? Quaternion.identity;
         go.transform.localScale = localScale;
         go.GetComponent<Renderer>().sharedMaterial = material;
-    }
-
-    private static InputAction Action(string name, string controlType, params string[] bindings)
-    {
-        var action = new InputAction(name, expectedControlType: controlType);
-        foreach (var binding in bindings)
-        {
-            action.AddBinding(binding);
-        }
-
-        return action;
     }
 
     /// <summary>Collider-only mesh chunk: the room scan is used for placement, not drawn.</summary>

@@ -59,7 +59,22 @@ namespace Fieldmate.XR
         {
             foreach (var device in InputSystem.devices)
             {
-                if (device is TrackedDevice tracked && device.layout.Contains("MetaAimHand") && tracked.isTracked.isPressed)
+                // Hands posed from a held controller (#80) are shown, but the user is on controllers: they don't count.
+                if (device is TrackedDevice tracked && device.layout.Contains("MetaAimHand") && tracked.isTracked.isPressed
+                    && !HandDataSource.IsFromController(IsLeft(device) ? UnityEngine.XR.Hands.Handedness.Left : UnityEngine.XR.Hands.Handedness.Right))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsLeft(InputDevice device)
+        {
+            foreach (var usage in device.usages)
+            {
+                if (usage == CommonUsages.LeftHand)
                 {
                     return true;
                 }

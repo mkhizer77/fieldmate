@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Runtime.InteropServices;
 using Fieldmate.Editor;
 using Fieldmate.XR;
 using NUnit.Framework;
@@ -61,14 +63,32 @@ public class PresenceTests
     }
 
     [Test]
-    public void Controller_prefab_shows_only_on_controllers()
+    public void Controller_prefab_is_the_runtime_model_shown_only_on_controllers()
     {
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PresenceBuilder.ControllerPrefabPath);
         Assert.That(prefab, Is.Not.Null);
         Assert.That(prefab.GetComponent<ModalityVisibility>().ShownFor, Is.EqualTo(Modality.Controllers));
-        var ring = prefab.GetComponentInChildren<MeshRenderer>();
-        Assert.That(ring.name, Is.EqualTo("Grip Ring"), "a ring around the grip, not a model that never fitted");
-        Assert.That(ring.sharedMaterial.shader.name, Is.EqualTo("Fieldmate/UnlitOverlay"));
-        Assert.That(ring.GetComponent<MeshFilter>().sharedMesh.bounds.extents.x, Is.EqualTo(0.037f).Within(0.002f), "34 mm radius + 3 mm tube");
+        Assert.That(prefab.GetComponentInChildren<ControllerModel>(true), Is.Not.Null, "#80: the runtime's controller model, as in Meta's home");
+        Assert.That(prefab.GetComponentsInChildren<MeshRenderer>(true), Is.Empty, "no ring or stand-in model in the repo");
+    }
+
+    [Test]
+    public void Runtime_models_and_controller_driven_hands_are_enabled_for_android()
+    {
+        var settings = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
+        var models = settings.GetFeature<RenderModelFeature>();
+        Assert.That(models != null && models.enabled, "XR_FB_render_model (Fieldmate → Configure Project for Quest)");
+        var dataSource = settings.GetFeatures().FirstOrDefault(f => f.GetType().Name == "HandTrackingDataSourceFeature");
+        Assert.That(dataSource != null && dataSource.enabled, "XR_EXT_hand_tracking_data_source: hands posed around held controllers");
+    }
+
+    [Test]
+    public void Render_model_structs_match_the_openxr_layout()
+    {
+        Assert.That(Marshal.SizeOf<RenderModelFeature.PathInfo>(), Is.EqualTo(24));
+        Assert.That(Marshal.SizeOf<RenderModelFeature.CapabilitiesRequest>(), Is.EqualTo(24));
+        Assert.That(Marshal.SizeOf<RenderModelFeature.Properties>(), Is.EqualTo(112));
+        Assert.That(Marshal.SizeOf<RenderModelFeature.LoadInfo>(), Is.EqualTo(24));
+        Assert.That(Marshal.SizeOf<RenderModelFeature.Buffer>(), Is.EqualTo(32));
     }
 }

@@ -987,6 +987,7 @@ MonoBehaviour:
   - {fileID: 8673884341403839324}
   - {fileID: -790218882985226364}
   - {fileID: 9165893058061256179}
+  - {fileID: -471373204420590977}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -1265,7 +1266,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61b9faa4029cc43c6a88d12cc2c8dd36, type: 3}
   m_Name: HandTrackingDataSourceFeature Android
   m_EditorClassIdentifier: Unity.XR.Hands::UnityEngine.XR.Hands.OpenXR.HandTrackingDataSourceFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Hand Tracking Data Source
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.handtrackingdatasource
@@ -1277,6 +1278,28 @@ MonoBehaviour:
   customRuntimeLoaderName: 
   m_LeftHandPreference: 2
   m_RightHandPreference: 2
+--- !u!114 &-471373204420590977
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f717d24aff0d64c57928ec5f9f461c10, type: 3}
+  m_Name: RenderModelFeature Android
+  m_EditorClassIdentifier: Fieldmate.Unity::Fieldmate.XR.RenderModelFeature
+  m_enabled: 1
+  nameUi: 'Fieldmate: Controller Render Models'
+  version: 0.1.0
+  featureIdInternal: com.fieldmate.openxr.rendermodel
+  openxrExtensionStrings: XR_FB_render_model
+  company: Fieldmate
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

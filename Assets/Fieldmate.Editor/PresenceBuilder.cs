@@ -64,8 +64,7 @@ public static class PresenceBuilder
             $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition"));
         pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
             $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation"));
-        // The XRI model is symmetric enough for both hands; a mirrored scale flips the winding and shows the inside of the glow.
-        go.GetComponent<PresenceGlow>().Configure(go.GetComponentInChildren<MeshRenderer>(), interactor);
+        go.GetComponentInChildren<ControllerModel>(true).Configure(side == "Left");
     }
 
     private static void BuildHand(Handedness handedness, string modelPath, string prefabPath, Material material)
@@ -110,88 +109,18 @@ public static class PresenceBuilder
     }
 
     /// <summary>
-    /// Controller presence (redone 2026-09-30): no generic model, which never fitted the Touch Plus. A thin ring around
-    /// the grip where the palm holds it, in the grip pose's XY plane (the OpenXR grip Z axis runs along the handle), on
-    /// the unlit overlay material; the glow brightens it while hovering and grabbing.
+    /// Controller presence (#80): the controller as Meta's home shows it, the runtime's own model of the controller in use
+    /// (XR_FB_render_model, loaded at runtime), at the grip pose; shown while the user is on controllers. The hands holding
+    /// it come from the hand presence: the runtime poses them around the controller (XR_EXT_hand_tracking_data_source).
     /// </summary>
-    /// <summary>Distance up the handle from the grip pose to the ring, in metres.</summary>
-    public const float GripRingOffset = 0.045f;
-
     private static void BuildController(string prefabPath, Material outline)
     {
-        var root = new GameObject("Controller Presence", typeof(ModalityVisibility), typeof(PresenceGlow));
-        var visual = new GameObject("Grip Ring", typeof(MeshFilter), typeof(MeshRenderer));
-        visual.transform.SetParent(root.transform, false);
-        // The grip pose's origin is the middle of the fist (device test 2026-10-01: the ring cut through the controller).
-        // Slide it up the handle (+Z, pinky to index) to sit just above the index finger, where the handle meets the head.
-        visual.transform.localPosition = new Vector3(0f, 0f, GripRingOffset);
-        visual.GetComponent<MeshFilter>().sharedMesh = GripRingMesh();
-        var renderer = visual.GetComponent<MeshRenderer>();
-        renderer.sharedMaterial = RingMaterial();
-        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        renderer.receiveShadows = false;
-        root.GetComponent<ModalityVisibility>().Configure(Modality.Controllers, visual);
+        var root = new GameObject("Controller Presence", typeof(ModalityVisibility));
+        var model = new GameObject("Controller Model", typeof(ControllerModel));
+        model.transform.SetParent(root.transform, false);
+        root.GetComponent<ModalityVisibility>().Configure(Modality.Controllers, model);
         PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         Object.DestroyImmediate(root);
-    }
-
-    /// <summary>A torus: major radius 34 mm (around the handle), tube 3 mm.</summary>
-    private static Mesh GripRingMesh()
-    {
-        const string path = Dir + "/GripRing.asset";
-        var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-        if (existing != null)
-        {
-            return existing;
-        }
-
-        const int segments = 48, sides = 10;
-        const float major = 0.034f, minor = 0.003f;
-        var vertices = new Vector3[segments * sides];
-        var normals = new Vector3[segments * sides];
-        var triangles = new int[segments * sides * 6];
-        for (var i = 0; i < segments; i++)
-        {
-            var u = i * Mathf.PI * 2f / segments;
-            var center = new Vector3(Mathf.Cos(u) * major, Mathf.Sin(u) * major, 0f);
-            var radial = new Vector3(Mathf.Cos(u), Mathf.Sin(u), 0f);
-            for (var j = 0; j < sides; j++)
-            {
-                var v = j * Mathf.PI * 2f / sides;
-                var normal = radial * Mathf.Cos(v) + Vector3.forward * Mathf.Sin(v);
-                var index = i * sides + j;
-                vertices[index] = center + normal * minor;
-                normals[index] = normal;
-                var next = ((i + 1) % segments) * sides + (j + 1) % sides;
-                var right = ((i + 1) % segments) * sides + j;
-                var up = i * sides + (j + 1) % sides;
-                var t = index * 6;
-                triangles[t] = index; triangles[t + 1] = up; triangles[t + 2] = right;
-                triangles[t + 3] = up; triangles[t + 4] = next; triangles[t + 5] = right;
-            }
-        }
-
-        var mesh = new Mesh { name = "GripRing", vertices = vertices, normals = normals, triangles = triangles };
-        mesh.RecalculateBounds();
-        AssetDatabase.CreateAsset(mesh, path);
-        return mesh;
-    }
-
-    private static Material RingMaterial()
-    {
-        const string path = Dir + "/PresenceRing.mat";
-        var shader = Shader.Find("Fieldmate/UnlitOverlay") ?? throw new System.InvalidOperationException("Shader Fieldmate/UnlitOverlay not found.");
-        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (material == null)
-        {
-            material = new Material(shader);
-            AssetDatabase.CreateAsset(material, path);
-        }
-
-        material.shader = shader;
-        material.SetColor("_BaseColor", new Color(1f, 0.94f, 0.62f, 0.85f));
-        EditorUtility.SetDirty(material);
-        return material;
     }
 
     private static Material GlowMaterial()
