@@ -99,6 +99,7 @@ namespace Fieldmate.Assistant
             if (!AutoRun)
             {
                 Stage = SetupStage.Done;
+            panel.HideDetail();
                 return;
             }
 
@@ -167,6 +168,7 @@ namespace Fieldmate.Assistant
             yield return Say(SetupScript.Briefing(procedure, first));
 
             Stage = SetupStage.Done;
+            panel.HideDetail();
             if (machine.Runner.State != RunnerState.Running)
             {
                 director.StartProcedure();

@@ -43,7 +43,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -434,13 +434,10 @@ public static class AssistantBenchBuilder
     /// <summary>The aim pose of one side: controller pointer pose, or the Meta aim-hand pose when hands are tracked.</summary>
     private static GameObject Pointer(Transform parent, string side)
     {
-        var go = new GameObject($"{side} Pointer", typeof(TrackedPoseDriver));
+        // Controller aim or hand aim by the active input, never mixed (#71 device test: controller pointing was off).
+        var go = new GameObject($"{side} Pointer", typeof(PointerPose));
         go.transform.SetParent(parent, false);
-        var pose = go.GetComponent<TrackedPoseDriver>();
-        pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            $"<XRController>{{{side}Hand}}/pointerPosition", $"<MetaAimHand>{{{side}Hand}}/devicePosition"));
-        pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            $"<XRController>{{{side}Hand}}/pointerRotation", $"<MetaAimHand>{{{side}Hand}}/deviceRotation"));
+        go.GetComponent<PointerPose>().Configure(side);
         return go;
     }
 

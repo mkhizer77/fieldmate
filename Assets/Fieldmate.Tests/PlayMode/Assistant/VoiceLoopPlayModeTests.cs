@@ -106,26 +106,23 @@ public class VoiceLoopPlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator LongAnswers_KeepTheNewestTranscriptLineVisible()
+    public IEnumerator LongAnswers_KeepTheNewestWordsVisibleInTheBubble()
     {
         var sentence = "The relief valve cartridge sits under the bolted cover on top of the pump and must be replaced. ";
-        for (var i = 0; i < 6; i++)
-        {
-            chat.Say($"Answer {i}: " + string.Concat(Enumerable.Repeat(sentence, 3)));
-            yield return Await(loop.AskAsync($"Question {i}", speak: false));
-        }
-
-        chat.Say("NEWEST-LINE-MARKER");
-        yield return Await(loop.AskAsync("Last question", speak: false));
+        chat.Say("Answer: " + string.Concat(Enumerable.Repeat(sentence, 3)) + "NEWESTMARKER");
+        Time.timeScale = 8f; // no voice: the bubble reveals at reading pace
+        yield return Await(loop.AskAsync("Where is it?", speak: false));
+        yield return new WaitUntil(() => panel.VisibleCharacters == panel.MessageText.Length);
+        Time.timeScale = 1f;
         Canvas.ForceUpdateCanvases();
 
-        var transcript = panel.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Transcript");
-        Assert.That(transcript.GetComponentInParent<UnityEngine.UI.RectMask2D>(), Is.Not.Null, "overflow must be clipped");
-        transcript.ForceMeshUpdate();
-        var info = transcript.textInfo;
-        var newest = transcript.text.LastIndexOf('\n') + 1;
-        var lastLineStart = info.characterInfo[info.lineInfo[info.lineCount - 1].firstCharacterIndex].index; // into the source string
-        Assert.That(lastLineStart, Is.GreaterThanOrEqualTo(newest), "the newest entry is laid out (Truncate drops the bottom lines)");
+        var message = panel.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Message");
+        Assert.That(message.GetComponentInParent<UnityEngine.UI.RectMask2D>(), Is.Not.Null, "overflow must be clipped");
+        message.ForceMeshUpdate();
+        var info = message.textInfo;
+        var lastLine = info.lineInfo[info.lineCount - 1];
+        Assert.That(message.text.Substring(lastLine.firstCharacterIndex), Does.EndWith("NEWESTMARKER"),
+            "the newest words are laid out at the bottom (Truncate would drop them)");
     }
 
     private sealed class Scripted : IChatModel

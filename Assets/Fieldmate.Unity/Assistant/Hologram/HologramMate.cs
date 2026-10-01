@@ -117,6 +117,9 @@ namespace Fieldmate.Assistant
 
         private ISpeechOutput Speech => speechOverride ?? player;
 
+        /// <summary>True while the user is hearing the mate (its caption reveals words in time with it, #71).</summary>
+        public bool IsSpeechPlaying => Speech != null && Speech.IsPlaying;
+
         public void SetState(AssistantState next)
         {
             state = next;
