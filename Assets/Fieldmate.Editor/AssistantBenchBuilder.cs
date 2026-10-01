@@ -43,7 +43,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -140,8 +140,8 @@ public static class AssistantBenchBuilder
         Set(placement, "pointerMaterial", GuideMaterial());
 
         // Room scan first: with no scene data, ask the headset for Space Setup before placement (#57).
-        new GameObject("Room Scan", typeof(SceneScanBootstrap)).GetComponent<SceneScanBootstrap>()
-            .Configure(Object.FindAnyObjectByType<ARSession>(), meshingGo.GetComponent<ARMeshManager>(), placement);
+        var roomScan = new GameObject("Room Scan", typeof(SceneScanBootstrap)).GetComponent<SceneScanBootstrap>();
+        roomScan.Configure(Object.FindAnyObjectByType<ARSession>(), meshingGo.GetComponent<ARMeshManager>(), placement);
 
         var router = new GameObject("Machine Controls", typeof(MachineControlRouter)).GetComponent<MachineControlRouter>();
         router.Configure(services.GetComponent<MachineServices>(), placement, new XRBaseInteractor[] { leftHand, rightHand });
@@ -149,13 +149,12 @@ public static class AssistantBenchBuilder
         new GameObject("Input Modality", typeof(InputModalityProbe));
         var guideGo = new GameObject("Step Guide", typeof(LineRenderer), typeof(ControlGuide));
         guideGo.GetComponent<LineRenderer>().sharedMaterial = GuideMaterial();
-        // The assistant is a hologram on a pedestal beside the outlet end (#69); its caption card stands to its side.
+        // The assistant is a small hologram the user places during setup (#69, #71); its caption follows it.
         var mateGo = new GameObject("Hologram Mate", typeof(HologramMate));
         mateGo.transform.SetParent(assistant.transform, false);
         var mate = mateGo.GetComponent<HologramMate>();
-        mate.Configure(cameraGo.transform, skid.transform, new Vector3(1.35f, 0f, 0.3f), audio.GetComponent<StreamingAudioPlayer>());
-        panel.GetComponent<AssistantPanel>().SetMate(mate);
-        panel.GetComponent<AssistantPanel>().Anchor(skid.transform, new Vector3(1.95f, 1.65f, 0.35f));
+        mate.Configure(cameraGo.transform, audio.GetComponent<StreamingAudioPlayer>());
+        panel.GetComponent<AssistantPanel>().FollowMate(mate);
 
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),
@@ -163,6 +162,11 @@ public static class AssistantBenchBuilder
             placement, guideGo.GetComponent<ControlGuide>());
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
             .Configure(Button(skid, "Move Button"), placement);
+
+        // Guided setup on every launch (#71): room → mate → machine → briefing → procedure.
+        new GameObject("Setup", typeof(SetupFlow)).GetComponent<SetupFlow>().Configure(roomScan, placement, mate,
+            panel.GetComponent<AssistantPanel>(), loop, director, services.GetComponent<MachineServices>(), skid.transform,
+            cameraGo.transform, pointerGo.transform, GuideMaterial());
 
         new GameObject("Narrator", typeof(ProactiveNarrator)).GetComponent<ProactiveNarrator>()
             .Configure(services.GetComponent<MachineServices>(), loop); // speaks on its own for steps, violations, debrief (#61)

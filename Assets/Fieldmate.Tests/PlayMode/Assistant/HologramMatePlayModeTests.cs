@@ -43,19 +43,35 @@ public class HologramMatePlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator Figure_IsHalfABody_OnAPedestal_InHologramLight()
+    public IEnumerator Figure_IsASmallHalfBody_OnAProjector_InHologramLight()
     {
         yield return null;
         var names = root.GetComponentsInChildren<Renderer>().Select(r => r.name).ToArray();
-        Assert.That(names, Is.SupersetOf(new[] { "Pedestal", "Torso", "Skull", "Left Eye", "Right Eye", "Upper Lip", "Lower Lip", "Left Arm", "Right Arm" }));
-        foreach (var renderer in root.GetComponentsInChildren<Renderer>().Where(r => r.name != "Pedestal"))
+        Assert.That(names, Is.SupersetOf(new[] { "Projector", "Torso", "Skull", "Left Eye", "Right Eye", "Upper Lip", "Lower Lip", "Left Arm", "Right Arm" }));
+        foreach (var renderer in root.GetComponentsInChildren<Renderer>().Where(r => r.name != "Projector"))
         {
             Assert.That(renderer.sharedMaterial.shader.name, Is.EqualTo("Fieldmate/Hologram"), renderer.name);
         }
 
-        var headY = mate.HeadPivot.position.y;
-        Assert.That(headY, Is.InRange(1.5f, 1.75f), "eye line at a standing adult's eye height");
-        Assert.That(mate.Figure.position.y, Is.GreaterThan(HologramMate.PedestalHeight), "the figure starts at the waist, above the projector");
+        var bounds = root.GetComponentsInChildren<Renderer>().Select(r => r.bounds).Aggregate((a, b) => { a.Encapsulate(b); return a; });
+        Assert.That(bounds.size.y, Is.InRange(0.3f, 0.5f), "#71: a small bust, under half a metre from puck to crown");
+        Assert.That(mate.HeadPivot.position.y - root.transform.position.y, Is.EqualTo(HologramMate.EyeHeight).Within(0.01f));
+    }
+
+    [UnityTest]
+    public IEnumerator Materialises_AndHides()
+    {
+        mate.SetVisible(false, instant: true);
+        yield return null;
+        Assert.That(mate.IsVisible, Is.False);
+        Assert.That(root.GetComponentsInChildren<Renderer>().All(r => !r.enabled));
+
+        mate.SetVisible(true);
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(mate.IsVisible, Is.True);
+        Assert.That(mate.Presence, Is.InRange(0.05f, 0.6f), "materialising, not popping in");
+        yield return new WaitForSeconds(1.5f);
+        Assert.That(mate.Presence, Is.EqualTo(1f));
     }
 
     [UnityTest]
@@ -86,7 +102,7 @@ public class HologramMatePlayModeTests
     [UnityTest]
     public IEnumerator Figure_TurnsToFaceTheUser()
     {
-        user.transform.position = new Vector3(1.5f, 1.6f, 0f); // off to its right
+        user.transform.position = new Vector3(1.0f, HologramMate.EyeHeight + 0.35f, 0f); // off to its right, eyes a bit higher
         yield return new WaitForSeconds(4f);
         var toUser = user.transform.position - mate.Figure.position;
         toUser.y = 0f;

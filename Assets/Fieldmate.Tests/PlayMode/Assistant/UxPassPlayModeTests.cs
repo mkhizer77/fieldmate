@@ -93,39 +93,41 @@ public class UxPassPlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator AssistantPanel_StaysBesideTheMachine_WhenTheHeadMoves()
+    public IEnumerator Caption_StaysBesideTheMate_NotWithTheHead_WhenTheHeadMoves()
     {
         var panel = Object.FindAnyObjectByType<AssistantPanel>().transform;
+        var mate = Object.FindAnyObjectByType<HologramMate>();
         var head = Camera.main.transform;
         yield return null;
         var before = panel.position;
 
-        head.position += new Vector3(1f, 0f, -0.5f);
+        head.position += new Vector3(0.6f, 0f, -0.5f);
         head.Rotate(0f, 60f, 0f);
         for (var i = 0; i < 30; i++) yield return null;
 
-        Assert.That(Vector3.Distance(panel.position, before), Is.LessThan(0.001f), "no head follow");
+        Assert.That(Vector3.Distance(panel.position, mate.HeadPivot.position), Is.InRange(0.2f, 0.4f), "#71: it stays with the mate");
+        Assert.That(Vector3.Distance(panel.position, before), Is.LessThan(0.3f), "and only swings round it, it doesn't follow the head");
     }
 
     [UnityTest]
-    public IEnumerator HologramMate_StandsBesideTheMachine_WithItsCaption_AndFollowsTheAssistantState()
+    public IEnumerator HologramMate_StandsInFrontOfTheUser_WithItsCaption_AndFollowsTheAssistantState()
     {
         var panel = Object.FindAnyObjectByType<AssistantPanel>();
         var mate = Object.FindAnyObjectByType<HologramMate>();
         Assert.That(panel.Mate, Is.SameAs(mate), "#69: the caption drives the figure");
         yield return null;
+        yield return null;
 
-        var skid = Object.FindAnyObjectByType<RemovablePart>().transform.root;
-        var machine = skid.GetComponentsInChildren<MeshRenderer>().Where(r => r.GetComponentInParent<Canvas>() == null)
-            .Select(r => r.bounds).Aggregate((a, b) => { a.Encapsulate(b); return a; });
-        var foot = mate.transform.position;
-        Assert.That(foot.y, Is.EqualTo(skid.position.y).Within(0.001f), "the pedestal stands on the machine's floor");
-        var clearance = new Vector2(Mathf.Max(machine.min.x - foot.x, foot.x - machine.max.x), Mathf.Max(machine.min.z - foot.z, foot.z - machine.max.z));
-        Assert.That(Mathf.Max(clearance.x, clearance.y), Is.GreaterThan(0.2f), "pedestal clear of the machine");
+        var head = Camera.main.transform;
+        var toMate = mate.transform.position - head.position;
+        toMate.y = 0f;
+        Assert.That(toMate.magnitude, Is.InRange(0.8f, 1.5f), "#71: within a step or two of the user");
+        Assert.That(Vector3.Dot(head.forward, toMate.normalized), Is.GreaterThan(0.5f), "in view");
+        Assert.That(mate.HeadPivot.position.y, Is.LessThan(head.position.y), "its face a little below the user's eyes");
 
         var side = panel.transform.position - mate.HeadPivot.position;
         side.y = 0f;
-        Assert.That(side.magnitude, Is.GreaterThan(0.3f), "the caption stands beside the figure, not over it");
+        Assert.That(side.magnitude, Is.InRange(0.2f, 0.4f), "the caption stands beside the figure, not over it");
 
         panel.SetState(Fieldmate.AI.AssistantState.Listening, "Pinch to talk");
         Assert.That(mate.State, Is.EqualTo(Fieldmate.AI.AssistantState.Listening));

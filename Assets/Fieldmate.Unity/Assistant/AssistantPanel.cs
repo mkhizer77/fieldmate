@@ -27,6 +27,13 @@ namespace Fieldmate.Assistant
         [SerializeField] private Transform anchor;
         [SerializeField] private Vector3 anchorOffset = new(1.15f, 1.45f, 0.25f);
         [SerializeField] private HologramMate mate;
+        [SerializeField] private bool followMate;
+
+        /// <summary>The caption is drawn at three quarters of the kit's size so it suits the small mate (#71).</summary>
+        private const float CaptionScale = 0.75f;
+
+        /// <summary>Gap between the mate's head and the caption's centre, to the user's right, in metres.</summary>
+        private const float BesideMate = 0.3f;
 
         private readonly Queue<string> lines = new();
         private TMP_Text stateText;
@@ -58,6 +65,16 @@ namespace Fieldmate.Assistant
 
         /// <summary>The figure that speaks these lines; it follows the same state.</summary>
         public void SetMate(HologramMate figure) => mate = figure;
+
+        /// <summary>Keeps the caption beside the mate's head, on the user's right, wherever the mate is put (#71).</summary>
+        public void FollowMate(HologramMate figure)
+        {
+            mate = figure;
+            followMate = true;
+        }
+
+        /// <summary>A setup prompt in the detail card (#71): what to do now.</summary>
+        public void ShowSetup(string eyebrow, string text) => ShowDetail(eyebrow, text);
 
         public void SetState(AssistantState state, string hint)
         {
@@ -139,7 +156,15 @@ namespace Fieldmate.Assistant
         // Stays put beside the machine (device test: a head-following panel was in the way); only turns to stay readable.
         private void LateUpdate()
         {
-            if (anchor != null)
+            if (followMate && mate != null && mate.HeadPivot != null && head != null)
+            {
+                var face = mate.HeadPivot.position;
+                var toMate = face - head.position;
+                toMate.y = 0f;
+                var right = toMate.sqrMagnitude > 1e-4f ? Vector3.Cross(Vector3.up, toMate.normalized) : Vector3.right;
+                transform.position = face + right * BesideMate + Vector3.down * 0.06f;
+            }
+            else if (anchor != null)
             {
                 transform.position = anchor.TransformPoint(anchorOffset);
             }
@@ -153,6 +178,7 @@ namespace Fieldmate.Assistant
         private void Build()
         {
             UiKit.WorldCanvas(gameObject, WidthMm, HeightMm);
+            transform.localScale *= CaptionScale;
             var card = UiKit.Card("Background", transform, Vector2.zero, Vector2.one, Theme.Surface, stroke: true).transform;
             var pad = new Vector2(Theme.Pad, 0f);
 
