@@ -1,6 +1,7 @@
 using System.Linq;
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
+using Fieldmate.Knowledge;
 using Fieldmate.Procedures;
 using Fieldmate.Twin;
 using Fieldmate.XR;
@@ -43,7 +44,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -156,15 +157,30 @@ public static class AssistantBenchBuilder
         mate.Configure(cameraGo.transform, audio.GetComponent<StreamingAudioPlayer>());
         panel.GetComponent<AssistantPanel>().FollowMate(mate);
 
+        // The app's controls live in a hand menu on the left hand (#73): palm up, or the left menu button.
+        var menuGo = new GameObject("Hand Menu", typeof(HandMenu));
+        var palm = new GameObject("Left Palm", typeof(UnityEngine.XR.Hands.XRHandTrackingEvents), typeof(PalmPose));
+        palm.transform.SetParent(offset, false);
+        palm.GetComponent<UnityEngine.XR.Hands.XRHandTrackingEvents>().handedness = UnityEngine.XR.Hands.Handedness.Left;
+        MenuButton(menuGo.transform, "Start Button", 0, ButtonStyle.Primary);
+        MenuButton(menuGo.transform, "Move Button", 1, ButtonStyle.Secondary);
+        MenuButton(menuGo.transform, "Occlusion Button", 2, ButtonStyle.Secondary);
+        MenuButton(menuGo.transform, "Stats Button", 3, ButtonStyle.Secondary); // perf overlay (#18)
+        var labelsButton = MenuButton(menuGo.transform, "Labels Button", 4, ButtonStyle.Secondary);
+        var menu = menuGo.GetComponent<HandMenu>();
+        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton);
+
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),
-            skid.GetComponentInChildren<ProcedurePanel>(), Button(skid, "Start Button"), cameraGo.transform,
+            skid.GetComponentInChildren<ProcedurePanel>(), Button(menuGo, "Start Button"), cameraGo.transform,
             placement, guideGo.GetComponent<ControlGuide>());
         new GameObject("Move Machine", typeof(MoveMachineButton)).GetComponent<MoveMachineButton>()
-            .Configure(Button(skid, "Move Button"), placement);
+            .Configure(Button(menuGo, "Move Button"), placement);
 
         // Guided setup on every launch (#71): room → mate → machine → briefing → procedure.
-        new GameObject("Setup", typeof(SetupFlow)).GetComponent<SetupFlow>().Configure(roomScan, placement, mate,
+        var setup = new GameObject("Setup", typeof(SetupFlow)).GetComponent<SetupFlow>();
+        Set(menu, "setup", setup);
+        setup.Configure(roomScan, placement, mate,
             panel.GetComponent<AssistantPanel>(), loop, director, services.GetComponent<MachineServices>(), skid.transform,
             cameraGo.transform, pointerGo.transform, GuideMaterial());
 
@@ -173,10 +189,10 @@ public static class AssistantBenchBuilder
 
         var occlusion = new GameObject("Occlusion Settings", typeof(OcclusionSettings), typeof(FrameTimeProbe));
         occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
-            cameraGo.GetComponent<ARShaderOcclusion>(), Button(skid, "Occlusion Button"));
+            cameraGo.GetComponent<ARShaderOcclusion>(), Button(menuGo, "Occlusion Button"));
         occlusion.GetComponent<FrameTimeProbe>().Configure(occlusion.GetComponent<OcclusionSettings>());
         var perf = new GameObject("Perf Overlay", typeof(RectTransform), typeof(PerfOverlay)).GetComponent<PerfOverlay>();
-        perf.Configure(occlusion.GetComponent<FrameTimeProbe>(), Button(skid, "Stats Button"), skid.transform, new Vector3(-0.78f, 2.05f, 0.3f), cameraGo.transform);
+        perf.Configure(occlusion.GetComponent<FrameTimeProbe>(), Button(menuGo, "Stats Button"), skid.transform, new Vector3(-0.78f, 2.05f, 0.3f), cameraGo.transform);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var others = EditorBuildSettings.scenes.Where(s => s.path != ScenePath);
@@ -353,16 +369,12 @@ public static class AssistantBenchBuilder
         spare.GetComponent<Rigidbody>().isKinematic = true;
         spare.GetComponent<Rigidbody>().useGravity = false;
 
-        // Step card above the machine and the buttons below it, within reach: Start (primary) with Move machine beside
-        // it and the occlusion setting underneath. The buttons build their own bezel, cap and label (#53).
+        // Step card above the machine. The app's buttons are in the hand menu, not on the machine (#73).
         var stepPanel = new GameObject("Procedure Panel", typeof(RectTransform), typeof(ProcedurePanel));
         stepPanel.transform.SetParent(root.transform, false);
         // Over the cabinet side, clear of the highlight marker above the relief valve.
         stepPanel.transform.localPosition = new Vector3(-0.78f, 1.72f, 0.3f);
-        MachineButton(root, "Start Button", new Vector3(-0.88f, 1.34f, 0.34f), ButtonStyle.Primary);
-        MachineButton(root, "Move Button", new Vector3(-0.68f, 1.34f, 0.34f), ButtonStyle.Secondary);
-        MachineButton(root, "Occlusion Button", new Vector3(-0.88f, 1.25f, 0.34f), ButtonStyle.Secondary);
-        MachineButton(root, "Stats Button", new Vector3(-0.68f, 1.25f, 0.34f), ButtonStyle.Secondary); // perf overlay (#18)
+        PartLabels(root);
 
         // 80 %: the full-size skid (2.3 m with the cabinet) didn't fit the test room (device test 2026-09-28).
         root.transform.localScale = Vector3.one * 0.8f;
@@ -406,14 +418,50 @@ public static class AssistantBenchBuilder
         return interactor;
     }
 
-    private static void MachineButton(GameObject root, string name, Vector3 localPosition, ButtonStyle style)
+    /// <summary>
+    /// A row of the hand menu (#73): flat, in the UI kit's style, facing the user (the menu's -Z). Pressed by a pointer ray
+    /// (Buttons layer) or a fingertip in it (Default layer).
+    /// </summary>
+    private static PressButton MenuButton(Transform menu, string name, int row, ButtonStyle style)
     {
         var go = new GameObject(name, typeof(PressButton));
-        go.transform.SetParent(root.transform, false);
-        go.transform.localPosition = localPosition;
-        Set(go.GetComponent<PressButton>(), "style", style);
-        // Pressed by a hand in the cap (Default layer) or by a pointer ray (Buttons layer); machine controls stay hands-only.
-        go.GetComponent<PressButton>().interactionLayers = InteractionLayerMask.GetMask("Default") | ButtonLayer;
+        go.transform.SetParent(menu, false);
+        go.transform.localPosition = new Vector3(0f, HandMenu.RowY(row), -0.004f);
+        go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f); // a button's face is its +Z; the menu faces -Z
+        var button = go.GetComponent<PressButton>();
+        Set(button, "style", style);
+        Set(button, "flat", true);
+        button.interactionLayers = InteractionLayerMask.GetMask("Default") | ButtonLayer;
+        return button;
+    }
+
+    /// <summary>
+    /// A name label on every part that has none yet (#73), in the control tag's style, a hand's width above the part.
+    /// Hidden until a step needs the part or the user asks for every label.
+    /// </summary>
+    private static void PartLabels(GameObject root)
+    {
+        const float lift = 0.1f;
+        const float halfPill = 0.033f; // the tag's 110 units at 0.6 mm
+        var manual = MachineManual.Parse(AssetDatabase.LoadAssetAtPath<TextAsset>(ManualPath).text);
+        foreach (var part in root.GetComponentsInChildren<PartTag>())
+        {
+            var renderers = part.GetComponentsInChildren<Renderer>();
+            if (part.GetComponentInChildren<ControlTag>() != null || renderers.Length == 0)
+            {
+                continue;
+            }
+
+            var bounds = renderers[0].bounds;
+            foreach (var r in renderers)
+            {
+                bounds.Encapsulate(r.bounds);
+            }
+
+            var title = manual.TryGetPart(part.PartId, out var info) ? info.Name : part.PartId;
+            var offset = new Vector3(bounds.center.x, bounds.max.y + lift + halfPill, bounds.center.z) - part.transform.localPosition;
+            part.gameObject.AddComponent<ControlTag>().Configure(title, null, offset, lift);
+        }
     }
 
     private const int ButtonLayerIndex = 1;
@@ -491,8 +539,8 @@ public static class AssistantBenchBuilder
         return g;
     }
 
-    private static PressButton Button(GameObject skid, string name) =>
-        skid.GetComponentsInChildren<PressButton>().Single(b => b.name == name);
+    private static PressButton Button(GameObject root, string name) =>
+        root.GetComponentsInChildren<PressButton>(true).Single(b => b.name == name);
 
     /// <summary>An untagged child the moving part of a control rotates about.</summary>
     private static GameObject Pivot(GameObject parent, string name, Vector3 localPosition)
@@ -621,6 +669,10 @@ public static class AssistantBenchBuilder
         else if (value is System.Enum e)
         {
             p.enumValueIndex = System.Convert.ToInt32(e);
+        }
+        else if (value is bool b)
+        {
+            p.boolValue = b;
         }
         else
         {

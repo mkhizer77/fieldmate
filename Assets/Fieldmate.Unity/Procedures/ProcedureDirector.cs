@@ -386,11 +386,31 @@ namespace Fieldmate.Procedures
             button.SetLabel("Restart");
             button.SetStyle(ButtonStyle.Secondary);
             KeepHighlighted(step);
+            MarkRelevant(step);
             Debug.Log($"[Procedure] step {index + 1}: {step.Id}");
         }
 
+        // Labels appear one by one (#73): the step's part and the tool it needs, gone once the step is done.
+        private void MarkRelevant(StepDefinition step)
+        {
+            tags ??= FindObjectsByType<ControlTag>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var tag in tags)
+            {
+                if (tag == null)
+                {
+                    continue;
+                }
+
+                var part = tag.GetComponentInParent<Fieldmate.Twin.PartTag>();
+                tag.Relevant = step != null && part != null && (part.PartId == step.PartId || part.PartId == step.ToolId);
+            }
+        }
+
+        private ControlTag[] tags;
+
         private void OnStepCompleted(int index, StepDefinition step, double seconds)
         {
+            MarkRelevant(null);
             panel.ShowStatus($"✓ {step.Title}", ProcedurePanel.Done, 3f);
             Debug.Log($"[Procedure] done {step.Id} in {seconds:0.0}s");
         }

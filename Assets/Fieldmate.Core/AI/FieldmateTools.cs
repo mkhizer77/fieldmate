@@ -12,6 +12,7 @@ public static class FieldmateTools
     public const string LogNote = "log_note";
     public const string SetLanguage = "set_language";
     public const string IdentifyView = "identify_view";
+    public const string ShowLabels = "show_labels";
 
     /// <summary>Highest step index accepted by <see cref="GoToStep"/>; procedures have 6–8 steps.</summary>
     public const int MaxStepIndex = 20;
@@ -42,6 +43,9 @@ public static class FieldmateTools
         new ToolDefinition(SetLanguage,
             "Switch the assistant's speech and labels to German or English.",
             new ToolParameter("language", ToolParameterType.String, "Language code.", allowedValues: new[] { "de", "en" })),
+        new ToolDefinition(ShowLabels,
+            "Show or hide the name labels on every machine part, e.g. when the user asks what is what on the machine. The current step's part stays highlighted either way.",
+            new ToolParameter("visible", ToolParameterType.Boolean, "True to show all labels, false to hide them again.")),
         new ToolDefinition(IdentifyView,
             "Capture one camera frame of what the user is looking at and identify the part. Only on the user's request."),
     };

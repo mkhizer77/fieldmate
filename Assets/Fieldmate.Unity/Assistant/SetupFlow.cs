@@ -99,7 +99,6 @@ namespace Fieldmate.Assistant
             if (!AutoRun)
             {
                 Stage = SetupStage.Done;
-            panel.HideDetail();
                 return;
             }
 
@@ -168,13 +167,17 @@ namespace Fieldmate.Assistant
             yield return Say(SetupScript.Briefing(procedure, first));
 
             Stage = SetupStage.Done;
-            panel.HideDetail();
             if (machine.Runner.State != RunnerState.Running)
             {
                 director.StartProcedure();
             }
 
             Debug.Log("[Setup] done: procedure started");
+
+            // Where the app's controls went (#73): a short tip, then the card goes.
+            panel.ShowSetup("Menu", InputWords.Menu(InputModalityProbe.Current) + ": Start, Move machine, Occlusion, Stats, Labels.");
+            yield return new WaitForSeconds(10f);
+            panel.HideDetail();
         }
 
         // Speaks (or captions) a line; with waitForEnd, returns once it has been heard (or read).

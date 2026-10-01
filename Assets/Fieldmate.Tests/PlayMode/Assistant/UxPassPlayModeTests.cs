@@ -49,16 +49,50 @@ public class UxPassPlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator EveryControl_HasATagThatFollowsItsState()
+    public IEnumerator EveryPart_HasOneLabel_HiddenUntilNeeded_AndControlsFollowTheirState()
     {
         var tags = Object.FindObjectsByType<ControlTag>(FindObjectsSortMode.None);
-        Assert.That(tags.Select(t => t.Text.Split('\n')[0]), Is.EquivalentTo(new[]
-            { "Inlet valve", "Outlet valve", "Main breaker", "Pump cover", "New relief cartridge" }));
+        var parts = Object.FindObjectsByType<Fieldmate.Twin.PartTag>(FindObjectsSortMode.None);
+        foreach (var part in parts)
+        {
+            Assert.That(part.GetComponentsInChildren<ControlTag>(), Has.Length.EqualTo(1), $"#73: {part.PartId} has one label");
+        }
+
+        Assert.That(tags.Select(t => t.Text.Split('\n')[0]), Does.Contain("Main breaker").And.Contain("New relief cartridge"));
+        yield return new WaitForSeconds(0.4f);
+        Assert.That(tags.All(t => t.Alpha == 0f), Is.True, "#73: all labels off by default");
+
+        ControlTag.ShowAll = true;
+        yield return new WaitForSeconds(0.4f);
+        Assert.That(tags.All(t => t.Alpha > 0f), Is.True, "asked for: every label shows");
+        ControlTag.ShowAll = false;
 
         var lever = Object.FindObjectsByType<RotaryInteractable>(FindObjectsSortMode.None).Single(r => r.PartId == "inlet_valve");
         lever.SetAngle(90f);
         yield return null;
         Assert.That(lever.GetComponent<ControlTag>().Text, Does.Contain("CLOSED"));
+    }
+
+    [UnityTest]
+    public IEnumerator StepLabels_ShowForTheToolStep_AndGoOnceTheCartridgeIsSeated()
+    {
+        yield return ProcedurePlayModeTests.PlaceMachine();
+        var runner = machine.Runner;
+        runner.Start(machine.Now);
+        runner.Handle(InteractionEvent.Gaze(machine.Now, "relief_valve", 2f));
+        runner.Handle(InteractionEvent.State(machine.Now, "main_breaker", "locked"));
+        runner.Handle(InteractionEvent.State(machine.Now, "inlet_valve", "closed"));
+        runner.Handle(InteractionEvent.Measured(machine.Now, 0f));
+        runner.Handle(InteractionEvent.State(machine.Now, "pump_cover", "removed"));
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("replace"));
+        var cartridge = Object.FindAnyObjectByType<ToolItem>().GetComponent<ControlTag>();
+        yield return new WaitForSeconds(0.4f);
+        Assert.That(cartridge.Relevant, Is.True);
+        Assert.That(cartridge.Alpha, Is.GreaterThan(0f), "the tool the step needs is labelled");
+
+        runner.Handle(InteractionEvent.Socketed(machine.Now, "relief_valve_seat", "relief_cartridge"));
+        yield return new WaitForSeconds(0.4f);
+        Assert.That(cartridge.Alpha, Is.EqualTo(0f), "#73 device test: gone once it is seated");
     }
 
     [UnityTest]
@@ -154,14 +188,14 @@ public class UxPassPlayModeTests
         // A control with its own tag: the callout takes the tag's place, and the tag steps aside until cleared.
         Assert.That(machine.TryGetPart("main_breaker", out var breaker), Is.True);
         var tag = breaker.GetComponentInChildren<ControlTag>();
+        tag.Relevant = true;
         highlighter.Highlight(breaker, "Main breaker", "turn to LOCKED", 30f);
         yield return null;
         yield return null;
         Assert.That(Vector3.Distance(highlighter.Marker.position, tag.LabelPosition), Is.LessThan(0.001f));
         Assert.That(tag.Alpha, Is.EqualTo(0f), "one label, not two");
         highlighter.Clear();
-        yield return null;
-        yield return null;
+        yield return new WaitForSeconds(0.4f);
         Assert.That(tag.Alpha, Is.GreaterThan(0f));
     }
 }

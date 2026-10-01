@@ -100,13 +100,15 @@ public class UiPolishPlayModeTests
         camGo.transform.position = new Vector3(0f, 0f, -0.8f);
         yield return null;
         yield return null;
+        Assert.That(tag.Alpha, Is.EqualTo(0f), "#73: hidden until a step needs it");
+        tag.Relevant = true;
+        yield return new WaitForSeconds(0.4f);
         Assert.That(tag.Text, Is.EqualTo("Inlet valve\n<size=26>pump suction</size>"));
         Assert.That(tag.Alpha, Is.EqualTo(1f).Within(0.01f), "fully visible within reach");
 
         camGo.transform.position = new Vector3(0f, 0f, -6f);
-        yield return null;
-        yield return null;
-        Assert.That(tag.Alpha, Is.EqualTo(0.25f).Within(0.01f), "faded far away, never hidden");
+        yield return new WaitForSeconds(0.4f);
+        Assert.That(tag.Alpha, Is.EqualTo(0.25f).Within(0.01f), "faded far away, never hidden while needed");
     }
 
     [UnityTest]

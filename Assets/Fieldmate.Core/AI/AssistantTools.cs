@@ -23,6 +23,9 @@ public interface IAssistantScene
 
     void AddNote(string text);
 
+    /// <summary>Shows or hides the name labels on every part (#73); the step's highlight is unaffected.</summary>
+    void ShowPartLabels(bool visible);
+
     /// <summary>Captures one camera frame and identifies the gazed part; null while vision is unavailable (M2).</summary>
     string IdentifyView();
 
@@ -82,6 +85,7 @@ public sealed class AssistantTools
         registry.SetExecutor(FieldmateTools.ReportReading, new DelegateToolExecutor(ReportReading));
         registry.SetExecutor(FieldmateTools.LogNote, new DelegateToolExecutor(LogNote));
         registry.SetExecutor(FieldmateTools.SetLanguage, new DelegateToolExecutor(SetLanguage));
+        registry.SetExecutor(FieldmateTools.ShowLabels, new DelegateToolExecutor(ShowLabels));
         if (registry.TryGetDefinition(FieldmateTools.IdentifyView, out _))
         {
             registry.SetExecutor(FieldmateTools.IdentifyView, new DelegateToolExecutor(IdentifyView));
@@ -99,6 +103,15 @@ public sealed class AssistantTools
         return scene.TryHighlightPart(id)
             ? ToolResult.Success(call, $"Highlighted the {part.Name} for the user: it pulses cyan and a cyan marker with its name floats above it. {part.Description}")
             : ToolResult.Failure(call, $"The {part.Name} is not placed in the scene yet.");
+    }
+
+    public ToolResult ShowLabels(ToolCall call, ToolArguments args)
+    {
+        var visible = args.GetBool("visible", true);
+        scene.ShowPartLabels(visible);
+        return ToolResult.Success(call, visible
+            ? $"Name labels are now shown on all {catalog.All.Count} parts. The current step's part keeps its cyan highlight."
+            : "Part labels are hidden again; only the current step's part is labelled.");
     }
 
     public ToolResult StartProcedure(ToolCall call, ToolArguments args)

@@ -9,12 +9,12 @@ namespace Fieldmate.Tests.EditMode.AI;
 public class ToolDefinitionTests
 {
     [Test]
-    public void V1_HasTheNineDesignTools()
+    public void V1_HasTheDesignTools_PlusShowLabels()
     {
         Assert.That(FieldmateTools.CreateV1().Select(t => t.Name), Is.EqualTo(new[]
         {
             "highlight_part", "start_procedure", "go_to_step", "report_reading", "show_manual",
-            "read_telemetry", "log_note", "set_language", "identify_view",
+            "read_telemetry", "log_note", "set_language", "show_labels", "identify_view",
         }));
     }
 

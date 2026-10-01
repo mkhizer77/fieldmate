@@ -476,5 +476,11 @@ namespace Fieldmate.Assistant
         }
 
         string IAssistantScene.IdentifyView() => null; // M2 Vision
+
+        void IAssistantScene.ShowPartLabels(bool visible)
+        {
+            Fieldmate.Interaction.ControlTag.ShowAll = visible;
+            Debug.Log($"[Assistant] part labels {(visible ? "shown" : "hidden")}");
+        }
     }
 }
