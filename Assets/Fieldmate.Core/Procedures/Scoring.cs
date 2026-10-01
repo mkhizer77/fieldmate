@@ -95,6 +95,63 @@ public static class Scoring
         return score < 0 ? 0 : score > 100 ? 100 : score;
     }
 
+    /// <summary>
+    /// How the score came about, for the assistant's context and the offline answers (device test 2026-10-01: "86 out
+    /// of 100" and the mate couldn't say why): the verdict, the time against the limit, and every deduction with what
+    /// caused it. Each line of the sum is spelled out so the model can explain it without arithmetic of its own.
+    /// </summary>
+    public static string Explain(ProcedureResult result, ScoringWeights weights, float timeLimitSeconds)
+    {
+        if (result == null)
+        {
+            throw new ArgumentNullException(nameof(result));
+        }
+
+        weights ??= ScoringWeights.Default;
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        var parts = new System.Collections.Generic.List<string>();
+        if (result.Violations.Count > 0)
+        {
+            var names = string.Join("; ", System.Linq.Enumerable.Select(result.Violations, v => v.Description));
+            parts.Add(string.Format(c, "{0} safety violation{1} -{2:0} ({3})", result.Violations.Count, result.Violations.Count == 1 ? "" : "s",
+                result.Violations.Count * weights.ViolationPenalty, names));
+        }
+
+        if (result.Errors.Count > 0)
+        {
+            var names = string.Join("; ", System.Linq.Enumerable.Select(result.Errors, e => e.Message));
+            parts.Add(string.Format(c, "{0} mistake{1} -{2:0} ({3})", result.Errors.Count, result.Errors.Count == 1 ? "" : "s",
+                result.Errors.Count * weights.ErrorPenalty, names));
+        }
+
+        if (result.HelpRequests > 0)
+        {
+            parts.Add(string.Format(c, "{0} question{1} to the assistant during the run -{2:0} ({3:0} each)", result.HelpRequests,
+                result.HelpRequests == 1 ? "" : "s", result.HelpRequests * weights.HelpPenalty, weights.HelpPenalty));
+        }
+
+        var over = timeLimitSeconds > 0f ? result.TotalSeconds - timeLimitSeconds : 0d;
+        if (over > 0d)
+        {
+            parts.Add(string.Format(c, "{0:0.#} min over the time limit -{1:0}", over / 60d, over / 60d * weights.OvertimePenaltyPerMinute));
+        }
+
+        var time = timeLimitSeconds > 0f
+            ? string.Format(c, "took {0}, limit {1}", Duration(result.TotalSeconds), Duration(timeLimitSeconds))
+            : string.Format(c, "took {0}", Duration(result.TotalSeconds));
+        var verdict = result.Passed
+            ? "passed"
+            : result.Violations.Count > 0 ? "not passed (any safety violation fails the run)" : string.Format(c, "not passed (pass mark {0})", weights.PassScore);
+        var deductions = parts.Count == 0 ? "no deductions" : "100, " + string.Join(", ", parts);
+        return string.Format(c, "score {0}/100, {1}; {2}; {3}.", result.Score, verdict, time, deductions);
+    }
+
+    private static string Duration(double seconds)
+    {
+        var s = (int)Math.Round(seconds);
+        return s >= 60 ? $"{s / 60} min {s % 60} s" : $"{s} s";
+    }
+
     public static bool Passed(ScoringWeights weights, int score, int violations) =>
         violations == 0 && score >= (weights ?? throw new ArgumentNullException(nameof(weights))).PassScore;
 }

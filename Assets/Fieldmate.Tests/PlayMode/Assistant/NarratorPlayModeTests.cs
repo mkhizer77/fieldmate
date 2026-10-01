@@ -34,6 +34,8 @@ public class NarratorPlayModeTests
         yield return null;
         Assert.That(panel.TranscriptText, Does.Contain("Step 1 done. Next, step 2 of 8: Lock out the main breaker."));
 
+        Assert.That(machine.Runner.HelpRequests, Is.EqualTo(0), "device test 2026-10-01: the mate's own lines are not help the user asked for");
+
         machine.Runner.Handle(InteractionEvent.State(machine.Now, "inlet_valve", "closed")); // before lockout
         yield return null;
         yield return null;

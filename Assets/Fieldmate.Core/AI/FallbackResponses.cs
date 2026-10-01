@@ -92,7 +92,9 @@ public sealed class FallbackResponses
     {
         if (runner.State == RunnerState.Completed)
         {
-            return $"The procedure is complete with a score of {runner.Result?.Score}. Pinch Run again to repeat it.";
+            return runner.Result == null
+                ? "The procedure is complete. Press Restart in your hand menu to go again."
+                : $"The procedure is complete: {Scoring.Explain(runner.Result, runner.Definition.Weights, runner.Definition.TimeLimitSeconds)} Press Restart in your hand menu to go again.";
         }
 
         if (runner.State != RunnerState.Running)
