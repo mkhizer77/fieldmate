@@ -13,6 +13,12 @@ public sealed class RotaryTracker
     /// <summary>Hands closer to the axis than this don't turn anything.</summary>
     public const float MinRadius = 0.015f;
 
+    /// <summary>
+    /// More hand rotation than this between two updates is a tracking jump, not a turn: the tracker re-anchors and the
+    /// handle stays (device test 2026-10-02, #90: the breaker swung from on to locked in 0.4 s as two ray grips crossed).
+    /// </summary>
+    public const float MaxStepDegrees = 45f;
+
     private readonly Vector3 axis;
     private readonly float min;
     private readonly float max;
@@ -50,7 +56,11 @@ public sealed class RotaryTracker
 
         if (hasPrevious)
         {
-            Angle = Mathf.Clamp(Angle + gain * Vector3.SignedAngle(previous, current, axis), min, max);
+            var step = Vector3.SignedAngle(previous, current, axis);
+            if (Mathf.Abs(step) <= MaxStepDegrees)
+            {
+                Angle = Mathf.Clamp(Angle + gain * step, min, max);
+            }
         }
 
         previous = current;

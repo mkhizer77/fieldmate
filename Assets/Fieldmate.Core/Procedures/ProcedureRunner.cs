@@ -51,6 +51,12 @@ public sealed class ProcedureRunner
     /// <summary>Every attempt the interlock stopped (the violation itself is raised once per rule).</summary>
     public event Action<SafetyRule, InteractionEvent> AttemptRefused;
 
+    /// <summary>
+    /// A completed step's part left its target state and no later step will operate it again (#90: the breaker went back
+    /// off during the last check, so the pump stopped). Not scored; the user is told so they can put it back.
+    /// </summary>
+    public event Action<int, StepDefinition, InteractionEvent> StepUndone;
+
     public ProcedureDefinition Definition { get; }
     public RunnerState State { get; private set; }
 
@@ -158,6 +164,7 @@ public sealed class ProcedureRunner
         if (e.Kind == InteractionKind.StateChanged && e.PartId != null)
         {
             partStates[e.PartId] = e.Value;
+            CheckUndone(e);
         }
 
         var step = Definition.Steps[CurrentStepIndex];
@@ -207,6 +214,31 @@ public sealed class ProcedureRunner
                     AddError(e.Time, Definition.Steps[i].Id, $"'{Definition.Steps[i].Title}' done before '{step.Title}'.");
                     return;
                 }
+            }
+        }
+    }
+
+    private void CheckUndone(in InteractionEvent e)
+    {
+        var steps = Definition.Steps;
+        for (var i = CurrentStepIndex; i < steps.Count; i++)
+        {
+            if (steps[i].Kind == StepKind.Operate && steps[i].PartId == e.PartId)
+            {
+                return; // the current or a later step still works this part (the restore turns the breaker through off)
+            }
+        }
+
+        for (var i = CurrentStepIndex - 1; i >= 0; i--)
+        {
+            if (steps[i].Kind == StepKind.Operate && steps[i].PartId == e.PartId)
+            {
+                if (e.Value != steps[i].TargetState)
+                {
+                    StepUndone?.Invoke(i, steps[i], e);
+                }
+
+                return; // only the latest completed step on this part counts
             }
         }
     }

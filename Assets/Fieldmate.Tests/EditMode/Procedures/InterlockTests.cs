@@ -80,6 +80,28 @@ public class InterlockTests
     }
 
     [Test]
+    public void Breaker_going_back_off_after_power_on_is_an_undone_step_but_not_while_restoring()
+    {
+        // Device test 2026-10-02 (#90): on → locked → off during the last check; the pump stopped and nothing was said.
+        var demo = Demo();
+        var undone = new List<string>();
+        demo.StepUndone += (i, step, e) => undone.Add($"{step.Id}:{e.Value}");
+        double clock = 0;
+        ProcedureReplay.AdvanceTo(demo, "power_on", ref clock);
+        demo.Handle(InteractionEvent.State(clock + 1, Breaker, "off"));
+        Assert.That(undone, Is.Empty, "turning through off is how the restore step switches it on");
+
+        demo.Handle(InteractionEvent.State(clock + 2, Breaker, "on"));
+        Assert.That(demo.CurrentStep.Id, Is.EqualTo("verify_running"));
+        demo.Handle(InteractionEvent.State(clock + 3, Breaker, "locked"));
+        demo.Handle(InteractionEvent.State(clock + 4, Breaker, "off"));
+        Assert.That(undone, Is.EqualTo(new[] { "power_on:locked", "power_on:off" }));
+        demo.Handle(InteractionEvent.State(clock + 5, Breaker, "on"));
+        Assert.That(undone, Has.Count.EqualTo(2), "back on: nothing to report");
+        Assert.That(demo.Errors, Is.Empty, "not scored");
+    }
+
+    [Test]
     public void Restore_runs_cover_then_inlet_then_breaker()
     {
         var demo = Demo();

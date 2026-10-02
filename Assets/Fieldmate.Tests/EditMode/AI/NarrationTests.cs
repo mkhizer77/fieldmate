@@ -56,4 +56,13 @@ public class NarrationTests
         Assert.That(log.Count, Is.EqualTo(2));
         Assert.That(log.ToPromptText(10), Is.EqualTo("5 s ago: b; just now: c."));
     }
+
+    [Test]
+    public void Undone_and_still_held_lines_say_what_changed_and_what_to_do()
+    {
+        Assert.That(Narration.Undone("main breaker", "on", "Grip the red bar with both controllers and turn it until it clicks to on."),
+            Is.EqualTo("Careful, the main breaker isn't on any more. Grip the red bar with both controllers and turn it until it clicks to on."));
+        var rule = new SafetyRule("outlet_before_power", "Open the outlet valve first.", "main_breaker", "outlet_valve", "open");
+        Assert.That(Narration.StillHeld(rule), Is.EqualTo("Not yet. Open the outlet valve first."));
+    }
 }
