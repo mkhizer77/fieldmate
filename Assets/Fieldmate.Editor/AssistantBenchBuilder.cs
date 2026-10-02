@@ -500,6 +500,10 @@ public static class AssistantBenchBuilder
         ray.lineType = XRRayInteractor.LineType.StraightLine;
         ray.maxRaycastDistance = 3f;
         ray.hitClosestOnly = true;
+        // A cone, not a line (device test 2026-10-02: the ray only latched when it passed through a 2.5 cm lever): anything
+        // within 6° of where the user points can be grabbed, a margin that grows with distance (±16 cm at 1.5 m).
+        ray.hitDetectionType = XRRayInteractor.HitDetectionType.ConeCast;
+        ray.coneCastAngle = 6f;
         ray.enableUIInteraction = false;
         ray.interactionLayers = ButtonLayer;
         var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/triggerPressed");
