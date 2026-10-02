@@ -164,7 +164,7 @@ namespace Fieldmate.Assistant
             Stage = SetupStage.Briefing;
             var procedure = machine.Runner.Definition;
             panel.ShowSetup("Setup · 4 of 4 · Today", procedure.Title);
-            var first = StepInstructions.For(procedure.Steps[0], machine.Catalog, InputModalityProbe.Current);
+            var first = StepInstructions.Spoken(procedure.Steps[0], machine.Catalog, InputModalityProbe.Current);
             yield return Say(SetupScript.Briefing(procedure, first));
 
             Stage = SetupStage.Done;
