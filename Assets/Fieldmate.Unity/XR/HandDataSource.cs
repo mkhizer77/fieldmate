@@ -7,7 +7,7 @@ namespace Fieldmate.XR;
 /// <summary>
 /// Where a hand's pose comes from (#80, XR_EXT_hand_tracking_data_source): the cameras, or the controller it holds.
 /// While controllers are held the runtime still reports hands, posed around the controllers from their touch sensors
-/// (as Meta's home shows them); those hands are shown, but they mean the user is on controllers.
+/// (as Meta's home shows them); they mean the user is on controllers, and are not drawn (#86, TrackedHandMesh).
 /// </summary>
 public static class HandDataSource
 {

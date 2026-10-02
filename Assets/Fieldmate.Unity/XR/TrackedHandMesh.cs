@@ -9,7 +9,9 @@ namespace Fieldmate.XR
     /// The user's own hand shape, the way Horizon Home draws it: the runtime's fitted hand mesh (OpenXR
     /// XR_FB_hand_tracking_mesh via the Meta Quest: Hand Mesh Data feature) skinned once to 26 joint transforms that
     /// follow the tracked skeleton every frame, drawn with the light-yellow presence glow. Where the runtime has no
-    /// mesh (editor, other devices) the fallback model stays on. No per-frame allocations after the build.
+    /// mesh (editor, other devices) the fallback model stays on. A hand the runtime poses from a held controller is not
+    /// drawn (#86): that pose is a fixed grip welded to the controller (measured on device 2026-10-02), never the user's
+    /// real fingers, so the controller model is shown on its own. No per-frame allocations after the build.
     /// </summary>
     [RequireComponent(typeof(XRHandTrackingEvents))]
     public sealed class TrackedHandMesh : MonoBehaviour
@@ -27,7 +29,12 @@ namespace Fieldmate.XR
         private Mesh mesh;
         private bool queried;
 
+        private bool holding;
+
         public bool IsBuilt => skinned != null;
+
+        /// <summary>Whether a hand is drawn: tracked, and not posed from a controller it holds (#86).</summary>
+        public static bool Shows(bool tracked, bool posedFromController) => tracked && !posedFromController;
         public SkinnedMeshRenderer Renderer => skinned;
         public int BoneCount => bones != null ? bones.Length : 0;
 
@@ -63,12 +70,33 @@ namespace Fieldmate.XR
         {
             if (skinned != null)
             {
-                skinned.enabled = tracked;
+                skinned.enabled = Shows(tracked, holding);
+            }
+        }
+
+        // The data source can change while tracking continues (picking up or putting down a controller).
+        private void UpdateHolding()
+        {
+            var now = HandDataSource.IsFromController(events.handedness);
+            if (now == holding)
+            {
+                return;
+            }
+
+            holding = now;
+            if (skinned != null)
+            {
+                skinned.enabled = Shows(events.handIsTracked, holding);
+            }
+            else if (fallback != null)
+            {
+                fallback.SetActive(!holding);
             }
         }
 
         private void OnJointsUpdated(XRHandJointsUpdatedEventArgs args)
         {
+            UpdateHolding();
             if (skinned == null)
             {
                 TryBuildFromRuntime();
@@ -173,7 +201,7 @@ namespace Fieldmate.XR
             skinned.updateWhenOffscreen = true;
             skinned.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             skinned.receiveShadows = false;
-            skinned.enabled = events.handIsTracked;
+            skinned.enabled = Shows(events.handIsTracked, holding);
             if (fallback != null)
             {
                 fallback.SetActive(false);

@@ -13,7 +13,9 @@ namespace Fieldmate.XR
     /// (<see cref="RenderModelFeature"/>), built with glTFast under this transform, which follows the controller's grip
     /// pose. The model's vertices are in OpenXR's grip space (forward is -Z); glTFast mirrors X to bring glTF into Unity
     /// while Unity's OpenXR poses mirror Z, so the model is turned 180° about Y (<see cref="GltfToPose"/>) to sit on the
-    /// real controller (#86: device test 2026-10-02, the model faced the wrong way). Retries until the session runs and the
+    /// real controller (#86: device test 2026-10-02, the model faced the wrong way). Measured on device the same day: the
+    /// model file's own "grip" node (0, -2, -4.6 cm, tilted 60°) lands exactly on the palm of the hand the runtime poses
+    /// around the controller, so with no <see cref="Fit"/> the model sits where Meta defines it. Retries until the session runs and the
     /// controller is connected. <see cref="Fit"/> is a shared fine correction (position in metres, then pitch in degrees,
     /// mirrored for the left hand), tuned in the headset with <see cref="ControllerFit"/> and saved. Materials are URP Lit
     /// with the model's own textures, so no glTFast shader has to ship in the build.
@@ -26,8 +28,8 @@ namespace Fieldmate.XR
         [SerializeField] private Vector3 localOffset;
         [SerializeField] private Vector3 localEuler;
 
-        // v2 (#86): fits saved against the aim pose and the unturned model no longer apply.
-        private const string FitKey = "fieldmate.controller.fit.v2";
+        // v3 (#86): earlier fits were tuned against a wrong mount; start again from Meta's placement.
+        private const string FitKey = "fieldmate.controller.fit.v3";
 
         /// <summary>glTFast's import (X mirrored) to Unity's OpenXR pose space (Z mirrored): half a turn about Y.</summary>
         public static readonly Quaternion GltfToPose = Quaternion.Euler(0f, 180f, 0f);

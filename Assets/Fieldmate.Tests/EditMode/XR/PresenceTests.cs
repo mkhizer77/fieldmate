@@ -23,13 +23,12 @@ public class PresenceTests
         Assert.That(material.shader.name, Is.EqualTo(PresenceBuilder.ShaderName));
         var glow = material.GetColor("_GlowColor");
         Assert.That(glow.r, Is.GreaterThan(0.9f).And.GreaterThan(glow.b), "light yellow");
-        Assert.That(material.GetFloat("_Fill"), Is.EqualTo(0f), "free hands: outline only, no fill (device test 2026-09-30)");
+        Assert.That(material.HasProperty("_Fill"), Is.False, "#86: no fill; hands on controllers aren't drawn at all");
         Assert.That(material.GetFloat("_OutlineWidth"), Is.EqualTo(0.004f).Within(1e-4f));
-        Assert.That(material.shader.passCount, Is.EqualTo(3), "stencil mask, outline, fill while holding a controller (#80)");
+        Assert.That(material.shader.passCount, Is.EqualTo(2), "stencil mask, then outline");
         var lightMode = new UnityEngine.Rendering.ShaderTagId("LightMode");
         Assert.That(material.shader.FindPassTagValue(0, lightMode).name, Is.EqualTo("SRPDefaultUnlit").IgnoreCase, "URP draws it first");
         Assert.That(material.shader.FindPassTagValue(1, lightMode).name, Is.EqualTo("UniversalForward").IgnoreCase, "then the outline (untagged extra passes never draw on device)");
-        Assert.That(material.shader.FindPassTagValue(2, lightMode).name, Is.EqualTo("UniversalForwardOnly").IgnoreCase, "then the fill");
     }
 
     [TestCase(PresenceBuilder.LeftHandPrefabPath, Handedness.Left)]
@@ -82,6 +81,30 @@ public class PresenceTests
         var imported = new Vector3(-openXr.x, openXr.y, openXr.z);
         var expected = new Vector3(openXr.x, openXr.y, -openXr.z);
         Assert.That(Vector3.Distance(ControllerModel.GltfToPose * imported, expected), Is.LessThan(1e-5f));
+    }
+
+    [Test]
+    public void Meta_grip_node_lands_on_the_palm_the_runtime_poses_around_the_controller()
+    {
+        // Measured on device 2026-10-02 (#86): the Touch Plus model file nests the controller under a "grip" node at
+        // (0, -0.02, -0.046) m, rotated -60° about X; the runtime's controller-posed palm sat at (0, -2.0, +4.6) cm, 60°
+        // about X, in the grip pose's space. glTFast mirrors X (position x → -x; rotation (x, y, z, w) → (x, -y, -z, w)).
+        var importedPosition = new Vector3(0f, -0.02f, -0.046f);
+        var importedRotation = new Quaternion(-0.5f, 0f, 0f, 0.8660254f);
+        var position = ControllerModel.GltfToPose * importedPosition;
+        var rotation = ControllerModel.GltfToPose * importedRotation;
+        Assert.That(Vector3.Distance(position, new Vector3(0f, -0.02f, 0.046f)), Is.LessThan(1e-4f));
+        Assert.That(Quaternion.Angle(rotation * Quaternion.Inverse(ControllerModel.GltfToPose), Quaternion.Euler(60f, 0f, 0f)), Is.LessThan(0.5f),
+            "the model's grip node in the pose space matches the runtime's palm, so no extra offset is needed");
+        Assert.That(ControllerModel.DefaultFit, Is.EqualTo(Vector4.zero));
+    }
+
+    [Test]
+    public void Hands_posed_from_a_held_controller_are_not_drawn()
+    {
+        Assert.That(TrackedHandMesh.Shows(tracked: true, posedFromController: false), Is.True, "camera-tracked hands");
+        Assert.That(TrackedHandMesh.Shows(tracked: true, posedFromController: true), Is.False, "#86: the canned grip never matched");
+        Assert.That(TrackedHandMesh.Shows(tracked: false, posedFromController: false), Is.False);
     }
 
     [Test]
