@@ -7,7 +7,9 @@ take on the machine, stops you when something is unsafe, and answers questions b
 Built with Unity 6, OpenXR (Meta feature group), XR Interaction Toolkit 3 and XR Hands. Work in progress towards
 v0.1.0: see the issues and milestones.
 
-![The hologram mate](docs/ui/2026-09-30-hologram-mate.png)
+**[▶ Watch the demo video](https://drive.google.com/file/d/1aWTOAeHSqHOFOUuE35fa3iks-TcChJbT/view)**
+
+[![The hologram mate — click to watch the demo](docs/ui/2026-09-30-hologram-mate.png)](https://drive.google.com/file/d/1aWTOAeHSqHOFOUuE35fa3iks-TcChJbT/view)
 
 ## What happens in the headset
 
