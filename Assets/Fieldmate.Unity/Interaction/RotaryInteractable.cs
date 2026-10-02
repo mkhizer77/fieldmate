@@ -57,6 +57,9 @@ namespace Fieldmate.Interaction
         public float MinAngle => minAngle;
         public float MaxAngle => maxAngle;
 
+        /// <summary>The named positions it can reach, e.g. on / off / locked (procedure validation, #11).</summary>
+        public System.Collections.Generic.IReadOnlyList<string> DetentStates => detentStates;
+
         /// <summary>The angle of a named position ("closed", "locked"...), for the step guide.</summary>
         public bool TryGetDetentAngle(string state, out float angle)
         {

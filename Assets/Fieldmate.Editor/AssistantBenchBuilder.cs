@@ -44,7 +44,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(ControllerFit) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -498,12 +498,20 @@ public static class AssistantBenchBuilder
         ray.lineType = XRRayInteractor.LineType.StraightLine;
         ray.maxRaycastDistance = 3f;
         ray.hitClosestOnly = true;
+        // A cone, not a line (device test 2026-10-02: the ray only latched when it passed through a 2.5 cm lever): anything
+        // within 6° of where the user points can be grabbed, a margin that grows with distance (±16 cm at 1.5 m).
+        ray.hitDetectionType = XRRayInteractor.HitDetectionType.ConeCast;
+        ray.coneCastAngle = 6f;
         ray.enableUIInteraction = false;
         ray.interactionLayers = ButtonLayer;
         var select = new InputAction("Select", InputActionType.Button, $"<XRController>{{{side}Hand}}/triggerPressed");
         select.AddBinding($"<MetaAimHand>{{{side}Hand}}/indexPressed");
+        // Controllers grab at a distance with grip too (RayReach opens the machine's controls to the ray on controllers).
+        select.AddBinding($"<OculusTouchController>{{{side}Hand}}/gripPressed");
+        select.AddBinding($"<QuestTouchPlusController>{{{side}Hand}}/gripPressed");
         ray.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.InputAction;
         ray.selectInput.inputActionPerformed = select;
+        pointer.AddComponent<RayReach>().Configure(ButtonLayer, InteractionLayerMask.GetMask("Default"));
 
         var line = pointer.AddComponent<LineRenderer>();
         line.sharedMaterial = RayMaterial(); // white: the gradient alone decides white / blue (a cyan tint made it blue)

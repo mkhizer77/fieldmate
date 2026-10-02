@@ -1,42 +1,64 @@
-using System.Globalization;
 using Fieldmate.Procedures;
 
 namespace Fieldmate.AI;
 
 /// <summary>
-/// What the assistant says on its own when the machine's state changes (#61): short, spoken lines built from the
-/// runner's events, no model round trip, so a violation is called out the moment it happens.
+/// What the assistant says on its own when the machine's state changes (#61): short spoken lines built from the
+/// runner's events, no model round trip, so a violation is called out the moment it happens. Worded like a colleague
+/// beside you, not a status readout (device test 2026-10-01): no "step 2 of 8" (the step card shows progress), varied
+/// acknowledgements, and the next task as a sentence. Variation is chosen by step number, so lines are deterministic.
 /// </summary>
 public static class Narration
 {
+    private static readonly string[] Acknowledgements = { "Nice work.", "Good, that's done.", "Perfect.", "Great, that's it.", "Well done." };
+    private static readonly string[] Transitions = { "Now let's", "Next, let's", "Okay, now we", "Next up, we" };
+
     public static string StepDone(int doneNumber, int total, StepDefinition next, string nextInstruction)
     {
+        var ack = Acknowledgements[(doneNumber - 1) % Acknowledgements.Length];
         if (next == null)
         {
-            return $"Step {doneNumber} done.";
+            return $"{ack} That was the last one.";
         }
 
-        var instruction = string.IsNullOrWhiteSpace(nextInstruction) ? string.Empty : " " + nextInstruction.Trim();
-        return $"Step {doneNumber} done. Next, step {doneNumber + 1} of {total}: {next.Title}.{instruction}";
+        var nearlyDone = doneNumber + 1 == total ? " Last step:" : string.Empty;
+        var how = string.IsNullOrWhiteSpace(nextInstruction) ? string.Empty : " " + nextInstruction.Trim();
+        return $"{ack}{nearlyDone} {Transitions[(doneNumber - 1) % Transitions.Length]} {Lower(next.Title)}.{how}";
     }
 
-    public static string Violation(SafetyRule rule) => $"Stop. {rule.Description}";
+    /// <summary>A safety stop: calm, immediate, and what to do instead.</summary>
+    public static string Violation(SafetyRule rule) => $"Hold on. {rule.Description}";
 
-    /// <summary>An action out of order or a wrong reading: what happened, then what is expected now.</summary>
+    /// <summary>
+    /// Something done out of order or a wrong reading: no blame, then what to do now. An action that belongs to a later
+    /// step is "a bit later"; anything else gets the runner's message.
+    /// </summary>
     public static string Mistake(ProcedureError error, int currentNumber, StepDefinition current, string instruction)
     {
-        var what = (error.Message ?? "That's not the current step.").Trim();
-        var now = current != null ? $" First, step {currentNumber}: {current.Title}." : string.Empty;
+        var outOfOrder = current != null && error.StepId != current.Id;
+        var what = outOfOrder ? "Careful, that one comes a bit later." : $"Hmm, not quite. {(error.Message ?? string.Empty).Trim()}";
+        var now = current != null ? $" First, let's {Lower(current.Title)}." : string.Empty;
         var how = string.IsNullOrWhiteSpace(instruction) ? string.Empty : " " + instruction.Trim();
         return $"{what}{now}{how}";
     }
 
     public static string Completed(ProcedureResult result)
     {
-        var c = CultureInfo.InvariantCulture;
-        var verdict = result.Passed ? "passed" : "not passed";
-        return string.Format(c, "Procedure complete, {0}. Score {1} out of 100, {2} error{3}, {4} safety violation{5}.",
-            verdict, result.Score, result.Errors.Count, result.Errors.Count == 1 ? "" : "s",
-            result.Violations.Count, result.Violations.Count == 1 ? "" : "s");
+        var errors = result.Errors.Count;
+        var violations = result.Violations.Count;
+        if (result.Passed)
+        {
+            var clean = errors == 0 && violations == 0
+                ? "not a single slip"
+                : $"{Count(errors, "small slip")}, no safety issues";
+            return $"All done, and you passed: {result.Score} out of 100, {clean}. The pump's back in service.";
+        }
+
+        return $"That's the job finished, but it didn't pass this time: {result.Score} out of 100, " +
+               $"{Count(violations, "safety issue")}. Let's go over what happened.";
     }
+
+    private static string Count(int n, string thing) => n == 1 ? $"one {thing}" : $"{(n == 0 ? "no" : n.ToString())} {thing}s";
+
+    private static string Lower(string s) => string.IsNullOrEmpty(s) ? s : char.ToLowerInvariant(s[0]) + s.Substring(1);
 }

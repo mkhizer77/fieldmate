@@ -26,6 +26,11 @@ namespace Fieldmate.XR
     public sealed class MachinePlacement : MonoBehaviour
     {
         private const string AnchorKey = "fieldmate.machine.anchor";
+        private const string ScaleKey = "fieldmate.machine.scale";
+        private const int FitRays = 24;
+        private const float FitRange = 3f;
+        private const float FitInterval = 0.15f;
+        private const float NudgePerSecond = 0.25f;
         private const float ConfirmCooldown = 1f;
         private const float RotateDegreesPerSecond = 90f;
 
@@ -52,6 +57,28 @@ namespace Fieldmate.XR
         private float nextConfirm;
         private bool busy;
         private bool heldForSetup;
+
+        // Auto-fit (#57): obstacle points around the target in the machine's frame, refreshed a few times a second.
+        private readonly Vector2[] obstacles = new Vector2[FitRays * 2];
+        private readonly RaycastHit[] fitHits = new RaycastHit[8];
+        private int obstacleCount;
+        private float nextFit;
+        private float fitScale = 1f;
+        private float nudge;
+
+        /// <summary>The scale the room allows (before the user's nudge), and whether even the smallest is tight.</summary>
+        public float FitScale => fitScale;
+        public bool FitIsTight { get; private set; }
+
+        /// <summary>The machine's current scale (fit plus nudge, 0.6–1).</summary>
+        public float Scale => machine.localScale.x;
+
+        // Following the pointer (device test 2026-10-01: jitter): eased position and turn.
+        private const float FollowSeconds = 0.12f;
+        private const float TurnSeconds = 0.25f;
+        private bool following;
+        private Vector3 smoothedPosition;
+        private float smoothedYaw;
 
         public PlacementState State { get; private set; } = PlacementState.Loading;
 
@@ -134,10 +161,38 @@ namespace Fieldmate.XR
                 extraYaw = PlacementMath.WrapYaw(extraYaw + stick.x * RotateDegreesPerSecond * Time.deltaTime);
             }
 
+            if (Mathf.Abs(stick.y) > 0.5f)
+            {
+                nudge = Mathf.Clamp(nudge + Mathf.Sign(stick.y) * NudgePerSecond * Time.deltaTime, -0.4f, 0.4f);
+            }
+
             if (TryGetTarget(out var position))
             {
-                machine.SetPositionAndRotation(position, PlacementMath.FacingViewer(position, head.position, extraYaw));
-                ShowGuide(position, true);
+                // Eased, not snapped (device test 2026-10-01: it jittered with every tremor of the ray until placed).
+                var yaw = PlacementMath.FacingViewer(position, head.position, extraYaw).eulerAngles.y;
+                if (!following)
+                {
+                    following = true;
+                    smoothedPosition = position;
+                    smoothedYaw = yaw;
+                }
+
+                smoothedPosition = Vector3.Lerp(smoothedPosition, position, 1f - Mathf.Exp(-Time.deltaTime / FollowSeconds));
+                smoothedYaw = Mathf.LerpAngle(smoothedYaw, yaw, 1f - Mathf.Exp(-Time.deltaTime / TurnSeconds));
+                var rotation = Quaternion.Euler(0f, smoothedYaw, 0f);
+                machine.SetPositionAndRotation(smoothedPosition, rotation);
+                if (Time.unscaledTime >= nextFit)
+                {
+                    nextFit = Time.unscaledTime + FitInterval;
+                    ProbeRoom(smoothedPosition, rotation);
+                    fitScale = MachineFit.Scale(obstacles, obstacleCount, out var tight);
+                    FitIsTight = tight;
+                    RefreshHint();
+                }
+
+                var target = Mathf.Clamp(fitScale + nudge, MachineFit.MinScale, MachineFit.MaxScale);
+                machine.localScale = Vector3.one * Mathf.MoveTowards(machine.localScale.x, target, Time.deltaTime * 0.8f);
+                ShowGuide(smoothedPosition, true);
             }
             else
             {
@@ -151,6 +206,7 @@ namespace Fieldmate.XR
         /// <summary>Starts (re)placement. The old anchor is erased when the new one is confirmed.</summary>
         public void BeginPlacing()
         {
+            following = false;
             if (busy)
             {
                 return;
@@ -170,6 +226,7 @@ namespace Fieldmate.XR
             }
 
             nextConfirm = Time.unscaledTime + ConfirmCooldown;
+            Debug.Log($"[Placement] size {machine.localScale.x:0.00} (room fit {fitScale:0.00}{(FitIsTight ? ", tight" : string.Empty)}, nudge {nudge:+0.00;-0.00;0})");
             await ConfirmAsync(new Pose(machine.position, machine.rotation));
         }
 
@@ -191,6 +248,7 @@ namespace Fieldmate.XR
                         if (saved.status.IsSuccess())
                         {
                             PlayerPrefs.SetString(AnchorKey, AnchorIdCodec.Encode(saved.value));
+                            PlayerPrefs.SetFloat(ScaleKey, machine.localScale.x);
                             PlayerPrefs.Save();
                             persisted = true;
                         }
@@ -248,6 +306,7 @@ namespace Fieldmate.XR
                 {
                     Attach(loaded.value);
                     Restored = true;
+                    machine.localScale = Vector3.one * PlayerPrefs.GetFloat(ScaleKey, machine.localScale.x);
                     SetState(PlacementState.Placed);
                     Debug.Log("[Placement] restored saved machine anchor");
                     return;
@@ -296,6 +355,37 @@ namespace Fieldmate.XR
             machine.localRotation = Quaternion.identity;
         }
 
+        // Rays at knee and table height around the target; hits on anything but the machine become obstacle points.
+        private void ProbeRoom(Vector3 position, Quaternion rotation)
+        {
+            obstacleCount = 0;
+            var inverse = Quaternion.Inverse(rotation);
+            for (var h = 0; h < 2; h++)
+            {
+                var origin = position + Vector3.up * (h == 0 ? 0.3f : 0.9f);
+                for (var i = 0; i < FitRays; i++)
+                {
+                    var local = MachineFit.Direction(i, FitRays);
+                    var direction = rotation * new Vector3(local.x, 0f, local.y);
+                    var count = Physics.RaycastNonAlloc(origin, direction, fitHits, FitRange, ~0, QueryTriggerInteraction.Ignore);
+                    var nearest = float.MaxValue;
+                    for (var k = 0; k < count; k++)
+                    {
+                        if (!fitHits[k].collider.transform.IsChildOf(machine) && fitHits[k].distance < nearest)
+                        {
+                            nearest = fitHits[k].distance;
+                        }
+                    }
+
+                    if (nearest < float.MaxValue)
+                    {
+                        var p = inverse * (origin + direction * nearest - position);
+                        obstacles[obstacleCount++] = new Vector2(p.x, p.z);
+                    }
+                }
+            }
+        }
+
         private bool TryGetTarget(out Vector3 position)
         {
             var ray = new Ray(pointer.position, pointer.forward);
@@ -314,6 +404,8 @@ namespace Fieldmate.XR
                 position = hit.point;
             }
 
+            // Not "the last floor-like hit's height" for the fallback: a table or the machine's own frame is floor-like too,
+            // and the machine then followed a phantom floor. The easing absorbs a frame's switch between scan and plane.
             LastHitWasSceneMesh = best < float.MaxValue;
             return LastHitWasSceneMesh || PlacementMath.TryHitFloorPlane(ray, 0f, out position);
         }
@@ -349,10 +441,30 @@ namespace Fieldmate.XR
             OnModalityChanged(InputModalityProbe.Current);
         }
 
-        private void OnModalityChanged(Modality modality) =>
-            hintText.text = scanning
-                ? $"Follow the headset's room setup so the machine can stand on your real floor.\n<color={Theme.MutedHex}>You can place it once the scan is done.</color>"
-                : $"{InputWords.Place(modality)}\n<color={Theme.MutedHex}>{InputWords.Move(modality)} to move it later</color>";
+        private void OnModalityChanged(Modality modality) => RefreshHint();
+
+        // What to do, and how big the machine will be (#57): auto-fitted to the free floor, nudged with the thumbstick.
+        private void RefreshHint()
+        {
+            if (hintText == null)
+            {
+                return;
+            }
+
+            var modality = InputModalityProbe.Current;
+            if (scanning)
+            {
+                hintText.text = $"Follow the headset's room setup so the machine can stand on your real floor.\n<color={Theme.MutedHex}>You can place it once the scan is done.</color>";
+                return;
+            }
+
+            var percent = Mathf.RoundToInt(Mathf.Clamp(fitScale + nudge, MachineFit.MinScale, MachineFit.MaxScale) * 100f);
+            var size = FitIsTight
+                ? $"Size {percent} % · tight here, try a more open spot"
+                : percent >= 100 ? "Full size: it fits here" : $"Size {percent} % to fit the space";
+            var adjust = modality == Modality.Controllers ? " · thumbstick up/down to resize" : string.Empty;
+            hintText.text = $"{InputWords.Place(modality)}\n<color={Theme.MutedHex}>{size}{adjust}</color>";
+        }
 
         public string HintText => hintText != null ? hintText.text : string.Empty;
 
