@@ -133,7 +133,7 @@
     },
     {
       "id": "proc.rv.overview", "kind": "procedure", "title": "Procedure: replace the relief valve cartridge",
-      "text": "Ten steps: inspect the relief valve, lock out the main breaker, close the inlet valve, verify 0 bar on the gauge, remove the pump access cover, fit the new cartridge in the relief valve seat, refit the cover, open the inlet valve, switch the breaker back on, and verify the running pressure is back at 3 to 5 bar. Lockout must come before touching the inlet valve or the cover. Putting it back runs in that order: the cover before the inlet (water would leak out of the open pump), the inlet before the breaker (the pump must not run dry).",
+      "text": "Ten steps: inspect the relief valve, lock out the breaker, close the inlet, verify 0 bar, remove the pump cover, fit the new cartridge, refit the cover, open the inlet, breaker back on, verify 3 to 5 bar. Lock out before touching the inlet or the cover. Restore in that order: cover before inlet (water leaks from an open pump), inlet before breaker (the pump must not run dry).",
       "steps": ["inspect", "lockout", "close_inlet", "verify_zero", "remove_cover", "replace", "refit_cover", "open_inlet", "power_on", "verify_running"],
       "keywords": ["procedure", "steps", "replace", "cartridge", "relief", "repair", "fix", "start"]
     },

@@ -7,7 +7,9 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 namespace Fieldmate.Tests.PlayMode.UI;
@@ -42,11 +44,17 @@ public class RayGripPlayModeTests
         var pointer = GameObject.Find($"{side} Pointer");
         pointer.transform.position = target + (Camera.main.transform.position - target).normalized * 1.5f + sideways;
         pointer.transform.rotation = Quaternion.LookRotation(target - pointer.transform.position);
-        var ray = pointer.GetComponent<XRRayInteractor>();
+        return pointer.GetComponent<XRRayInteractor>();
+    }
+
+    // Trigger held on what the ray hovers (the select fires on the press, so press once the ray is on the part).
+    private static void Hold(XRRayInteractor ray, IXRSelectInteractable target)
+    {
+        Assert.That(ray.interactablesHovered.Contains((IXRHoverInteractable)target), Is.True, $"{ray.name} points at {target}");
         ray.selectInput.inputSourceMode = XRInputButtonReader.InputSourceMode.ManualValue;
         ray.selectInput.manualPerformed = true;
         ray.selectInput.manualValue = 1f;
-        return ray;
+        Object.FindAnyObjectByType<XRInteractionManager>().SelectEnter((IXRSelectInteractor)ray, target);
     }
 
     [UnityTest]
@@ -56,6 +64,8 @@ public class RayGripPlayModeTests
         var lever = Rotary("inlet_valve");
         var ray = AimAndHold("Right", lever.GetComponentInChildren<Collider>().bounds.center, Vector3.zero);
         for (var i = 0; i < 5; i++) yield return null;
+        Hold(ray, lever);
+        yield return null;
 
         Assert.That(lever.isSelected, Is.True, "trigger held while pointing at the lever");
         var grip = lever.GetAttachTransform(ray);
@@ -87,9 +97,11 @@ public class RayGripPlayModeTests
         var breaker = Rotary("main_breaker");
         var centre = breaker.GetComponentInChildren<Collider>().bounds.center;
         var right = AimAndHold("Right", centre, Vector3.zero);
-        for (var i = 0; i < 5; i++) yield return null;
         var left = AimAndHold("Left", centre, Vector3.zero);
         for (var i = 0; i < 5; i++) yield return null;
+        Hold(right, breaker);
+        Hold(left, breaker);
+        yield return null;
 
         Assert.That(breaker.HandsHolding, Is.EqualTo(2));
         var a = breaker.GetAttachTransform(right).position;

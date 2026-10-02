@@ -88,12 +88,12 @@ public class AssistantToolsTests
 
         await Run("start_procedure", "{\"procedure_id\":\"relief_valve_replacement\"}");
         var shown = await Run("go_to_step", "{\"index\":3}");
-        var outOfRange = await Run("go_to_step", "{\"index\":9}");
+        var outOfRange = await Run("go_to_step", "{\"index\":11}");
 
         Assert.That(shown.Content, Is.EqualTo("Showing step 3 of 10: Close the inlet valve. The current step is still 1."));
         Assert.That(scene.ShownStep, Is.EqualTo(3));
         Assert.That(runner.CurrentStepIndex, Is.Zero, "showing a step never completes one");
-        Assert.That(outOfRange.Content, Is.EqualTo("'Replace the relief valve cartridge' has steps 1 to 8."));
+        Assert.That(outOfRange.Content, Is.EqualTo("'Replace the relief valve cartridge' has steps 1 to 10."));
     }
 
     [Test]
