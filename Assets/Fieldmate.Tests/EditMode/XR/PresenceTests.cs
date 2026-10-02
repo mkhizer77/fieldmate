@@ -74,6 +74,17 @@ public class PresenceTests
     }
 
     [Test]
+    public void Runtime_model_is_turned_from_gltf_into_the_grip_pose_space()
+    {
+        // A point on the controller in OpenXR grip space, as glTFast imports it (X mirrored), must land where Unity's
+        // OpenXR pose puts it (Z mirrored). #86: unturned, the model faced backwards on the real controller.
+        var openXr = new Vector3(0.01f, 0.02f, -0.05f); // right of, above and in front of the grip (-Z is forward)
+        var imported = new Vector3(-openXr.x, openXr.y, openXr.z);
+        var expected = new Vector3(openXr.x, openXr.y, -openXr.z);
+        Assert.That(Vector3.Distance(ControllerModel.GltfToPose * imported, expected), Is.LessThan(1e-5f));
+    }
+
+    [Test]
     public void Runtime_models_and_controller_driven_hands_are_enabled_for_android()
     {
         var settings = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);

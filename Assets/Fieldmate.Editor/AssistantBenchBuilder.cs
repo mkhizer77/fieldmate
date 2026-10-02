@@ -309,6 +309,7 @@ public static class AssistantBenchBuilder
         Shape(lever, PrimitiveType.Cube, new Vector3(0.07f, 0f, 0f), new Vector3(0.18f, 0.025f, 0.035f), safety);
         lever.AddComponent<RotaryInteractable>().Configure("inlet_valve", lever.transform, Vector3.down, 0f, 90f, 0f,
             new[] { 0f, 90f }, new[] { "open", "closed" }, 30f, 1, gain: 1.25f);
+        lever.GetComponent<RotaryInteractable>().SetGripPoints(new Vector3(0.14f, 0f, 0f)); // a ray holds the lever's end (#86)
         lever.AddComponent<ControlTag>().Configure("Inlet valve", "pump suction", new Vector3(0.05f, 0.12f, 0f));
 
         var line = Group(root, "Discharge line", "pressure_line");
@@ -339,6 +340,9 @@ public static class AssistantBenchBuilder
         Shape(wheel, PrimitiveType.Cylinder, new Vector3(0.065f, 0.03f, 0f), new Vector3(0.02f, 0.025f, 0.02f), dark);
         wheel.AddComponent<RotaryInteractable>().Configure("outlet_valve", wheel.transform, Vector3.up, 0f, 720f, 0f,
             new[] { 0f, 720f }, new[] { "open", "closed" }, 45f, 1, gain: 1.5f);
+        // A ray takes the rim, at whichever of four points is nearest (#86), like a hand on a real handwheel.
+        wheel.GetComponent<RotaryInteractable>().SetGripPoints(new Vector3(0.075f, 0.01f, 0f), new Vector3(-0.075f, 0.01f, 0f),
+            new Vector3(0f, 0.01f, 0.075f), new Vector3(0f, 0.01f, -0.075f));
         wheel.AddComponent<ControlTag>().Configure("Outlet valve", "discharge", new Vector3(0f, 0.12f, 0f));
 
         var cabinet = Group(root, "Electrical cabinet", "electrical_cabinet");
@@ -358,6 +362,8 @@ public static class AssistantBenchBuilder
         Shape(handle, PrimitiveType.Cube, Vector3.zero, new Vector3(0.3f, 0.04f, 0.04f), breakerRed);
         handle.AddComponent<RotaryInteractable>().Configure("main_breaker", handle.transform, Vector3.back, 0f, 135f, 0f,
             new[] { 0f, 90f, 135f }, new[] { "on", "off", "locked" }, 45f, 2, gain: 1.25f);
+        // Two rays take opposite ends of the bar (#86), so the turn pivots about the middle like a real two-hand isolator.
+        handle.GetComponent<RotaryInteractable>().SetGripPoints(new Vector3(-0.13f, 0f, 0f), new Vector3(0.13f, 0f, 0f));
         handle.AddComponent<ControlTag>().Configure("Main breaker", "pump motor power", new Vector3(0f, 0.2f, 0f));
 
         var tray = Group(root, "Parts tray", null);

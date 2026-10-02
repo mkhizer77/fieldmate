@@ -27,6 +27,6 @@ public class PlayFromStepPlayModeTests
         Assert.That(placement.State, Is.EqualTo(PlacementState.Placed));
         Assert.That(machine.Runner.CurrentStep.Id, Is.EqualTo("verify_zero"));
         Assert.That(machine.Runner.Violations, Is.Empty, "the steps before it were done in order");
-        Assert.That(Object.FindAnyObjectByType<ProcedurePanel>().TitleText, Does.StartWith("Step 4 of 8"));
+        Assert.That(Object.FindAnyObjectByType<ProcedurePanel>().TitleText, Does.StartWith("Step 4 of 10"));
     }
 }

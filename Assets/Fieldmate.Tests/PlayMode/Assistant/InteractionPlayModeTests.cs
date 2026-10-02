@@ -30,12 +30,20 @@ public class InteractionPlayModeTests
         hands = new ScriptedHands(manager);
     }
 
+    // The interlock holds parts outside a run too (#86): lock out and isolate first, as a technician would.
+    private void Isolate()
+    {
+        machine.Runner.SetInitialState("main_breaker", "locked");
+        machine.Runner.SetInitialState("inlet_valve", "closed");
+    }
+
     private static RotaryInteractable Rotary(string partId) =>
         Object.FindObjectsByType<RotaryInteractable>(FindObjectsSortMode.None).Single(r => r.PartId == partId);
 
     [UnityTest]
     public IEnumerator Handwheel_TwoGearedTurnsClockwise_ClosesTheOutlet()
     {
+        Isolate();
         // Two turns (720°) close it; the hand's travel counts 1.5×, so about 480° of hand movement is enough.
         var wheel = Rotary("outlet_valve");
         Assert.That(wheel.TurnGain, Is.EqualTo(1.5f).Within(0.01f));
@@ -88,6 +96,7 @@ public class InteractionPlayModeTests
     [UnityTest]
     public IEnumerator Lever_ReleasedNearClosed_SnapsClosed()
     {
+        Isolate();
         var lever = Rotary("inlet_valve");
         var radius = new Vector3(0.1f, 0f, 0f);
         var hand = hands.Hand(ScriptedHands.AroundAxis(lever.transform, Vector3.down, radius, 0f));
@@ -110,6 +119,7 @@ public class InteractionPlayModeTests
     [UnityTest]
     public IEnumerator Cover_PulledOff_IsRemoved_AndOpensTheSeat()
     {
+        Isolate();
         var cover = Object.FindAnyObjectByType<RemovablePart>();
         var socket = Object.FindAnyObjectByType<ToolSocket>();
         Assert.That(socket.socketActive, Is.False, "seat is closed while the cover is on");
@@ -147,6 +157,7 @@ public class InteractionPlayModeTests
     [UnityTest]
     public IEnumerator Cover_GrabbedAtAnAngle_StaysPut_AndTurnsWithTheHand()
     {
+        Isolate();
         var cover = Object.FindAnyObjectByType<RemovablePart>();
         var position = cover.transform.position;
         var rotation = cover.transform.rotation;
@@ -169,6 +180,7 @@ public class InteractionPlayModeTests
     [UnityTest]
     public IEnumerator Cover_BroughtBackWhileHeld_ClicksOn()
     {
+        Isolate();
         var cover = Object.FindAnyObjectByType<RemovablePart>();
         var start = cover.Centre;
         var away = cover.transform.parent.forward;
@@ -193,6 +205,7 @@ public class InteractionPlayModeTests
     [UnityTest]
     public IEnumerator Cover_ReleasedNearItsSeat_GoesBackOn()
     {
+        Isolate();
         var cover = Object.FindAnyObjectByType<RemovablePart>();
         var start = cover.Centre;
         var away = cover.transform.parent.forward;
@@ -214,6 +227,7 @@ public class InteractionPlayModeTests
     [UnityTest]
     public IEnumerator Cartridge_Seated_SitsInsideThePump_BehindTheCover()
     {
+        Isolate();
         var socket = Object.FindAnyObjectByType<ToolSocket>();
         socket.socketActive = true;
         var cartridge = Object.FindAnyObjectByType<ToolItem>();
@@ -248,7 +262,7 @@ public class InteractionPlayModeTests
         yield return null;
 
         Assert.That(socket.Seated, Is.SameAs(cartridge));
-        Assert.That(runner.CurrentStep.Id, Is.EqualTo("restore"), "socketing the new cartridge completes 'replace'");
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("refit_cover"), "socketing the new cartridge completes 'replace'");
     }
 
     [UnityTest]

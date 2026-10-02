@@ -65,6 +65,8 @@ public class ProcedurePresentationTests
         Assert.That(StepInstructions.For(Step("inspect"), catalog), Is.EqualTo("Look at the pressure relief valve for a moment."));
         Assert.That(StepInstructions.For(Step("replace"), catalog), Does.Contain("relief valve cartridge").And.Contain("relief valve seat"));
         Assert.That(StepInstructions.For(Step("remove_cover"), catalog), Does.Contain("pull it off"));
+        Assert.That(StepInstructions.For(Step("refit_cover"), catalog), Does.Contain("put it back on its seat"), "#86: not \"turn it to FITTED\"");
+        Assert.That(StepInstructions.Short(Step("refit_cover")), Does.Contain("put back on"));
         Assert.That(StepInstructions.For(Step("verify_running"), catalog), Does.Contain("4 ± 1 bar"));
         Assert.That(StepInstructions.For(Step("lockout"), catalog, Fieldmate.XR.Modality.Controllers), Does.StartWith("Grip").And.Contain("both controllers"));
         Assert.That(StepInstructions.Short(Step("close_inlet")), Is.EqualTo("pinch · turn to CLOSED"));
@@ -94,8 +96,8 @@ public class ProcedurePresentationTests
         runner.Handle(InteractionEvent.State(11, "main_breaker", "on"));
         runner.Handle(InteractionEvent.Measured(12, 4.1f));
 
-        Assert.That(result, Is.Not.Null, "all eight steps completed");
-        Assert.That(Demo.Steps, Has.Count.EqualTo(8));
+        Assert.That(result, Is.Not.Null, "all ten steps completed");
+        Assert.That(Demo.Steps, Has.Count.EqualTo(10));
         Assert.That(result.Errors, Is.Empty);
         Assert.That(result.Violations, Is.Empty);
         Assert.That(result.Passed, Is.True);

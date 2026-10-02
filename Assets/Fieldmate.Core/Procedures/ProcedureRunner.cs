@@ -13,8 +13,8 @@ public enum RunnerState
 /// <summary>
 /// Deterministic state machine that validates a procedure from <see cref="InteractionEvent"/>s (design.md §5.3).
 /// Steps complete only from interaction state, never from a "next" button. Safety rules are checked on every physical
-/// action; mistakes that don't endanger anyone are recorded as errors. While a run is in progress, <see cref="Interlock"/>
-/// tells the controls which parts a safety rule holds still (#65): trying one is reported as an
+/// action; mistakes that don't endanger anyone are recorded as errors. <see cref="Interlock"/> tells the controls which
+/// parts a safety rule holds still (#65), before and after a run too (#86: the outlet of a running pump): trying one is reported as an
 /// <see cref="InteractionKind.Attempted"/> event, which raises the violation but moves nothing. The runner never reads a clock: all timing comes
 /// from event timestamps, so recorded sequences replay exactly.
 /// </summary>
@@ -77,7 +77,7 @@ public sealed class ProcedureRunner
         }
 
         initialStates[partId] = state;
-        if (State == RunnerState.NotStarted)
+        if (State != RunnerState.Running) // after a run too, so the interlock sees the machine as it is (#86)
         {
             partStates[partId] = state;
         }
@@ -87,12 +87,12 @@ public sealed class ProcedureRunner
         partId != null && partStates.TryGetValue(partId, out var state) ? state : null;
 
     /// <summary>
-    /// The safety rule that holds <paramref name="partId"/> still right now, or null when it may be operated. Nothing is
-    /// held outside a run.
+    /// The safety rule that holds <paramref name="partId"/> still right now, or null when it may be operated. The rules
+    /// hold outside a run as well (#86): a running pump is just as dangerous before the procedure starts and after it ends.
     /// </summary>
     public SafetyRule Interlock(string partId)
     {
-        if (State != RunnerState.Running || partId == null)
+        if (partId == null)
         {
             return null;
         }

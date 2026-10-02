@@ -171,7 +171,7 @@ public class ProcedurePlayModeTests
         StartButton().Press();
         yield return null;
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("inspect"));
-        Assert.That(panel.TitleText, Is.EqualTo("Step 1 of 8: Inspect the relief valve"));
+        Assert.That(panel.TitleText, Is.EqualTo("Step 1 of 10: Inspect the relief valve"));
 
         yield return LookAt("relief_valve", 2f);
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("lockout"), "gaze dwell completes the inspection");
@@ -194,12 +194,14 @@ public class ProcedurePlayModeTests
 
         hands.Seat(Object.FindAnyObjectByType<ToolSocket>(), Object.FindAnyObjectByType<ToolItem>());
         yield return null;
-        Assert.That(runner.CurrentStep.Id, Is.EqualTo("restore"));
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("refit_cover"));
         Assert.That(machine.Telemetry.Faults.IsActive(FaultModel.Overpressure), Is.False, "the new cartridge fixed the fault");
 
         yield return MoveCover(cover, seated); // refit: brought back to its seat, it clicks on
         Assert.That(cover.State, Is.EqualTo(RemovablePart.Fitted));
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("open_inlet"));
         yield return Turn(Rotary("inlet_valve"), Vector3.down, 90f, 0f, twoHands: false);
+        Assert.That(runner.CurrentStep.Id, Is.EqualTo("power_on"));
         yield return Turn(Rotary("main_breaker"), Vector3.back, 135f, 0f, twoHands: true);
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_running"));
 

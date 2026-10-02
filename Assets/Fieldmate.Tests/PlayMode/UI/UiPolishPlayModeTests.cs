@@ -38,10 +38,10 @@ public class UiPolishPlayModeTests
         var panel = Spawn<ProcedurePanel>("Panel");
         yield return null;
         panel.ShowStep(3, 8, "Close the inlet", "Pinch the lever.", "Relief valve replacement");
-        Assert.That(panel.ProgressTotal, Is.EqualTo(8));
+        Assert.That(panel.ProgressTotal, Is.EqualTo(10));
         Assert.That(panel.ProgressDone, Is.EqualTo(2));
-        Assert.That(panel.ChipText, Is.EqualTo("Step 3 of 8"));
-        Assert.That(panel.TitleText, Is.EqualTo("Step 3 of 8: Close the inlet"));
+        Assert.That(panel.ChipText, Is.EqualTo("Step 3 of 10"));
+        Assert.That(panel.TitleText, Is.EqualTo("Step 3 of 10: Close the inlet"));
 
         panel.ShowStatus("✓ Close the inlet", ProcedurePanel.Done, 0.2f);
         Assert.That(panel.StatusText, Is.EqualTo("✓ Close the inlet"));
