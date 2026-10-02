@@ -14,7 +14,8 @@
     "Unity.XR.Hands",
     "Unity.XR.OpenXR",
     "Unity.XR.OpenXR.Features.MetaHandMeshData",
-    "Unity.XR.MetaOpenXR"
+    "Unity.XR.MetaOpenXR",
+    "Unity.XR.Management.Editor"
   ],
   "includePlatforms": [
     "Editor"

@@ -30,6 +30,7 @@ namespace Fieldmate.XR
         [SerializeField] private PalmPose palm;
         [SerializeField] private Transform leftController;
         [SerializeField] private PressButton labelsButton;
+        [SerializeField] private PressButton fitButton;
         [SerializeField] private SetupFlow setup;
 
         private readonly HiddenObjects hidden = new();
@@ -46,8 +47,9 @@ namespace Fieldmate.XR
         /// <summary>Y of a row's centre in the menu, rows counted from the top.</summary>
         public static float RowY(int row) => -(HeaderMm * 0.001f + RowPitch * 0.5f + row * RowPitch);
 
-        public void Configure(Transform headTransform, PalmPose leftPalm, Transform leftControllerPointer, PressButton labels)
+        public void Configure(Transform headTransform, PalmPose leftPalm, Transform leftControllerPointer, PressButton labels, PressButton fit = null)
         {
+            fitButton = fit;
             head = headTransform;
             palm = leftPalm;
             leftController = leftControllerPointer;
@@ -72,6 +74,11 @@ namespace Fieldmate.XR
             {
                 labelsButton.Pressed += ToggleLabels;
             }
+
+            if (fitButton != null)
+            {
+                fitButton.Pressed += ToggleFit;
+            }
         }
 
         private void OnDisable()
@@ -80,6 +87,11 @@ namespace Fieldmate.XR
             if (labelsButton != null)
             {
                 labelsButton.Pressed -= ToggleLabels;
+            }
+
+            if (fitButton != null)
+            {
+                fitButton.Pressed -= ToggleFit;
             }
         }
 
@@ -100,6 +112,19 @@ namespace Fieldmate.XR
         private bool Available => setup == null || setup.Stage == Fieldmate.AI.SetupStage.Done;
 
         private void ToggleLabels() => ControlTag.ShowAll = !ControlTag.ShowAll;
+
+        // Controller model alignment (#80): thumbsticks move the models while on; saved when switched off.
+        private void ToggleFit()
+        {
+            var fit = ControllerFit.Instance;
+            if (fit == null)
+            {
+                return;
+            }
+
+            fit.SetActive(!fit.Active);
+            fitButton.SetLabel(fit.Active ? "Fit controllers: On" : "Fit controllers");
+        }
 
         private void Update()
         {

@@ -44,7 +44,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -167,8 +167,11 @@ public static class AssistantBenchBuilder
         MenuButton(menuGo.transform, "Occlusion Button", 2, ButtonStyle.Secondary);
         MenuButton(menuGo.transform, "Stats Button", 3, ButtonStyle.Secondary); // perf overlay (#18)
         var labelsButton = MenuButton(menuGo.transform, "Labels Button", 4, ButtonStyle.Secondary);
+        var fitButton = MenuButton(menuGo.transform, "Fit Button", 5, ButtonStyle.Secondary); // controller model alignment (#80)
+        Set(fitButton, "label", "Fit controllers");
+        new GameObject("Controller Fit", typeof(ControllerFit));
         var menu = menuGo.GetComponent<HandMenu>();
-        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton);
+        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton, fitButton);
 
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),
@@ -390,15 +393,10 @@ public static class AssistantBenchBuilder
     /// </summary>
     private static XRDirectInteractor HandInteractor(Transform parent, string side)
     {
-        var go = new GameObject($"{side} Hand", typeof(TrackedPoseDriver), typeof(SphereCollider), typeof(Rigidbody), typeof(XRDirectInteractor));
+        // The controller's grip or the hand, by the active input, never mixed (#80: hands are tracked while holding controllers).
+        var go = new GameObject($"{side} Hand", typeof(PointerPose), typeof(SphereCollider), typeof(Rigidbody), typeof(XRDirectInteractor));
         go.transform.SetParent(parent, false);
-        var pose = go.GetComponent<TrackedPoseDriver>();
-        pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition",
-            $"<MetaAimHand>{{{side}Hand}}/devicePosition"));
-        pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation",
-            $"<MetaAimHand>{{{side}Hand}}/deviceRotation"));
+        go.GetComponent<PointerPose>().Configure(side, "device");
 
         var sphere = go.GetComponent<SphereCollider>();
         sphere.isTrigger = true;
@@ -582,17 +580,6 @@ public static class AssistantBenchBuilder
         go.transform.localRotation = rotation ?? Quaternion.identity;
         go.transform.localScale = localScale;
         go.GetComponent<Renderer>().sharedMaterial = material;
-    }
-
-    private static InputAction Action(string name, string controlType, params string[] bindings)
-    {
-        var action = new InputAction(name, expectedControlType: controlType);
-        foreach (var binding in bindings)
-        {
-            action.AddBinding(binding);
-        }
-
-        return action;
     }
 
     /// <summary>Collider-only mesh chunk: the room scan is used for placement, not drawn.</summary>

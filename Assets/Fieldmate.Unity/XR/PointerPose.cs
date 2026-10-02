@@ -17,6 +17,8 @@ namespace Fieldmate.XR
     public sealed class PointerPose : MonoBehaviour
     {
         [SerializeField] private string side = "Right";
+        [Tooltip("Controller pose: \"pointer\" (aim, for rays) or \"device\" (grip, for the hand's grab point).")]
+        [SerializeField] private string controllerPose = "pointer";
 
         // The actions only find the devices (bindings re-resolve when a device appears); values are read from the controls.
         private InputAction controllerTracked;
@@ -32,7 +34,11 @@ namespace Fieldmate.XR
         /// <summary>False until a tracked controller or hand has moved the pointer.</summary>
         public bool HasPose { get; private set; }
 
-        public void Configure(string hand) => side = hand;
+        public void Configure(string hand, string controllerPoseName = "pointer")
+        {
+            side = hand;
+            controllerPose = controllerPoseName;
+        }
 
         private void Awake()
         {
@@ -81,8 +87,8 @@ namespace Fieldmate.XR
             {
                 // Looked up once per device switch, not per frame.
                 cachedDevice = device;
-                cachedPosition = device.TryGetChildControl<Vector3Control>(useController ? "pointerPosition" : "devicePosition");
-                cachedRotation = device.TryGetChildControl<QuaternionControl>(useController ? "pointerRotation" : "deviceRotation");
+                cachedPosition = device.TryGetChildControl<Vector3Control>(useController ? controllerPose + "Position" : "devicePosition");
+                cachedRotation = device.TryGetChildControl<QuaternionControl>(useController ? controllerPose + "Rotation" : "deviceRotation");
             }
 
             if (cachedPosition == null || cachedRotation == null)

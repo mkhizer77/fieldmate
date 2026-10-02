@@ -41,6 +41,7 @@ namespace Fieldmate.XR
             }
 
             nextPoll = Time.unscaledTime + PollSeconds;
+            LogDataSources();
             var wanted = ModalityDecision.Wanted(Current, HandsTracked(), ControllersTracked());
             // Two polls in a row (1 s) before switching: controllers lying nearby stay tracked while the hands come up,
             // and the two flip-flopped every second on device (2026-09-30).
@@ -53,13 +54,43 @@ namespace Fieldmate.XR
         }
 
         private Modality lastWanted;
+        private bool leftFromController;
+        private bool rightFromController;
+
+        // Which hands are posed from a held controller (#80): logged on change, to tell finger issues from data issues.
+        private void LogDataSources()
+        {
+            var l = HandDataSource.IsFromController(UnityEngine.XR.Hands.Handedness.Left);
+            var r = HandDataSource.IsFromController(UnityEngine.XR.Hands.Handedness.Right);
+            if (l != leftFromController || r != rightFromController)
+            {
+                leftFromController = l;
+                rightFromController = r;
+                Debug.Log($"[Presence] hand data: left {(l ? "controller" : "cameras")}, right {(r ? "controller" : "cameras")}");
+            }
+        }
         private int pendingPolls;
 
         private static bool HandsTracked()
         {
             foreach (var device in InputSystem.devices)
             {
-                if (device is TrackedDevice tracked && device.layout.Contains("MetaAimHand") && tracked.isTracked.isPressed)
+                // Hands posed from a held controller (#80) are shown, but the user is on controllers: they don't count.
+                if (device is TrackedDevice tracked && device.layout.Contains("MetaAimHand") && tracked.isTracked.isPressed
+                    && !HandDataSource.IsFromController(IsLeft(device) ? UnityEngine.XR.Hands.Handedness.Left : UnityEngine.XR.Hands.Handedness.Right))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsLeft(InputDevice device)
+        {
+            foreach (var usage in device.usages)
+            {
+                if (usage == CommonUsages.LeftHand)
                 {
                     return true;
                 }

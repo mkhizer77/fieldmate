@@ -34,6 +34,8 @@ public static class ProjectSetup
         "AROcclusionFeature", "ARMeshFeature", "ARRaycastFeature", "DisplayUtilitiesFeature",
         "HandTracking", "MetaHandTrackingAim", "MetaOpenXRHandMeshData", // fitted hand mesh for the presence glow (#55)
         "OculusTouchControllerProfile", "MetaQuestTouchPlusControllerProfile", "HandInteractionProfile",
+        // Controllers like Meta's home (#80): the runtime's controller models, and hands posed around held controllers.
+        "RenderModelFeature", "HandTrackingDataSourceFeature",
     };
 
     // Enabled by the Meta Quest feature group but not used by Fieldmate (single user, no shared space).
@@ -82,6 +84,7 @@ public static class ProjectSetup
     public static readonly string[] RuntimeShaders =
     {
         "Fieldmate/UIOverlay", "Fieldmate/UnlitOverlay", "Fieldmate/PresenceGlow", "Fieldmate/Hologram",
+        "Universal Render Pipeline/Lit", // the runtime controller models (#80) are built with it at runtime
         "TextMeshPro/Mobile/Distance Field", "TextMeshPro/Mobile/Distance Field Overlay",
     };
 

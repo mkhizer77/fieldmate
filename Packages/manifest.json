@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "com.unity.addressables": "2.10.3",
+    "com.unity.cloud.gltfast": "6.20.0",
+    "com.unity.cloud.ktx": "3.7.0",
     "com.unity.inputsystem": "1.20.0",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
