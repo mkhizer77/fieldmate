@@ -60,10 +60,11 @@ public static class PresenceBuilder
         go.name = $"{side} Controller Presence";
         go.transform.SetParent(parent, false);
         var pose = go.AddComponent<TrackedPoseDriver>();
+        // The aim pose, not the grip (device test 2026-10-02: the runtime's model sat off the controller at the grip pose).
         pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition"));
+            $"<OculusTouchController>{{{side}Hand}}/pointerPosition", $"<QuestTouchPlusController>{{{side}Hand}}/pointerPosition"));
         pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation"));
+            $"<OculusTouchController>{{{side}Hand}}/pointerRotation", $"<QuestTouchPlusController>{{{side}Hand}}/pointerRotation"));
         go.GetComponentInChildren<ControllerModel>(true).Configure(side == "Left");
     }
 

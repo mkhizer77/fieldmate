@@ -30,6 +30,7 @@ Material:
     - _OutlineWidth: 0.004
     - _RimPower: 3.6
     m_Colors:
+    - _FillColor: {r: 0.88, g: 0.9, b: 0.94, a: 1}
     - _GlowColor: {r: 1, g: 0.94, b: 0.62, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

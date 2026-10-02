@@ -4,6 +4,8 @@
 // UniversalForward, so the passes are tagged that way (untagged multi-pass shaders draw only their first pass on
 // device, seen 2026-09-30). Both ignore depth so the outline still shows where a hand reaches into the machine.
 // The stencil is left set inside the silhouette; nothing else tests it and it clears with the next frame.
+// A third pass (#80) fills the hand with a soft translucent tint while it holds a controller, like Meta's home: depth
+// tested, so the controller model in the hand hides the fingers behind it; _Fill 0 (free hands) draws nothing.
 Shader "Fieldmate/PresenceGlow"
 {
     Properties
@@ -11,6 +13,8 @@ Shader "Fieldmate/PresenceGlow"
         _GlowColor ("Outline colour", Color) = (1.0, 0.94, 0.62, 1.0)
         _OutlineWidth ("Outline width (m)", Range(0.0005, 0.02)) = 0.004
         _Intensity ("Intensity", Range(0, 2)) = 0.9
+        _FillColor ("Fill colour", Color) = (0.88, 0.9, 0.94, 1.0)
+        _Fill ("Fill opacity", Range(0, 1)) = 0
     }
 
     SubShader
@@ -24,6 +28,8 @@ Shader "Fieldmate/PresenceGlow"
         half4 _GlowColor;
         half _OutlineWidth;
         half _Intensity;
+        half4 _FillColor;
+        half _Fill;
         CBUFFER_END
 
         struct Attributes
@@ -65,6 +71,12 @@ Shader "Fieldmate/PresenceGlow"
             return 0;
         }
 
+        half4 FragFill(Varyings input) : SV_Target
+        {
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            return half4(_FillColor.rgb, _Fill);
+        }
+
         half4 FragOutline(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -100,6 +112,21 @@ Shader "Fieldmate/PresenceGlow"
             HLSLPROGRAM
             #pragma vertex VertInflated
             #pragma fragment FragOutline
+            #pragma multi_compile_instancing
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "Fill"
+            Tags { "LightMode" = "UniversalForwardOnly" }
+            Cull Back
+            ZWrite Off
+            ZTest LEqual
+            Blend SrcAlpha OneMinusSrcAlpha
+            HLSLPROGRAM
+            #pragma vertex VertPlain
+            #pragma fragment FragFill
             #pragma multi_compile_instancing
             ENDHLSL
         }

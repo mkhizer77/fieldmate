@@ -10,9 +10,11 @@ namespace Fieldmate.XR
 {
     /// <summary>
     /// The controller as Meta's home shows it (#80): the runtime's own model of the controller in use
-    /// (<see cref="RenderModelFeature"/>), built with glTFast under this transform, which follows the controller's grip
-    /// pose (the model's origin in XR_FB_render_model). Retries until the session runs and the controller is connected;
-    /// <see cref="localOffset"/> is for a device correction if the model sits a few millimetres off. Materials are URP Lit
+    /// (<see cref="RenderModelFeature"/>), built with glTFast under this transform, which follows the controller's aim
+    /// pose (device test 2026-10-02: at the grip pose the model sat off the real controller, as Meta's forum reports for
+    /// Quest models). Retries until the session runs and the controller is connected. <see cref="Fit"/> is a shared
+    /// correction (position in metres, then pitch in degrees, mirrored for the left hand), tuned in the headset with
+    /// <see cref="ControllerFit"/> and saved. Materials are URP Lit
     /// with the model's own textures, so no glTFast shader has to ship in the build.
     /// </summary>
     public sealed class ControllerModel : MonoBehaviour
@@ -23,6 +25,21 @@ namespace Fieldmate.XR
         [SerializeField] private Vector3 localOffset;
         [SerializeField] private Vector3 localEuler;
 
+        private const string FitKey = "fieldmate.controller.fit";
+
+        /// <summary>Default correction from the aim pose to the model (baked from the device fit when known).</summary>
+        public static readonly Vector4 DefaultFit = Vector4.zero;
+
+        /// <summary>The current correction: x, y, z in metres (right hand; mirrored in x for the left), w = pitch degrees.</summary>
+        public static Vector4 Fit
+        {
+            get => fit ??= LoadFit(); // lazily: PlayerPrefs can't be read while Unity loads the type
+            set => fit = value;
+        }
+
+        private static Vector4? fit;
+
+        private Transform modelRoot;
         private float nextTry;
         private bool loading;
         private GltfImport import;
@@ -44,6 +61,39 @@ namespace Fieldmate.XR
         {
             cancel?.Dispose();
             import?.Dispose();
+        }
+
+        public static Vector4 LoadFit()
+        {
+            var saved = PlayerPrefs.GetString(FitKey, string.Empty).Split(',');
+            if (saved.Length == 4 && float.TryParse(saved[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+                && float.TryParse(saved[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y)
+                && float.TryParse(saved[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var z)
+                && float.TryParse(saved[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var w))
+            {
+                return new Vector4(x, y, z, w);
+            }
+
+            return DefaultFit;
+        }
+
+        public static void SaveFit()
+        {
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            PlayerPrefs.SetString(FitKey, string.Format(c, "{0:0.####},{1:0.####},{2:0.####},{3:0.##}", Fit.x, Fit.y, Fit.z, Fit.w));
+            PlayerPrefs.Save();
+        }
+
+        private void LateUpdate()
+        {
+            if (modelRoot == null)
+            {
+                return;
+            }
+
+            var fit = Fit;
+            modelRoot.localPosition = localOffset + new Vector3(left ? -fit.x : fit.x, fit.y, fit.z);
+            modelRoot.localRotation = Quaternion.Euler(localEuler) * Quaternion.Euler(fit.w, 0f, 0f);
         }
 
         private void Update()
@@ -89,6 +139,7 @@ namespace Fieldmate.XR
                     r.receiveShadows = false;
                 }
 
+                modelRoot = root;
                 ModelName = name;
                 IsLoaded = true;
                 Debug.Log($"[Presence] controller model {(left ? "left" : "right")}: {name}, {glb.Length / 1024} KB");

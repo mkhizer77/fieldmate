@@ -44,7 +44,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(ControllerFit) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -167,8 +167,11 @@ public static class AssistantBenchBuilder
         MenuButton(menuGo.transform, "Occlusion Button", 2, ButtonStyle.Secondary);
         MenuButton(menuGo.transform, "Stats Button", 3, ButtonStyle.Secondary); // perf overlay (#18)
         var labelsButton = MenuButton(menuGo.transform, "Labels Button", 4, ButtonStyle.Secondary);
+        var fitButton = MenuButton(menuGo.transform, "Fit Button", 5, ButtonStyle.Secondary); // controller model alignment (#80)
+        Set(fitButton, "label", "Fit controllers");
+        new GameObject("Controller Fit", typeof(ControllerFit));
         var menu = menuGo.GetComponent<HandMenu>();
-        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton);
+        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton, fitButton);
 
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),

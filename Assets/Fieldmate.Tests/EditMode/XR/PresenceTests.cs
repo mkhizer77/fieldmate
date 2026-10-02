@@ -23,12 +23,13 @@ public class PresenceTests
         Assert.That(material.shader.name, Is.EqualTo(PresenceBuilder.ShaderName));
         var glow = material.GetColor("_GlowColor");
         Assert.That(glow.r, Is.GreaterThan(0.9f).And.GreaterThan(glow.b), "light yellow");
-        Assert.That(material.HasProperty("_Fill"), Is.False, "no glowing fill any more: a stencil-masked silhouette band (device test 2026-09-30)");
+        Assert.That(material.GetFloat("_Fill"), Is.EqualTo(0f), "free hands: outline only, no fill (device test 2026-09-30)");
         Assert.That(material.GetFloat("_OutlineWidth"), Is.EqualTo(0.004f).Within(1e-4f));
-        Assert.That(material.shader.passCount, Is.EqualTo(2), "stencil mask, outline");
+        Assert.That(material.shader.passCount, Is.EqualTo(3), "stencil mask, outline, fill while holding a controller (#80)");
         var lightMode = new UnityEngine.Rendering.ShaderTagId("LightMode");
         Assert.That(material.shader.FindPassTagValue(0, lightMode).name, Is.EqualTo("SRPDefaultUnlit").IgnoreCase, "URP draws it first");
         Assert.That(material.shader.FindPassTagValue(1, lightMode).name, Is.EqualTo("UniversalForward").IgnoreCase, "then the outline (untagged extra passes never draw on device)");
+        Assert.That(material.shader.FindPassTagValue(2, lightMode).name, Is.EqualTo("UniversalForwardOnly").IgnoreCase, "then the fill");
     }
 
     [TestCase(PresenceBuilder.LeftHandPrefabPath, Handedness.Left)]
@@ -100,5 +101,24 @@ public class PresenceTests
             .Select(e => e.Attributes["name"]).ToList();
         Assert.That(names, Does.Contain(RenderModelManifest.Feature));
         Assert.That(names, Does.Contain(RenderModelManifest.Permission));
+    }
+
+    [Test]
+    public void Controller_fit_is_saved_and_restored()
+    {
+        var before = ControllerModel.Fit;
+        try
+        {
+            ControllerModel.Fit = new Vector4(0.004f, -0.012f, 0.031f, -7.5f);
+            ControllerModel.SaveFit();
+            ControllerModel.Fit = Vector4.zero;
+            Assert.That(ControllerModel.LoadFit(), Is.EqualTo(new Vector4(0.004f, -0.012f, 0.031f, -7.5f)));
+            Assert.That(ControllerFit.Describe(ControllerModel.LoadFit()), Is.EqualTo("x 0.004 y -0.012 z 0.031 m, pitch -7.5°"));
+        }
+        finally
+        {
+            ControllerModel.Fit = before;
+            ControllerModel.SaveFit();
+        }
     }
 }
