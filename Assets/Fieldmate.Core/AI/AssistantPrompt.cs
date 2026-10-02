@@ -83,7 +83,9 @@ Rules:
         var definition = runner.Definition;
         if (runner.State == RunnerState.Completed)
         {
-            return $"'{definition.Title}' completed (score {runner.Result?.Score}).";
+            return runner.Result == null
+                ? $"'{definition.Title}' completed."
+                : $"'{definition.Title}' completed: {Scoring.Explain(runner.Result, definition.Weights, definition.TimeLimitSeconds)}";
         }
 
         var step = runner.CurrentStep;
