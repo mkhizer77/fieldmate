@@ -32,20 +32,20 @@ public class NarratorPlayModeTests
         machine.Runner.Handle(InteractionEvent.Gaze(machine.Now, "relief_valve", 3f));
         yield return null;
         yield return null;
-        Assert.That(panel.TranscriptText, Does.Contain("Step 1 done. Next, step 2 of 8: Lock out the main breaker."));
+        Assert.That(panel.TranscriptText, Does.Contain("Nice work. Now let's lock out the main breaker."));
 
         Assert.That(machine.Runner.HelpRequests, Is.EqualTo(0), "device test 2026-10-01: the mate's own lines are not help the user asked for");
 
         machine.Runner.Handle(InteractionEvent.State(machine.Now, "inlet_valve", "closed")); // before lockout
         yield return null;
         yield return null;
-        Assert.That(panel.TranscriptText, Does.Contain("Stop. Lock out the breaker before touching the inlet valve."));
+        Assert.That(panel.TranscriptText, Does.Contain("Hold on. Lock out the breaker before touching the inlet valve."));
 
         // Out of order without a safety rule: the breaker to ON (step 7's target) while step 2 wants LOCKED.
         machine.Runner.Handle(InteractionEvent.State(machine.Now, "main_breaker", "on"));
         yield return null;
         yield return null;
-        Assert.That(panel.TranscriptText, Does.Contain("done before").And.Contain("First, step 2: Lock out the main breaker."), "the out-of-order action is explained and the current step repeated");
+        Assert.That(panel.TranscriptText, Does.Contain("comes a bit later").And.Contain("First, let's lock out the main breaker."), "the out-of-order action is explained and the current step repeated");
     }
 
     private sealed class Silent : IChatModel
