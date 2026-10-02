@@ -44,7 +44,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -216,7 +216,6 @@ public static class AssistantBenchBuilder
         var pumpRed = Mat("PumpRed", new Color(0.62f, 0.14f, 0.1f), 0.2f, 0.55f);
         var safety = Mat("SafetyYellow", new Color(0.95f, 0.72f, 0.05f), 0f, 0.45f);
         var cabinetGrey = Mat("CabinetGrey", new Color(0.78f, 0.8f, 0.78f), 0.1f, 0.35f);
-        var dial = Mat("GaugeWhite", new Color(0.96f, 0.96f, 0.94f), 0f, 0.8f);
         var brass = Mat("Brass", new Color(0.78f, 0.58f, 0.22f), 0.9f, 0.65f);
         var breakerRed = Mat("BreakerRed", new Color(0.8f, 0.08f, 0.06f), 0f, 0.5f);
         var rot90X = Quaternion.Euler(90f, 0f, 0f);
@@ -317,10 +316,7 @@ public static class AssistantBenchBuilder
         Shape(line, PrimitiveType.Cylinder, new Vector3(0.47f, 1.03f, 0f), new Vector3(0.07f, 0.29f, 0.07f), steel, rot90Z);
         Shape(line, PrimitiveType.Sphere, new Vector3(0.18f, 1.03f, 0f), new Vector3(0.08f, 0.08f, 0.08f), steel);
 
-        var gauge = Group(root, "Pressure gauge", "pressure_gauge");
-        Shape(gauge, PrimitiveType.Cylinder, new Vector3(0.18f, 0.78f, 0.06f), new Vector3(0.16f, 0.02f, 0.16f), dark, rot90X);
-        Shape(gauge, PrimitiveType.Cylinder, new Vector3(0.18f, 0.78f, 0.075f), new Vector3(0.14f, 0.005f, 0.14f), dial, rot90X);
-        Shape(gauge, PrimitiveType.Cube, new Vector3(0.2f, 0.795f, 0.08f), new Vector3(0.05f, 0.006f, 0.004f), breakerRed, Quaternion.Euler(0f, 0f, 35f));
+        BuildPressureGauge(root, steel);
 
         var relief = Group(root, "Relief valve", "relief_valve");
         Shape(relief, PrimitiveType.Cylinder, new Vector3(0.18f, 1.13f, 0f), new Vector3(0.1f, 0.07f, 0.1f), brass);
@@ -390,6 +386,46 @@ public static class AssistantBenchBuilder
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, SkidPrefabPath);
         Object.DestroyImmediate(root);
         return prefab;
+    }
+
+    /// <summary>
+    /// The discharge pressure gauge (#88): a steel case on the discharge line, the printed 0–10 bar dial (GaugeArt),
+    /// a black needle on a hub that <see cref="Fieldmate.Twin.PressureGauge"/> drives from the twin, and the digital
+    /// readout in the dial's window. 20 cm across in skid units, 16 cm in the room at the 80 % skid scale: big
+    /// industrial gauges are 100–160 mm, and this one has to be read from where the user stands to work.
+    /// </summary>
+    private static void BuildPressureGauge(GameObject root, Material steel)
+    {
+        const float radius = 0.1f;
+        var centre = new Vector3(0.18f, 0.8f, 0.0655f); // the dial's face; the case behind it sits on the pipe (front z 0.035)
+        var ink = Mat("GaugeInk", new Color(0.06f, 0.06f, 0.07f), 0f, 0.6f);
+        var face = Mat("GaugeDial", Color.white, 0f, 0.55f);
+        face.SetTexture("_BaseMap", GaugeArt.DialTexture());
+        EditorUtility.SetDirty(face);
+
+        var gauge = Group(root, "Pressure gauge", "pressure_gauge");
+        Shape(gauge, PrimitiveType.Cylinder, centre + new Vector3(0f, 0f, -0.0155f), new Vector3(0.23f, 0.015f, 0.23f), steel,
+            Quaternion.Euler(90f, 0f, 0f));
+
+        var dial = new GameObject("Dial", typeof(MeshFilter), typeof(MeshRenderer));
+        dial.transform.SetParent(gauge.transform, false);
+        dial.transform.localPosition = centre;
+        dial.transform.localScale = Vector3.one * radius;
+        dial.GetComponent<MeshFilter>().sharedMesh = GaugeArt.DiscMesh();
+        dial.GetComponent<MeshRenderer>().sharedMaterial = face;
+
+        // Seven-segment digits in the printed window: occludable like the rest of the machine, unlike floating text.
+        var readout = new GameObject("Readout", typeof(MeshFilter), typeof(MeshRenderer), typeof(SegmentReadout));
+        readout.transform.SetParent(gauge.transform, false);
+        readout.transform.localPosition = centre + new Vector3(0f, DialPainter.WindowY * radius, 0.0008f);
+        readout.GetComponent<MeshRenderer>().sharedMaterial = Mat("GaugeSegments", new Color(0.2f, 0.8f, 0.3f), 0f, 0.2f);
+
+        var needle = Pivot(gauge, "Needle", centre + new Vector3(0f, 0f, 0.0035f));
+        Shape(needle, PrimitiveType.Cube, new Vector3(0f, 0.03f, 0f), new Vector3(0.006f, 0.11f, 0.002f), ink);
+        Shape(gauge, PrimitiveType.Cylinder, centre + new Vector3(0f, 0f, 0.006f), new Vector3(0.018f, 0.003f, 0.018f), ink,
+            Quaternion.Euler(90f, 0f, 0f));
+
+        gauge.AddComponent<PressureGauge>().Configure(needle.transform, readout.GetComponent<SegmentReadout>());
     }
 
     /// <summary>
