@@ -34,6 +34,35 @@ public static class StepInstructions
         };
     }
 
+    /// <summary>
+    /// The instruction as the mate says it (device test 2026-10-01: lines sounded like a machine): plain spoken words,
+    /// states in lower case, no "±", the gesture named the way a person would.
+    /// </summary>
+    public static string Spoken(StepDefinition step, PartCatalog catalog, Modality modality = Modality.Hands)
+    {
+        if (step == null)
+        {
+            return string.Empty;
+        }
+
+        var part = Name(step.PartId, catalog);
+        var take = modality == Modality.Controllers ? "Grip" : "Pinch";
+        var hands = modality == Modality.Controllers ? "both controllers" : "both hands";
+        var state = step.TargetState?.ToLowerInvariant();
+        return step.Kind switch
+        {
+            StepKind.Inspect => $"Have a good look at the {part} first.",
+            StepKind.Operate when step.PartId == "main_breaker" => $"{take} the red bar with {hands} and turn it until it clicks to {state}.",
+            StepKind.Operate when state == "removed" => $"{take} the {part} and pull it off towards you.",
+            StepKind.Operate => $"{take} the {part} and turn it to {state}.",
+            StepKind.Tool => $"Pick up the {Name(step.ToolId, catalog)} from the tray and push it into the {part}.",
+            StepKind.Measure when step.ExpectedValue == 0f => $"Keep an eye on the {part} until it reads zero.",
+            StepKind.Measure => $"Check the {part}: it should settle around {Number(step.ExpectedValue)} {step.Unit}.",
+            StepKind.Confirm => "Tell me when you're done.",
+            _ => string.Empty,
+        };
+    }
+
     /// <summary>A few words for the floating label: what to do with the highlighted part.</summary>
     public static string Short(StepDefinition step, Modality modality = Modality.Hands)
     {

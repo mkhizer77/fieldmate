@@ -310,9 +310,13 @@ namespace Fieldmate.Assistant
             _ = RunAndLog(session.RunAudioTurnAsync(audio, player, turn.Token));
         }
 
-        private async Task<TurnResult> RunAndLog(Task<TurnResult> running)
+        /// <param name="userAsked">
+        /// Only the user's own questions count as help in the debrief (assistant reliance). The mate's narration went
+        /// through here too and cost 2 points per announced step (device test 2026-10-01: 8 "help" with no questions).
+        /// </param>
+        private async Task<TurnResult> RunAndLog(Task<TurnResult> running, bool userAsked = true)
         {
-            if (machine.Runner.State == RunnerState.Running)
+            if (userAsked && machine.Runner.State == RunnerState.Running)
             {
                 machine.Runner.Handle(InteractionEvent.Help(machine.Now)); // debrief: assistant reliance
             }
@@ -388,7 +392,7 @@ namespace Fieldmate.Assistant
             pendingNarration = null;
             turn = new CancellationTokenSource();
             Debug.Log($"[Assistant] narrate{(interrupt ? " (interrupt)" : "")}: \"{Clip(text)}\"");
-            _ = RunAndLog(NarrateAsync(text, turn.Token));
+            _ = RunAndLog(NarrateAsync(text, turn.Token), userAsked: false);
         }
 
         private async Task<TurnResult> NarrateAsync(string text, CancellationToken token)

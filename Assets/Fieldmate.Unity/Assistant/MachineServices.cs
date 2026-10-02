@@ -17,6 +17,8 @@ namespace Fieldmate.Assistant
 
         [Tooltip("Demo story: the pump starts with a stuck relief cartridge (pressure alarm).")]
         [SerializeField] private bool startWithOverpressure = true;
+        [SerializeField, Tooltip("Optional: an authored procedure (Fieldmate > Procedure Editor). Empty: the code-defined demo.")]
+        private Fieldmate.Procedures.ProcedureAsset procedure;
 
         private readonly Dictionary<string, PartTag> parts = new();
 
@@ -45,7 +47,7 @@ namespace Fieldmate.Assistant
             }
 
             Telemetry = new TelemetryModel(faults);
-            Runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
+            Runner = new ProcedureRunner(procedure != null ? procedure.ToDefinition() : DemoProcedures.ReliefValveReplacement());
             Runner.SetInitialState("main_breaker", "on");
             Runner.SetInitialState("inlet_valve", "open");
             Runner.SetInitialState("pump_cover", "fitted");

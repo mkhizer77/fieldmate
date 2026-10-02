@@ -23,12 +23,13 @@ public class SetupScriptTests
     }
 
     [Test]
-    public void Briefing_comes_from_the_procedure_and_ends_with_step_one()
+    public void Briefing_comes_from_the_procedure_sounds_human_and_ends_with_the_first_task()
     {
-        var line = SetupScript.Briefing(DemoProcedures.ReliefValveReplacement(), "Look at the relief valve until the ring fills.");
-        Assert.That(line, Does.StartWith("Here's today's job: replace the relief valve cartridge. It's 8 steps, from inspect the relief valve to verify running pressure"));
-        Assert.That(line, Does.EndWith("Step 1: Look at the relief valve until the ring fills."));
-        Assert.That(SetupScript.Briefing(DemoProcedures.ReliefValveReplacement(), null), Does.EndWith("Step 1: Inspect the relief valve."));
+        var line = SetupScript.Briefing(DemoProcedures.ReliefValveReplacement(), "Have a good look at the relief valve first.");
+        Assert.That(line, Does.StartWith("Today we're going to replace the relief valve cartridge. It's eight steps"));
+        Assert.That(line, Does.EndWith("Let's start. Have a good look at the relief valve first."));
+        Assert.That(line, Does.Not.Contain("Step 1"), "no status-readout numbering");
+        Assert.That(SetupScript.Briefing(DemoProcedures.ReliefValveReplacement(), null), Does.EndWith("First, inspect the relief valve."));
     }
 
     [Test]

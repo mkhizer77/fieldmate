@@ -260,7 +260,7 @@ public class AssistantPromptTests
         runner.Start(0);
         runner.Handle(InteractionEvent.Confirmed(1));
 
-        Assert.That(AssistantPrompt.DescribeProcedure(runner), Is.EqualTo("'Quick' completed (score 100)."));
+        Assert.That(AssistantPrompt.DescribeProcedure(runner), Is.EqualTo("'Quick' completed: score 100/100, passed; took 1 s; no deductions."));
     }
 
     [TestCase("The valve is stuck [fault.overpressure].", "The valve is stuck.")]
