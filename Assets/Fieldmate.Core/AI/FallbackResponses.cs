@@ -92,7 +92,9 @@ public sealed class FallbackResponses
     {
         if (runner.State == RunnerState.Completed)
         {
-            return $"We're all done: you scored {runner.Result?.Score} out of 100. Press Restart in your hand menu to go again.";
+            return runner.Result == null
+                ? "We're all done. Press Restart in your hand menu to go again."
+                : $"We're all done: {Scoring.Explain(runner.Result, runner.Definition.Weights, runner.Definition.TimeLimitSeconds)} Press Restart in your hand menu to go again.";
         }
 
         if (runner.State != RunnerState.Running)
