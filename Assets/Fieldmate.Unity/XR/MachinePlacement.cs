@@ -73,6 +73,13 @@ namespace Fieldmate.XR
         /// <summary>The machine's current scale (fit plus nudge, 0.6–1).</summary>
         public float Scale => machine.localScale.x;
 
+        // Following the pointer (device test 2026-10-01: jitter): eased position and turn.
+        private const float FollowSeconds = 0.12f;
+        private const float TurnSeconds = 0.25f;
+        private bool following;
+        private Vector3 smoothedPosition;
+        private float smoothedYaw;
+
         public PlacementState State { get; private set; } = PlacementState.Loading;
 
         /// <summary>Whether the last placement found real scene data (false: tracked-floor fallback).</summary>
@@ -161,12 +168,23 @@ namespace Fieldmate.XR
 
             if (TryGetTarget(out var position))
             {
-                var rotation = PlacementMath.FacingViewer(position, head.position, extraYaw);
-                machine.SetPositionAndRotation(position, rotation);
+                // Eased, not snapped (device test 2026-10-01: it jittered with every tremor of the ray until placed).
+                var yaw = PlacementMath.FacingViewer(position, head.position, extraYaw).eulerAngles.y;
+                if (!following)
+                {
+                    following = true;
+                    smoothedPosition = position;
+                    smoothedYaw = yaw;
+                }
+
+                smoothedPosition = Vector3.Lerp(smoothedPosition, position, 1f - Mathf.Exp(-Time.deltaTime / FollowSeconds));
+                smoothedYaw = Mathf.LerpAngle(smoothedYaw, yaw, 1f - Mathf.Exp(-Time.deltaTime / TurnSeconds));
+                var rotation = Quaternion.Euler(0f, smoothedYaw, 0f);
+                machine.SetPositionAndRotation(smoothedPosition, rotation);
                 if (Time.unscaledTime >= nextFit)
                 {
                     nextFit = Time.unscaledTime + FitInterval;
-                    ProbeRoom(position, rotation);
+                    ProbeRoom(smoothedPosition, rotation);
                     fitScale = MachineFit.Scale(obstacles, obstacleCount, out var tight);
                     FitIsTight = tight;
                     RefreshHint();
@@ -174,7 +192,7 @@ namespace Fieldmate.XR
 
                 var target = Mathf.Clamp(fitScale + nudge, MachineFit.MinScale, MachineFit.MaxScale);
                 machine.localScale = Vector3.one * Mathf.MoveTowards(machine.localScale.x, target, Time.deltaTime * 0.8f);
-                ShowGuide(position, true);
+                ShowGuide(smoothedPosition, true);
             }
             else
             {
@@ -188,6 +206,7 @@ namespace Fieldmate.XR
         /// <summary>Starts (re)placement. The old anchor is erased when the new one is confirmed.</summary>
         public void BeginPlacing()
         {
+            following = false;
             if (busy)
             {
                 return;
@@ -385,6 +404,8 @@ namespace Fieldmate.XR
                 position = hit.point;
             }
 
+            // Not "the last floor-like hit's height" for the fallback: a table or the machine's own frame is floor-like too,
+            // and the machine then followed a phantom floor. The easing absorbs a frame's switch between scan and plane.
             LastHitWasSceneMesh = best < float.MaxValue;
             return LastHitWasSceneMesh || PlacementMath.TryHitFloorPlane(ray, 0f, out position);
         }

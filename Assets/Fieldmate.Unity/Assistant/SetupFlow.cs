@@ -151,11 +151,12 @@ namespace Fieldmate.Assistant
             Debug.Log($"[Setup] mate placed at {mateTarget}");
 
             // 4. The machine appears and is placed fresh.
+            // The mate asks for the machine first; it appears once the line has been heard (device test 2026-10-01).
             Stage = SetupStage.PlaceMachine;
+            panel.ShowSetup("Setup · 3 of 4 · Machine", InputWords.Place(InputModalityProbe.Current));
+            yield return Say(SetupScript.PlaceMachine(InputWords.PlaceMachineSpoken(InputModalityProbe.Current)));
             hidden.Show();
             placement.BeginPlacing();
-            panel.ShowSetup("Setup · 3 of 4 · Machine", InputWords.Place(InputModalityProbe.Current));
-            yield return Say(SetupScript.PlaceMachine(InputWords.PlaceMachineSpoken(InputModalityProbe.Current)), waitForEnd: false);
             yield return new WaitUntil(() => placement.State == PlacementState.Placed);
             Debug.Log("[Setup] machine placed");
 
