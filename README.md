@@ -1,15 +1,15 @@
 # Fieldmate
 
+**[▶ Watch the demo video](https://drive.google.com/file/d/1aWTOAeHSqHOFOUuE35fa3iks-TcChJbT/view)**
+
+[![The hologram mate — click to watch the demo](docs/ui/2026-09-30-hologram-mate.png)](https://drive.google.com/file/d/1aWTOAeHSqHOFOUuE35fa3iks-TcChJbT/view)
+
 An AI-assisted mixed-reality maintenance companion for Meta Quest 3. A digital twin of an industrial pump skid stands
 in your real room; a small holographic mate walks you through a real maintenance procedure, checks every action you
 take on the machine, stops you when something is unsafe, and answers questions by voice from the machine's manual.
 
 Built with Unity 6, OpenXR (Meta feature group), XR Interaction Toolkit 3 and XR Hands. Work in progress towards
 v0.1.0: see the issues and milestones.
-
-**[▶ Watch the demo video](https://drive.google.com/file/d/1aWTOAeHSqHOFOUuE35fa3iks-TcChJbT/view)**
-
-[![The hologram mate — click to watch the demo](docs/ui/2026-09-30-hologram-mate.png)](https://drive.google.com/file/d/1aWTOAeHSqHOFOUuE35fa3iks-TcChJbT/view)
 
 ## What happens in the headset
 
