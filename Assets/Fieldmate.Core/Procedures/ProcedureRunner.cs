@@ -235,7 +235,9 @@ public sealed class ProcedureRunner
     }
 
     private bool Blocks(SafetyRule rule, string partId) =>
-        rule.GuardedPartId == partId && GetPartState(rule.RequiredPartId) != rule.RequiredState;
+        rule.GuardedPartId == partId
+        && (rule.ExceptWhenGuardedIs == null || GetPartState(partId) != rule.ExceptWhenGuardedIs)
+        && GetPartState(rule.RequiredPartId) != rule.RequiredState;
 
     private void AddError(double time, string stepId, string message)
     {

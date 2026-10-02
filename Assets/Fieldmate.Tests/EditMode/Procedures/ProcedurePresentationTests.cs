@@ -76,9 +76,7 @@ public class ProcedurePresentationTests
     public void DemoProcedure_EightSteps_CompleteWithoutErrors_InTheRightOrder()
     {
         var runner = new ProcedureRunner(Demo);
-        runner.SetInitialState("main_breaker", "on");
-        runner.SetInitialState("inlet_valve", "open");
-        runner.SetInitialState("pump_cover", "fitted");
+        DemoProcedures.ApplyInitialStates(runner);
         ProcedureResult result = null;
         runner.ProcedureCompleted += r => result = r;
         runner.Start(0);

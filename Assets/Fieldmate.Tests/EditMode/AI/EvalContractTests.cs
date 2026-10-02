@@ -88,9 +88,7 @@ public class EvalContractTests
     public void Advancing_to_a_step_completes_the_ones_before_it()
     {
         var runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
-        runner.SetInitialState("main_breaker", "on");
-        runner.SetInitialState("inlet_valve", "open");
-        runner.SetInitialState("pump_cover", "fitted");
+        DemoProcedures.ApplyInitialStates(runner);
         var clock = 0d;
         ProcedureReplay.AdvanceTo(runner, "verify_running", ref clock);
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("verify_running"), "the eval's last-step case starts here");

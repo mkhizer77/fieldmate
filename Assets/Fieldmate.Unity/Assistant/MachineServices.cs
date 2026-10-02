@@ -48,9 +48,7 @@ namespace Fieldmate.Assistant
 
             Telemetry = new TelemetryModel(faults);
             Runner = new ProcedureRunner(procedure != null ? procedure.ToDefinition() : DemoProcedures.ReliefValveReplacement());
-            Runner.SetInitialState("main_breaker", "on");
-            Runner.SetInitialState("inlet_valve", "open");
-            Runner.SetInitialState("pump_cover", "fitted");
+            DemoProcedures.ApplyInitialStates(Runner);
 
             RefreshParts();
         }
