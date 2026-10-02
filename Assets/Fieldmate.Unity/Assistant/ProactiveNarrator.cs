@@ -44,7 +44,7 @@ namespace Fieldmate.Assistant
             runner.ProcedureCompleted -= OnCompleted;
         }
 
-        private string Instruction(StepDefinition step) => step != null ? StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current) : string.Empty;
+        private string Instruction(StepDefinition step) => step != null ? StepInstructions.Spoken(step, machine.Catalog, InputModalityProbe.Current) : string.Empty;
 
         private void OnStepCompleted(int index, StepDefinition step, double seconds)
         {

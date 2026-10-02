@@ -29,8 +29,8 @@ public class FallbackResponsesTests
     {
         var reply = fallback.Answer("what should I do now?");
         Assert.That(reply.Intent, Is.EqualTo("next"));
-        Assert.That(reply.Text, Does.Contain("Pinch Start"));
-        Assert.That(fallback.Answer("let's start").Text, Does.Contain("Pinch Start"), "it cannot start by voice while offline");
+        Assert.That(reply.Text, Does.Contain("Press Start"));
+        Assert.That(fallback.Answer("let's start").Text, Does.Contain("Press Start"), "it cannot start by voice while offline");
     }
 
     [Test]
@@ -38,9 +38,9 @@ public class FallbackResponsesTests
     {
         runner.Restart(1);
         var reply = fallback.Answer("what next");
-        Assert.That(reply.Text, Does.StartWith("Step 1 of 8: Inspect the relief valve."));
+        Assert.That(reply.Text, Does.StartWith("Right now, let's inspect the relief valve."));
         runner.Handle(InteractionEvent.Gaze(2, "relief_valve", 3f));
-        Assert.That(fallback.Answer("anything at all").Text, Does.StartWith("Step 2 of 8: Lock out the main breaker."), "unknown questions still get the step");
+        Assert.That(fallback.Answer("anything at all").Text, Does.StartWith("Right now, let's lock out the main breaker."), "unknown questions still get the step");
     }
 
     [Test]
