@@ -11,7 +11,9 @@ namespace Fieldmate.Interaction
     /// the handle rotates about <see cref="axis"/> (in the handle's parent space), clamped to [min, max], with named detents
     /// that raise states for the procedure and haptic ticks along the way. With <see cref="requiredHands"/> = 2 it only
     /// turns while both hands hold it, following the line between them (like a steering wheel). On release it snaps to a
-    /// nearby detent. No per-frame allocations.
+    /// nearby detent. A pointer ray takes hold at the nearest free <see cref="GripPoints"/> point (#86: the end of a
+    /// lever, opposite ends of the breaker bar), not at the pivot: its line bends to that point, which turns with the
+    /// handle, and the ray drags it like a rigid arm. No per-frame allocations.
     /// </summary>
     [RequireComponent(typeof(HoverTint))]
     public sealed class RotaryInteractable : XRBaseInteractable, IMachineControl
@@ -27,6 +29,7 @@ namespace Fieldmate.Interaction
         [SerializeField] private float tickDegrees = 30f;
         [SerializeField, Range(1, 2)] private int requiredHands = 1;
         [SerializeField, Range(0.5f, 3f)] private float turnGain = 1f;
+        [SerializeField] private Vector3[] gripPoints = Array.Empty<Vector3>();
 
         private RotaryTracker tracker;
         private Detents detents;
@@ -36,6 +39,10 @@ namespace Fieldmate.Interaction
         private int handsHolding;
         private float graceUntil = -1f;
         private bool refusedThisGrab;
+        private Transform[] grips;
+        private bool[] gripTaken;
+        private IXRSelectInteractor[] gripHolders;
+        private Vector3[] gripScratch;
 
         /// <summary>A hand that slips for a moment (pinch flicker) doesn't end the turn.</summary>
         private const float GraceSeconds = 0.5f;
@@ -56,6 +63,9 @@ namespace Fieldmate.Interaction
         public Transform Handle => handle;
         public float MinAngle => minAngle;
         public float MaxAngle => maxAngle;
+
+        /// <summary>Where a pointer ray takes hold, in the handle's space (#86).</summary>
+        public System.Collections.Generic.IReadOnlyList<Vector3> GripPoints => gripPoints;
 
         /// <summary>The named positions it can reach, e.g. on / off / locked (procedure validation, #11).</summary>
         public System.Collections.Generic.IReadOnlyList<string> DetentStates => detentStates;
@@ -98,6 +108,30 @@ namespace Fieldmate.Interaction
             tickDegrees = tick;
             requiredHands = Mathf.Clamp(hands, 1, 2);
             Initialise();
+        }
+
+        /// <summary>Where pointer rays take hold, in the handle's space: the lever's end, the ends of a two-hand bar (#86).</summary>
+        public void SetGripPoints(params Vector3[] points)
+        {
+            gripPoints = points ?? Array.Empty<Vector3>();
+            grips = null; // rebuilt on the next ray grab
+        }
+
+        /// <summary>The grip a ray holds, or the interactable's own attach point for hands (XRI asks; the ray's line bends to it).</summary>
+        public override Transform GetAttachTransform(IXRInteractor interactor)
+        {
+            if (gripHolders != null)
+            {
+                for (var i = 0; i < gripHolders.Length; i++)
+                {
+                    if (gripHolders[i] != null && ReferenceEquals(gripHolders[i], interactor))
+                    {
+                        return grips[i];
+                    }
+                }
+            }
+
+            return base.GetAttachTransform(interactor);
         }
 
         protected override void Awake()
@@ -211,9 +245,78 @@ namespace Fieldmate.Interaction
         protected override void OnSelectEntered(SelectEnterEventArgs args)
         {
             base.OnSelectEntered(args);
+            if (args.interactorObject is XRRayInteractor ray)
+            {
+                TakeGrip(ray);
+            }
+
             if (turning)
             {
                 tracker.Begin(GripVector()); // a hand joined or swapped: re-anchor so the handle doesn't jump
+            }
+        }
+
+        protected override void OnSelectExited(SelectExitEventArgs args)
+        {
+            base.OnSelectExited(args);
+            if (gripHolders == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < gripHolders.Length; i++)
+            {
+                if (ReferenceEquals(gripHolders[i], args.interactorObject))
+                {
+                    gripHolders[i] = null;
+                    gripTaken[i] = false;
+                }
+            }
+        }
+
+        // The ray's attach point moves to the grip and stays rigid with the controller from then on, so the turn follows the
+        // ray like a stick held at the lever's end; the grip itself turns with the handle and the line bends to it.
+        private void TakeGrip(XRRayInteractor ray)
+        {
+            if (gripPoints == null || gripPoints.Length == 0)
+            {
+                return;
+            }
+
+            EnsureGrips();
+            for (var i = 0; i < grips.Length; i++)
+            {
+                gripScratch[i] = grips[i].position;
+            }
+
+            var origin = ray.rayOriginTransform != null ? ray.rayOriginTransform : ray.transform;
+            var index = GripChoice.Nearest(origin.position, origin.forward, gripScratch, gripTaken);
+            if (index < 0)
+            {
+                return;
+            }
+
+            gripHolders[index] = ray;
+            gripTaken[index] = true;
+            ray.attachTransform.position = grips[index].position;
+        }
+
+        private void EnsureGrips()
+        {
+            if (grips != null && grips.Length == gripPoints.Length)
+            {
+                return;
+            }
+
+            grips = new Transform[gripPoints.Length];
+            gripTaken = new bool[gripPoints.Length];
+            gripHolders = new IXRSelectInteractor[gripPoints.Length];
+            gripScratch = new Vector3[gripPoints.Length];
+            for (var i = 0; i < gripPoints.Length; i++)
+            {
+                grips[i] = new GameObject($"Ray Grip {i}").transform;
+                grips[i].SetParent(handle, false);
+                grips[i].localPosition = gripPoints[i];
             }
         }
 

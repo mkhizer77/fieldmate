@@ -9,7 +9,7 @@
     { "id": "pump", "name": "Centrifugal pump", "description": "Single-stage pump, nominal 4 bar discharge pressure.", "safety": "Stored pressure until the inlet is closed and the gauge reads zero." },
     { "id": "pump_cover", "name": "Pump access cover", "description": "Bolted cover giving access to the relief valve seat.", "safety": "Only remove with the machine locked out and depressurised." },
     { "id": "inlet_valve", "name": "Inlet valve", "description": "Quarter-turn ball valve on the suction side. Positions: open, closed.", "safety": "" },
-    { "id": "outlet_valve", "name": "Outlet valve", "description": "Gate valve on the discharge side. Throttling it raises line pressure.", "safety": "" },
+    { "id": "outlet_valve", "name": "Outlet valve", "description": "Gate valve on the discharge side. Throttling it raises line pressure.", "safety": "Only with the breaker locked out: throttling it while the pump runs spikes the line pressure." },
     { "id": "pressure_gauge", "name": "Pressure gauge", "description": "Analogue gauge on the discharge line, 0-10 bar. Green band 3-5 bar, red from 6 bar.", "safety": "" },
     { "id": "pressure_line", "name": "Discharge line", "description": "Steel pipe from the pump to the outlet valve.", "safety": "Pressurised while the pump runs." },
     { "id": "relief_valve", "name": "Pressure relief valve", "description": "Spring-loaded valve that opens at 5.5 bar to protect the line.", "safety": "Never block or adjust it with the system under pressure." },
@@ -32,7 +32,9 @@
         { "id": "verify_zero", "title": "Verify zero pressure on the gauge", "part": "pressure_gauge" },
         { "id": "remove_cover", "title": "Remove the pump access cover", "part": "pump_cover" },
         { "id": "replace", "title": "Fit the new relief cartridge", "part": "relief_valve_seat" },
-        { "id": "restore", "title": "Refit the cover, open the inlet and switch the breaker on", "part": "main_breaker" },
+        { "id": "refit_cover", "title": "Refit the pump access cover", "part": "pump_cover" },
+        { "id": "open_inlet", "title": "Open the inlet valve", "part": "inlet_valve" },
+        { "id": "power_on", "title": "Switch the main breaker back on", "part": "main_breaker" },
         { "id": "verify_running", "title": "Verify running pressure is back in the green band", "part": "pressure_gauge" }
       ]
     }
@@ -131,8 +133,8 @@
     },
     {
       "id": "proc.rv.overview", "kind": "procedure", "title": "Procedure: replace the relief valve cartridge",
-      "text": "Eight steps: inspect the relief valve, lock out the main breaker, close the inlet valve, verify 0 bar on the gauge, remove the pump access cover, fit the new cartridge in the relief valve seat, restore (refit the cover, open the inlet, breaker on), and verify the running pressure is back at 3 to 5 bar. Lockout must come before touching the inlet valve or the cover; the cover must be back on before the breaker is switched.",
-      "steps": ["inspect", "lockout", "close_inlet", "verify_zero", "remove_cover", "replace", "restore", "verify_running"],
+      "text": "Ten steps: inspect the relief valve, lock out the breaker, close the inlet, verify 0 bar, remove the pump cover, fit the new cartridge, refit the cover, open the inlet, breaker back on, verify 3 to 5 bar. Lock out before touching the inlet or the cover. Restore in that order: cover before inlet (water leaks from an open pump), inlet before breaker (the pump must not run dry).",
+      "steps": ["inspect", "lockout", "close_inlet", "verify_zero", "remove_cover", "replace", "refit_cover", "open_inlet", "power_on", "verify_running"],
       "keywords": ["procedure", "steps", "replace", "cartridge", "relief", "repair", "fix", "start"]
     },
     {
@@ -178,14 +180,28 @@
       "keywords": ["cartridge", "fit", "replace", "seat", "click"]
     },
     {
-      "id": "proc.rv.restore", "kind": "procedure", "title": "Step 7: restore and return to service",
-      "text": "Refit the cover, open the inlet valve, remove your padlock and switch the breaker back on with both hands. The breaker must not be switched while the cover is off.",
-      "parts": ["pump_cover", "inlet_valve", "main_breaker"],
-      "steps": ["restore"],
-      "keywords": ["restore", "restart", "return", "service", "finish", "switch", "on", "power"]
+      "id": "proc.rv.refit_cover", "kind": "procedure", "title": "Step 7: refit the pump access cover",
+      "text": "Put the pump access cover back on its seat until it clicks into place. It goes back before the inlet is opened: water through an open pump leaks out.",
+      "parts": ["pump_cover"],
+      "steps": ["refit_cover"],
+      "keywords": ["cover", "refit", "back", "close", "put", "seat", "restore"]
     },
     {
-      "id": "proc.rv.verify", "kind": "procedure", "title": "Step 8: verify running pressure",
+      "id": "proc.rv.open_inlet", "kind": "procedure", "title": "Step 8: open the inlet valve",
+      "text": "Turn the inlet valve handle a quarter turn back until it is along the pipe. Only with the cover on; the breaker stays locked out.",
+      "parts": ["inlet_valve"],
+      "steps": ["open_inlet"],
+      "keywords": ["inlet", "open", "valve", "quarter", "water", "restore"]
+    },
+    {
+      "id": "proc.rv.power_on", "kind": "procedure", "title": "Step 9: switch the breaker back on",
+      "text": "Remove your padlock and turn the main breaker back to on with both hands. Only with the cover on and the inlet open, so the pump never runs open or dry.",
+      "parts": ["main_breaker"],
+      "steps": ["power_on"],
+      "keywords": ["restore", "restart", "return", "service", "switch", "on", "power", "breaker"]
+    },
+    {
+      "id": "proc.rv.verify", "kind": "procedure", "title": "Step 10: verify running pressure",
       "text": "Look at the gauge for a moment: with the new cartridge the pressure settles between 3 and 5 bar, the green band. If it stays at 0, the inlet is still closed.",
       "parts": ["pressure_gauge"],
       "steps": ["verify_running"],

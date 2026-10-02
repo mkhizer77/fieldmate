@@ -6,18 +6,13 @@ namespace Fieldmate.XR
     /// <summary>
     /// Drives the glow around a hand or controller (shader Fieldmate/PresenceGlow): a quiet halo at rest, brighter when
     /// the matching interactor is over something it can take, brightest while it holds it. One property block, no
-    /// allocations; nothing is written while the value is settled. A hand holding a controller (#80, its pose comes from
-    /// the controller) also gets a soft translucent fill, the way Meta's home draws hands on controllers.
+    /// allocations; nothing is written while the value is settled.
     /// </summary>
     public sealed class PresenceGlow : MonoBehaviour
     {
         private const float Speed = 6f;
         private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-        private static readonly int FillId = Shader.PropertyToID("_Fill");
-
-        /// <summary>Fill opacity while the hand holds a controller.</summary>
-        public const float HoldingFill = 0.35f;
 
         [SerializeField] private Renderer target;
         [SerializeField] private XRBaseInteractor interactor;
@@ -28,13 +23,8 @@ namespace Fieldmate.XR
         private MaterialPropertyBlock block;
         private TrackedHandMesh runtimeMesh;
         private float current;
-        private float fill;
-        private UnityEngine.XR.Hands.XRHandTrackingEvents handEvents;
 
         public float Intensity => current;
-
-        /// <summary>The hand's fill opacity now (0 free, <see cref="HoldingFill"/> on a controller).</summary>
-        public float Fill => fill;
 
         public void Configure(Renderer glowRenderer, XRBaseInteractor source)
         {
@@ -52,7 +42,6 @@ namespace Fieldmate.XR
         private void Awake()
         {
             block = new MaterialPropertyBlock();
-            handEvents = GetComponent<UnityEngine.XR.Hands.XRHandTrackingEvents>();
             current = idle;
             Apply();
         }
@@ -66,14 +55,12 @@ namespace Fieldmate.XR
             }
 
             var wanted = interactor == null ? idle : interactor.hasSelection ? grab : interactor.hasHover ? hover : idle;
-            var wantedFill = handEvents != null && HandDataSource.IsFromController(handEvents.handedness) ? HoldingFill : 0f;
-            if (Mathf.Approximately(current, wanted) && Mathf.Approximately(fill, wantedFill))
+            if (Mathf.Approximately(current, wanted))
             {
                 return;
             }
 
             current = Mathf.MoveTowards(current, wanted, Speed * Time.deltaTime);
-            fill = Mathf.MoveTowards(fill, wantedFill, 2f * Time.deltaTime);
             Apply();
         }
 
@@ -88,7 +75,6 @@ namespace Fieldmate.XR
             if (target.sharedMaterial != null && target.sharedMaterial.HasProperty(IntensityId))
             {
                 block.SetFloat(IntensityId, current);
-                block.SetFloat(FillId, fill);
             }
             else if (target.sharedMaterial != null && target.sharedMaterial.HasProperty(BaseColorId))
             {

@@ -10,7 +10,7 @@ public static class InteractionTips
 {
     public const float Seconds = 14f;
 
-    /// <summary>One tip per kind: "turn", "turn2", "pull", "tool", "look"; null for steps that need none.</summary>
+    /// <summary>One tip per kind: "turn", "turn2", "pull", "refit", "tool", "look"; null for steps that need none.</summary>
     public static string Key(StepDefinition step, int hands)
     {
         if (step == null)
@@ -21,6 +21,7 @@ public static class InteractionTips
         return step.Kind switch
         {
             StepKind.Operate when step.TargetState == "removed" => "pull",
+            StepKind.Operate when step.TargetState == "fitted" => "refit",
             StepKind.Operate => hands > 1 ? "turn2" : "turn",
             StepKind.Tool => "tool",
             StepKind.Inspect => "look",
@@ -48,6 +49,9 @@ public static class InteractionTips
             "pull" => controllers
                 ? "Tip: hold the grip on the cover and pull it straight towards you, then let go."
                 : "Tip: pinch the cover, pull it straight towards you, then release the pinch.",
+            "refit" => controllers
+                ? "Tip: hold the grip on the cover, bring it back to the front of the pump and let go; close by, it clicks on."
+                : "Tip: pinch the cover, bring it back to the front of the pump and release; close by, it clicks on.",
             "tool" => controllers
                 ? "Tip: hold the grip on the cartridge, carry it to the seat, let go when it snaps."
                 : "Tip: pinch the cartridge on the tray, carry it to the seat, release when it snaps in.",

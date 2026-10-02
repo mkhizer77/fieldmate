@@ -14,7 +14,7 @@ public static class FieldmateTools
     public const string IdentifyView = "identify_view";
     public const string ShowLabels = "show_labels";
 
-    /// <summary>Highest step index accepted by <see cref="GoToStep"/>; procedures have 6–8 steps.</summary>
+    /// <summary>Highest step index accepted by <see cref="GoToStep"/>; procedures have 6–10 steps.</summary>
     public const int MaxStepIndex = 20;
 
     public static ToolDefinition[] CreateV1() => new[]

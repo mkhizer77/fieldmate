@@ -41,7 +41,9 @@ public class NarratorPlayModeTests
         yield return null;
         Assert.That(panel.TranscriptText, Does.Contain("Hold on. Lock out the breaker before touching the inlet valve."));
 
-        // Out of order without a safety rule: the breaker to ON (step 7's target) while step 2 wants LOCKED.
+        // Out of order without a safety rule: the breaker to ON (step 9's target) while step 2 wants LOCKED. The inlet goes
+        // back open first, or inlet_before_power (#86) rightly makes it a violation instead.
+        machine.Runner.Handle(InteractionEvent.State(machine.Now, "inlet_valve", "open"));
         machine.Runner.Handle(InteractionEvent.State(machine.Now, "main_breaker", "on"));
         yield return null;
         yield return null;

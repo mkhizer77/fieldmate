@@ -69,7 +69,7 @@ public class ProcedureAssetTests
         try
         {
             Assert.That(AssetDatabase.GetAssetPath(created), Does.StartWith(ProcedureEditorWindow.Folder));
-            Assert.That(duplicate.steps, Has.Count.EqualTo(8));
+            Assert.That(duplicate.steps, Has.Count.EqualTo(10));
             Assert.That(duplicate.id, Is.EqualTo("relief_valve_replacement_copy"));
 
             // Batch-mode tests have no graphics device to show a window; the window object still loads and selects.

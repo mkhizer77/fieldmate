@@ -26,6 +26,7 @@ public static class StepInstructions
             StepKind.Operate when step.PartId == "main_breaker" =>
                 $"{grab} the red breaker bar with {hands} and turn it along the arrow to {step.TargetState.ToUpperInvariant()}.",
             StepKind.Operate when step.TargetState == "removed" => $"{grab} the {part} and pull it off towards you.",
+            StepKind.Operate when step.TargetState == "fitted" => $"{grab} the {part} and put it back on its seat until it clicks.",
             StepKind.Operate => $"{grab} the {part} and turn it along the arrow to {step.TargetState.ToUpperInvariant()}.",
             StepKind.Tool => $"{grab} the {Name(step.ToolId, catalog)} on the tray and push it into the {part}.",
             StepKind.Measure => $"Look at the {part}: it should read {Number(step.ExpectedValue)} ± {Number(step.Tolerance)} {step.Unit}.",
@@ -54,6 +55,7 @@ public static class StepInstructions
             StepKind.Inspect => $"Have a good look at the {part} first.",
             StepKind.Operate when step.PartId == "main_breaker" => $"{take} the red bar with {hands} and turn it until it clicks to {state}.",
             StepKind.Operate when state == "removed" => $"{take} the {part} and pull it off towards you.",
+            StepKind.Operate when state == "fitted" => $"{take} the {part} and put it back on until it clicks into place.",
             StepKind.Operate => $"{take} the {part} and turn it to {state}.",
             StepKind.Tool => $"Pick up the {Name(step.ToolId, catalog)} from the tray and push it into the {part}.",
             StepKind.Measure when step.ExpectedValue == 0f => $"Keep an eye on the {part} until it reads zero.",
@@ -77,6 +79,7 @@ public static class StepInstructions
             StepKind.Inspect => "look here",
             StepKind.Operate when step.PartId == "main_breaker" => $"{hands} · turn to {step.TargetState.ToUpperInvariant()}",
             StepKind.Operate when step.TargetState == "removed" => $"{InputWords.Grab(modality)} · pull off",
+            StepKind.Operate when step.TargetState == "fitted" => $"{InputWords.Grab(modality)} · put back on",
             StepKind.Operate => $"{InputWords.Grab(modality)} · turn to {step.TargetState.ToUpperInvariant()}",
             StepKind.Tool => "fit the new cartridge here",
             StepKind.Measure => $"read it: {Number(step.ExpectedValue)} ± {Number(step.Tolerance)} {step.Unit}",

@@ -13,6 +13,7 @@ public class InteractionTipsTests
         Assert.That(InteractionTips.Key(StepDefinition.Operate("a", "t", "outlet_valve", "closed"), 1), Is.EqualTo("turn"));
         Assert.That(InteractionTips.Key(StepDefinition.Operate("b", "t", "main_breaker", "locked"), 2), Is.EqualTo("turn2"));
         Assert.That(InteractionTips.Key(StepDefinition.Operate("c", "t", "pump_cover", "removed"), 1), Is.EqualTo("pull"));
+        Assert.That(InteractionTips.Key(StepDefinition.Operate("c2", "t", "pump_cover", "fitted"), 1), Is.EqualTo("refit"), "#86: own step");
         Assert.That(InteractionTips.Key(StepDefinition.Tool("d", "t", "seat", "cartridge"), 1), Is.EqualTo("tool"));
         Assert.That(InteractionTips.Key(StepDefinition.Inspect("e", "t", "relief_valve", 1f), 1), Is.EqualTo("look"));
         Assert.That(InteractionTips.Key(StepDefinition.Measure("f", "t", "gauge", 0f, 0.2f, "bar"), 1), Is.Null, "reading needs no tip");

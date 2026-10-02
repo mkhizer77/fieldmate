@@ -60,11 +60,12 @@ public static class PresenceBuilder
         go.name = $"{side} Controller Presence";
         go.transform.SetParent(parent, false);
         var pose = go.AddComponent<TrackedPoseDriver>();
-        // The aim pose, not the grip (device test 2026-10-02: the runtime's model sat off the controller at the grip pose).
+        // The grip pose, the space the runtime's model is authored in (#86). It sat off the controller here before only
+        // because the model wasn't turned from glTF into Unity's pose space (ControllerModel.GltfToPose).
         pose.positionInput = new InputActionProperty(Action("Position", "Vector3",
-            $"<OculusTouchController>{{{side}Hand}}/pointerPosition", $"<QuestTouchPlusController>{{{side}Hand}}/pointerPosition"));
+            $"<OculusTouchController>{{{side}Hand}}/devicePosition", $"<QuestTouchPlusController>{{{side}Hand}}/devicePosition"));
         pose.rotationInput = new InputActionProperty(Action("Rotation", "Quaternion",
-            $"<OculusTouchController>{{{side}Hand}}/pointerRotation", $"<QuestTouchPlusController>{{{side}Hand}}/pointerRotation"));
+            $"<OculusTouchController>{{{side}Hand}}/deviceRotation", $"<QuestTouchPlusController>{{{side}Hand}}/deviceRotation"));
         go.GetComponentInChildren<ControllerModel>(true).Configure(side == "Left");
     }
 

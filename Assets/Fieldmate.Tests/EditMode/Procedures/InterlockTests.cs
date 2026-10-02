@@ -5,7 +5,10 @@ using static Fieldmate.Tests.EditMode.Procedures.ReliefValveProcedure;
 
 namespace Fieldmate.Tests.EditMode.Procedures;
 
-/// <summary>#65: a part a safety rule guards is held still during a run; trying it is the violation, and nothing moves.</summary>
+/// <summary>
+/// #65: a part a safety rule guards is held still; trying it during a run is the violation, and nothing moves. #86: the
+/// rules hold before and after a run too, and the restore runs cover → inlet → breaker.
+/// </summary>
 public class InterlockTests
 {
     private ProcedureRunner runner;
@@ -25,11 +28,56 @@ public class InterlockTests
     }
 
     [Test]
-    public void Nothing_is_held_outside_a_run()
+    public void Rules_hold_before_a_run_without_scoring_anything()
     {
-        Assert.That(runner.Interlock(InletValve), Is.Null);
+        Assert.That(runner.Interlock(InletValve)?.Id, Is.EqualTo("loto_inlet"), "#86: a live machine is live before the run too");
         runner.Handle(InteractionEvent.Attempt(1, InletValve));
-        Assert.That(log, Is.Empty);
+        Assert.That(log, Is.Empty, "outside a run an attempt is refused by the control, not recorded");
+    }
+
+    [Test]
+    public void Outlet_is_held_whenever_the_pump_can_run_including_after_the_run()
+    {
+        var demo = Demo();
+        Assert.That(demo.Interlock(Outlet)?.Id, Is.EqualTo("outlet_locked_out"), "before the run");
+
+        double clock = 0;
+        var lockedOut = Demo();
+        ProcedureReplay.AdvanceTo(lockedOut, "close_inlet", ref clock);
+        Assert.That(lockedOut.Interlock(Outlet), Is.Null, "locked out: the outlet may move");
+
+        ProcedureReplay.AdvanceTo(demo, "verify_running", ref clock);
+        Assert.That(demo.Interlock(Outlet)?.Id, Is.EqualTo("outlet_locked_out"), "breaker back on");
+        demo.Handle(InteractionEvent.Measured(clock + 1, 4f));
+        Assert.That(demo.State, Is.EqualTo(RunnerState.Completed));
+        Assert.That(demo.Interlock(Outlet)?.Id, Is.EqualTo("outlet_locked_out"), "the device test: the outlet still turned after the run");
+
+        demo.SetInitialState(Breaker, "locked"); // the router reports changes after a run this way
+        Assert.That(demo.Interlock(Outlet), Is.Null, "the interlock follows the machine after a run");
+    }
+
+    [Test]
+    public void Restore_runs_cover_then_inlet_then_breaker()
+    {
+        var demo = Demo();
+        double clock = 0;
+        ProcedureReplay.AdvanceTo(demo, "refit_cover", ref clock);
+        Assert.That(demo.Interlock(InletValve)?.Id, Is.EqualTo("cover_before_inlet"), "water into an open pump leaks out");
+        Assert.That(demo.Interlock(Breaker)?.Id, Is.EqualTo("cover_before_power"));
+
+        demo.Handle(InteractionEvent.State(clock + 1, Cover, "fitted"));
+        Assert.That(demo.CurrentStep.Id, Is.EqualTo("open_inlet"));
+        Assert.That(demo.Interlock(InletValve), Is.Null);
+        Assert.That(demo.Interlock(Breaker)?.Id, Is.EqualTo("inlet_before_power"), "the pump must not run dry");
+
+        demo.Handle(InteractionEvent.State(clock + 2, InletValve, "open"));
+        Assert.That(demo.CurrentStep.Id, Is.EqualTo("power_on"));
+        Assert.That(demo.Interlock(Breaker), Is.Null);
+
+        demo.Handle(InteractionEvent.State(clock + 3, Breaker, "on"));
+        Assert.That(demo.CurrentStep.Id, Is.EqualTo("verify_running"));
+        Assert.That(demo.Violations, Is.Empty);
+        Assert.That(demo.Errors, Is.Empty);
     }
 
     [Test]
@@ -69,6 +117,7 @@ public class InterlockTests
     {
         runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement()); // the shipped rules include cover_before_power
         runner.SetInitialState(Breaker, "on");
+        runner.SetInitialState(InletValve, "open");
         runner.SetInitialState(Cover, "fitted");
         runner.Start(0);
         runner.Handle(InteractionEvent.State(1, Breaker, "locked"));
@@ -77,6 +126,17 @@ public class InterlockTests
 
         runner.Handle(InteractionEvent.State(3, Cover, "fitted"));
         Assert.That(runner.Interlock(Breaker), Is.Null);
+    }
+
+    private const string Outlet = "outlet_valve";
+
+    private static ProcedureRunner Demo()
+    {
+        var demo = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
+        demo.SetInitialState(Breaker, "on");
+        demo.SetInitialState(InletValve, "open");
+        demo.SetInitialState(Cover, "fitted");
+        return demo;
     }
 
     [Test]

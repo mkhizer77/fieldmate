@@ -74,7 +74,7 @@ public class AssistantToolsTests
         var again = await Run("start_procedure", "{\"procedure_id\":\"relief_valve_replacement\"}");
         var unknown = await Run("start_procedure", "{\"procedure_id\":\"make_coffee\"}");
 
-        Assert.That(started.Content, Is.EqualTo("Started 'Replace the relief valve cartridge'. Step 1 of 8: Inspect the relief valve."));
+        Assert.That(started.Content, Is.EqualTo("Started 'Replace the relief valve cartridge'. Step 1 of 10: Inspect the relief valve."));
         Assert.That(runner.State, Is.EqualTo(RunnerState.Running));
         Assert.That(scene.ShownStep, Is.EqualTo(1));
         Assert.That(again.Content, Does.Contain("already running at step 1"));
@@ -88,12 +88,12 @@ public class AssistantToolsTests
 
         await Run("start_procedure", "{\"procedure_id\":\"relief_valve_replacement\"}");
         var shown = await Run("go_to_step", "{\"index\":3}");
-        var outOfRange = await Run("go_to_step", "{\"index\":9}");
+        var outOfRange = await Run("go_to_step", "{\"index\":11}");
 
-        Assert.That(shown.Content, Is.EqualTo("Showing step 3 of 8: Close the inlet valve. The current step is still 1."));
+        Assert.That(shown.Content, Is.EqualTo("Showing step 3 of 10: Close the inlet valve. The current step is still 1."));
         Assert.That(scene.ShownStep, Is.EqualTo(3));
         Assert.That(runner.CurrentStepIndex, Is.Zero, "showing a step never completes one");
-        Assert.That(outOfRange.Content, Is.EqualTo("'Replace the relief valve cartridge' has steps 1 to 8."));
+        Assert.That(outOfRange.Content, Is.EqualTo("'Replace the relief valve cartridge' has steps 1 to 10."));
     }
 
     [Test]
@@ -164,7 +164,7 @@ public class AssistantToolsTests
         telemetry.Settle();
         var done = await Run("report_reading", "{}");
         Assert.That(done.IsError, Is.False);
-        Assert.That(done.Content, Does.Contain("Step 4 is complete").And.Contain("Now step 5 of 8"));
+        Assert.That(done.Content, Does.Contain("Step 4 is complete").And.Contain("Now step 5 of 10"));
         Assert.That(runner.CurrentStep.Id, Is.EqualTo("remove_cover"), "the runner, and so the step card, moved on");
     }
 
@@ -186,7 +186,7 @@ public class AssistantToolsTests
         telemetry.Inputs = MachineInputs.Isolated;
         telemetry.Settle();
         var text = AssistantPrompt.DescribeProcedure(runner, telemetry);
-        Assert.That(text, Does.Contain("step 4 of 8").And.Contain("0 ± 0.2 bar").And.Contain("the gauge now reads 0.0 bar"));
+        Assert.That(text, Does.Contain("step 4 of 10").And.Contain("0 ± 0.2 bar").And.Contain("the gauge now reads 0.0 bar"));
         runner.Handle(InteractionEvent.Measured(scene.Now, 0f));
         Assert.That(AssistantPrompt.DescribeProcedure(runner, telemetry), Does.Contain("Needs pump_cover = removed (now fitted)").Or.Contain("Needs pump_cover = removed (now unknown)"));
     }
@@ -239,7 +239,7 @@ public class AssistantPromptTests
 
         var context = AssistantPrompt.Context(runner, new TelemetryModel(FaultModel.CreateDefault()), gaze, slice);
 
-        Assert.That(context, Does.StartWith("Procedure: 'Replace the relief valve cartridge', step 1 of 8: Inspect the relief valve."));
+        Assert.That(context, Does.StartWith("Procedure: 'Replace the relief valve cartridge', step 1 of 10: Inspect the relief valve."));
         Assert.That(context, Does.Contain("Telemetry: pressure 4.0 bar (normal)"));
         Assert.That(context, Does.Contain("Looking at: Pressure relief valve (relief_valve)"));
         Assert.That(context, Does.Contain("[part.relief_valve] Pressure relief valve"));
