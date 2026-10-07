@@ -40,5 +40,22 @@ public readonly struct CameraIntrinsics
     /// <summary>Converts a point in [0, 1]² (top-left origin) to a pixel of this image.</summary>
     public Vector2 ToPixel(Vector2 normalized) => new(normalized.x * Width, normalized.y * Height);
 
+    /// <summary>
+    /// The same camera at another image size, e.g. when the intrinsics are reported for the sensor's full resolution but
+    /// the image was delivered smaller.
+    /// </summary>
+    public CameraIntrinsics ScaledTo(int width, int height)
+    {
+        if (width == Width && height == Height)
+        {
+            return this;
+        }
+
+        var sx = (float)width / Width;
+        var sy = (float)height / Height;
+        return new CameraIntrinsics(new Vector2(FocalLength.x * sx, FocalLength.y * sy),
+            new Vector2(PrincipalPoint.x * sx, PrincipalPoint.y * sy), width, height);
+    }
+
     public bool Contains(Vector2 pixel) => pixel.x >= 0f && pixel.y >= 0f && pixel.x <= Width && pixel.y <= Height;
 }
