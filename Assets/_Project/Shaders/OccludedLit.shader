@@ -5,12 +5,15 @@
 //   Soft : XR_HARD_OCCLUSION, _FieldmateSoftOcclusion = 1 -> five samples around the pixel give a coverage value that
 //          fades edges; colour is premultiplied and written with that alpha, so passthrough shows through (the camera
 //          clears to transparent black). Uses the raw depth texture: no extra preprocessing pass on the GPU.
-// Properties match URP Lit's (_BaseColor, _Metallic, _Smoothness), so material property blocks keep working.
+// Properties match URP Lit's (_BaseColor, _BaseMap, _Metallic, _Smoothness), so material property blocks keep working.
+// _BaseMap defaults to white and _EmissionColor to black: only the gauge's printed dial and digital window (#88) use them.
 Shader "Fieldmate/OccludedLit"
 {
     Properties
     {
         _BaseColor ("Color", Color) = (1, 1, 1, 1)
+        _BaseMap ("Texture", 2D) = "white" {}
+        _EmissionColor ("Emission", Color) = (0, 0, 0, 1)
         _Metallic ("Metallic", Range(0, 1)) = 0
         _Smoothness ("Smoothness", Range(0, 1)) = 0.5
         _DepthBias ("Occlusion depth bias (m)", Float) = 0.03
@@ -35,11 +38,16 @@ Shader "Fieldmate/OccludedLit"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
+                float4 _BaseMap_ST;
+                half4 _EmissionColor;
                 half _Metallic;
                 half _Smoothness;
                 float _DepthBias;
                 float _SoftRange;
             CBUFFER_END
+
+            TEXTURE2D(_BaseMap);
+            SAMPLER(sampler_BaseMap);
 
             #if defined(XR_HARD_OCCLUSION) || defined(XR_SOFT_OCCLUSION)
                 #define FIELDMATE_OCCLUSION 1
@@ -54,6 +62,7 @@ Shader "Fieldmate/OccludedLit"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -62,6 +71,7 @@ Shader "Fieldmate/OccludedLit"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
+                float2 uv : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -75,6 +85,7 @@ Shader "Fieldmate/OccludedLit"
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.positionCS = TransformWorldToHClip(output.positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 return output;
             }
 
@@ -128,14 +139,15 @@ Shader "Fieldmate/OccludedLit"
                 const Light light = GetMainLight();
                 const half3 normal = normalize(input.normalWS);
                 const half3 viewDir = normalize(GetWorldSpaceViewDir(input.positionWS));
-                const half3 diffuseColor = _BaseColor.rgb * (1.0 - 0.7 * _Metallic);
-                const half3 specularColor = lerp(half3(0.04, 0.04, 0.04), _BaseColor.rgb, _Metallic);
+                const half3 baseColor = _BaseColor.rgb * SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb;
+                const half3 diffuseColor = baseColor * (1.0 - 0.7 * _Metallic);
+                const half3 specularColor = lerp(half3(0.04, 0.04, 0.04), baseColor, _Metallic);
                 const half ndotl = saturate(dot(normal, light.direction));
                 const half3 halfDir = normalize(light.direction + viewDir);
                 const half shininess = exp2(10.0 * _Smoothness + 1.0);
                 const half spec = pow(saturate(dot(normal, halfDir)), shininess) * _Smoothness;
                 const half3 ambient = SampleSH(normal) * diffuseColor;
-                half3 color = ambient + light.color * (diffuseColor * ndotl + specularColor * spec * ndotl);
+                half3 color = ambient + light.color * (diffuseColor * ndotl + specularColor * spec * ndotl) + _EmissionColor.rgb;
 
                 return half4(color * coverage, coverage);
             }
