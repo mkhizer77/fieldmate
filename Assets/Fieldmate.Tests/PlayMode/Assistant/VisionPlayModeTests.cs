@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fieldmate.AI;
 using Fieldmate.Assistant;
+using Fieldmate.Procedures;
 using Fieldmate.Vision;
 using Fieldmate.XR;
 using NUnit.Framework;
@@ -33,6 +34,7 @@ public class VisionPlayModeTests
     [UnitySetUp]
     public IEnumerator LoadBench()
     {
+        PlayerPrefs.DeleteKey(PrivacySettings.PrefsKey);
         yield return SceneManager.LoadSceneAsync("AssistantBench", LoadSceneMode.Single);
         yield return null;
         yield return ProcedurePlayModeTests.PlaceMachine();
@@ -58,12 +60,13 @@ public class VisionPlayModeTests
         image = new Texture2D(640, 480, TextureFormat.RGBA32, false);
         model = new FakeVision();
         requester.SetModel(model);
-        requester.CaptureForTests = Capture;
+        requester.FrameSource.CaptureForTests = Capture;
     }
 
     [TearDown]
     public void Clean()
     {
+        PrivacySettings.LocalOnly = false;
         if (image != null)
         {
             UnityEngine.Object.Destroy(image);
@@ -145,7 +148,7 @@ public class VisionPlayModeTests
     [UnityTest]
     public IEnumerator Without_a_camera_frame_or_a_gazed_part_it_says_why()
     {
-        requester.CaptureForTests = (out CameraFrame frame, out string error) =>
+        requester.FrameSource.CaptureForTests = (out CameraFrame frame, out string error) =>
         {
             frame = default;
             error = "Camera access was denied.";
@@ -197,7 +200,6 @@ public class VisionPlayModeTests
 
         model.Reply = "{\"label\":\"relief valve\",\"part_id\":\"relief_valve\",\"confidence\":0.9,\"bbox\":null,\"one_line_help\":\"\"}";
         loop.Configure(chat, null, null, model);
-        requester.CaptureForTests = Capture; // Configure re-attached the model; the stand-in camera stays
         chat.Requests.Clear();
         chat.Call(FieldmateTools.IdentifyView, "{}").Say("That's the relief valve.");
         yield return Await(loop.AskAsync("What's this?", speak: false), _ => { });
@@ -205,6 +207,59 @@ public class VisionPlayModeTests
         Assert.That(chat.Requests[0].Tools.Select(t => t.Name), Has.Member(FieldmateTools.IdentifyView));
         Assert.That(model.Calls, Is.EqualTo(1));
         Assert.That(requester.Labels.TitleFor("relief_valve"), Is.EqualTo(ValveName));
+    }
+
+    [UnityTest]
+    public IEnumerator Every_capture_shows_the_camera_indicator_for_a_few_seconds()
+    {
+        var indicator = UnityEngine.Object.FindAnyObjectByType<CaptureIndicator>();
+        Assert.That(indicator.IsShown, Is.False);
+        model.Reply = "{\"label\":\"relief valve\",\"part_id\":\"relief_valve\",\"confidence\":0.9,\"bbox\":null,\"one_line_help\":\"\"}";
+
+        yield return Await(requester.IdentifyAsync("en", CancellationToken.None), _ => { });
+
+        Assert.That(indicator.IsShown, Is.True, "a frame was taken");
+        Assert.That(indicator.Count, Is.EqualTo(1));
+        var pill = indicator.GetComponentInChildren<Canvas>(true).transform;
+        Assert.That(Vector3.Dot(pill.position - head.position, head.forward), Is.GreaterThan(0.3f), "in front of the user");
+        Assert.That(Vector3.Angle(pill.position - head.position, head.forward), Is.LessThan(15f), "inside the view, not at its edge");
+
+        yield return new WaitForSecondsRealtime(CaptureIndicator.Seconds + 0.2f);
+        Assert.That(indicator.IsShown, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator Local_only_mode_keeps_the_camera_off_and_the_assistant_can_say_why()
+    {
+        var button = UnityEngine.Object.FindObjectsByType<PressButton>(FindObjectsSortMode.None).Single(b => b.name == "Camera Button");
+        var indicator = UnityEngine.Object.FindAnyObjectByType<CaptureIndicator>();
+        Assert.That(button.Label, Is.EqualTo("Camera: On"));
+        Assert.That(button.transform.IsChildOf(UnityEngine.Object.FindAnyObjectByType<HandMenu>().transform), Is.True, "in the hand menu");
+
+        button.Press();
+        yield return null;
+        Assert.That(PrivacySettings.LocalOnly, Is.True);
+        Assert.That(button.Label, Is.EqualTo("Camera: Off (local-only)"));
+        Assert.That(PlayerPrefs.GetInt(PrivacySettings.PrefsKey), Is.EqualTo(1), "kept between sessions");
+
+        ViewAnswer result = default;
+        yield return Await(requester.IdentifyAsync("en", CancellationToken.None), r => result = r);
+        Assert.That(model.Calls, Is.Zero, "no image leaves the headset");
+        Assert.That(indicator.Count, Is.Zero, "and none was taken");
+        Assert.That(result.Text, Does.Contain("from model data").And.Contain("Local-only mode is on"), "the twin still answers, and says why");
+
+        var loop = UnityEngine.Object.FindAnyObjectByType<VoiceLoop>();
+        var chat = new ScriptedChat();
+        loop.Configure(chat, null, null, model);
+        chat.Say("Local-only mode is on, so I can't use the camera.");
+        yield return Await(loop.AskAsync("Why can't you see what I'm looking at?", speak: false), _ => { });
+        Assert.That(chat.Requests[0].Context, Does.Contain("Camera: Local-only mode is on"));
+
+        yield return new WaitForSecondsRealtime(0.7f); // PressButton debounces repeated presses (0.6 s)
+        button.Press();
+        yield return null;
+        Assert.That(PrivacySettings.LocalOnly, Is.False);
+        Assert.That(button.Label, Is.EqualTo("Camera: On"));
     }
 
     private sealed class FakeVision : IVisionModel
