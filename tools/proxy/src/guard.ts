@@ -2,7 +2,7 @@ import type { Env } from "./env";
 import { intSetting } from "./env";
 import { HttpError } from "./http";
 
-export type UsageKind = "chat" | "stt" | "tts";
+export type UsageKind = "chat" | "stt" | "tts" | "vision";
 
 /** Constant-time comparison so the dev token can't be guessed byte by byte from response timing. */
 export function tokensMatch(a: string, b: string): boolean {
@@ -41,6 +41,8 @@ function capFor(kind: UsageKind, env: Env): number {
       return intSetting(env.DAILY_STT_SECONDS, 1800);
     case "tts":
       return intSetting(env.DAILY_TTS_CHARS, 1500);
+    case "vision":
+      return intSetting(env.DAILY_VISION_CALLS, 100);
   }
 }
 

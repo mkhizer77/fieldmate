@@ -94,7 +94,7 @@ public sealed class FusedAnswer
         var help = string.IsNullOrEmpty(Help) ? string.Empty : " " + Help;
         return Source switch
         {
-            AnswerSource.ModelData => $"That's the {Label} (from model data, the camera wasn't sure).{help}",
+            AnswerSource.ModelData => $"That's the {Label} (from model data).{help}",
             AnswerSource.Vision when IsUnsure => $"Not sure; it might be {Label}.{help}",
             AnswerSource.Vision when PartId != null => $"That's the {Label}.{help}",
             AnswerSource.Vision => $"That looks like {Label}; it isn't part of the machine.{help}",

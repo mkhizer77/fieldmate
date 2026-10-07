@@ -42,6 +42,35 @@ public class ProxyProvidersTests
     }
 
     [Test]
+    public async Task Vision_PostsTheFrameAsBase64_WithThePrompt_AndReturnsTheText()
+    {
+        var transport = new FakeTransport().Respond(200, "{\"text\":\"{\\\"label\\\":\\\"motor\\\"}\",\"stop_reason\":\"end_turn\"}");
+        var vision = new ProxyVisionModel(ProxyClientTests.Client(transport));
+        var jpeg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3 };
+
+        var text = await vision.AskAsync(jpeg, "image/jpeg", "What is it?", CancellationToken.None);
+
+        Assert.That(text, Is.EqualTo("{\"label\":\"motor\"}"));
+        var request = transport.Requests.Single();
+        Assert.That(request.Uri.ToString(), Is.EqualTo("https://proxy.test/v1/vision"));
+        Assert.That(request.TimeoutSeconds, Is.EqualTo(ProxyVisionModel.TimeoutSeconds));
+        var body = JsonReader.Parse(Encoding.UTF8.GetString(request.Body));
+        Assert.That(Convert.FromBase64String(body["image"].AsString()), Is.EqualTo(jpeg));
+        Assert.That(body["media_type"].AsString(), Is.EqualTo("image/jpeg"));
+        Assert.That(body["prompt"].AsString(), Is.EqualTo("What is it?"));
+    }
+
+    [Test]
+    public void Vision_WithoutAnImageOrWithAnUnreadableAnswer_Fails()
+    {
+        var vision = new ProxyVisionModel(ProxyClientTests.Client(new FakeTransport().Respond(200, "{\"content\":[]}")));
+
+        Assert.ThrowsAsync<ArgumentException>(() => vision.AskAsync(Array.Empty<byte>(), "image/jpeg", "x", CancellationToken.None));
+        var e = Assert.ThrowsAsync<ProviderException>(() => vision.AskAsync(new byte[] { 1 }, "image/jpeg", "x", CancellationToken.None));
+        Assert.That(e.ErrorType, Is.EqualTo(ProviderException.InvalidResponse));
+    }
+
+    [Test]
     public async Task SpeechToText_SendsWav_WithLanguage_AndReadsTranscript()
     {
         var transport = new FakeTransport().Respond(200, "{\"text\":\"Warum ist der Druck hoch?\",\"confidence\":0.93,\"language\":\"de\"}");

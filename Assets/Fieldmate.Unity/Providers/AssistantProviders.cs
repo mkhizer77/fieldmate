@@ -17,8 +17,9 @@ public sealed class AssistantProviders
     public const string PublicDefaultResource = "FieldmateProxy";
     public const string EditorKeysPath = "Assets/_Project/Secrets/keys.json";
 
-    private AssistantProviders(ProxyConfig config, string source, IChatModel chat, ISpeechToText stt, IStreamingTextToSpeech tts)
+    private AssistantProviders(ProxyConfig config, string source, IChatModel chat, ISpeechToText stt, IStreamingTextToSpeech tts, IVisionModel vision)
     {
+        Vision = vision;
         Config = config;
         Source = source;
         Chat = chat;
@@ -38,6 +39,9 @@ public sealed class AssistantProviders
     public IChatModel Chat { get; }
     public ISpeechToText SpeechToText { get; }
     public IStreamingTextToSpeech TextToSpeech { get; }
+
+    /// <summary>"What's this?" frames; the same proxy, its /v1/vision route.</summary>
+    public IVisionModel Vision { get; }
 
     /// <summary>Loads config from the standard sources and creates UnityWebRequest-backed providers.</summary>
     public static AssistantProviders Load()
@@ -69,7 +73,7 @@ public sealed class AssistantProviders
             {
                 var client = new ProxyClient(config, transport);
                 return new AssistantProviders(config, source, new ProxyChatModel(client), new ProxySpeechToText(client),
-                    new ProxyTextToSpeech(client));
+                    new ProxyTextToSpeech(client), new ProxyVisionModel(client));
             }
 
             reason = $"{source}: {why}";

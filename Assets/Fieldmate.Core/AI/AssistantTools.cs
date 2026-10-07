@@ -26,11 +26,45 @@ public interface IAssistantScene
     /// <summary>Shows or hides the name labels on every part (#73); the step's highlight is unaffected.</summary>
     void ShowPartLabels(bool visible);
 
-    /// <summary>Captures one camera frame and identifies the gazed part; null while vision is unavailable (M2).</summary>
-    string IdentifyView();
+    /// <summary>
+    /// Captures one camera frame and identifies what the user looks at (design.md §5.5). Null when the scene has no vision
+    /// at all; otherwise an answer, or a reason it couldn't (camera denied, request failed).
+    /// </summary>
+    Task<ViewAnswer?> IdentifyViewAsync(CancellationToken cancellationToken);
 
     /// <summary>Scene clock in seconds, used to start procedures.</summary>
     double Now { get; }
+}
+
+/// <summary>What "What's this?" produced: an identification to relay, or why there is none.</summary>
+public readonly struct ViewAnswer
+{
+    public ViewAnswer(bool identified, string text)
+    {
+        Identified = identified;
+        Text = text ?? string.Empty;
+    }
+
+    public static ViewAnswer Of(string text) => new(true, text);
+    public static ViewAnswer Unavailable(string reason) => new(false, reason);
+
+    public bool Identified { get; }
+    public string Text { get; }
+}
+
+/// <summary>Runs an awaitable tool, e.g. one that waits for the camera and a model.</summary>
+public sealed class AsyncDelegateToolExecutor : IToolExecutor
+{
+    private readonly Func<ToolCall, ToolArguments, CancellationToken, Task<ToolResult>> run;
+
+    public AsyncDelegateToolExecutor(Func<ToolCall, ToolArguments, CancellationToken, Task<ToolResult>> run) =>
+        this.run = run ?? throw new ArgumentNullException(nameof(run));
+
+    public Task<ToolResult> ExecuteAsync(ToolCall call, ToolArguments arguments, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return run(call, arguments, cancellationToken);
+    }
 }
 
 /// <summary>Runs a tool from a delegate. Keeps the v1 executors free of MonoBehaviours so they are unit-testable.</summary>
@@ -88,7 +122,7 @@ public sealed class AssistantTools
         registry.SetExecutor(FieldmateTools.ShowLabels, new DelegateToolExecutor(ShowLabels));
         if (registry.TryGetDefinition(FieldmateTools.IdentifyView, out _))
         {
-            registry.SetExecutor(FieldmateTools.IdentifyView, new DelegateToolExecutor(IdentifyView));
+            registry.SetExecutor(FieldmateTools.IdentifyView, new AsyncDelegateToolExecutor(IdentifyViewAsync));
         }
     }
 
@@ -228,12 +262,17 @@ public sealed class AssistantTools
         return ToolResult.Success(call, language == "de" ? "Language set to German." : "Language set to English.");
     }
 
-    public ToolResult IdentifyView(ToolCall call, ToolArguments args)
+    public async Task<ToolResult> IdentifyViewAsync(ToolCall call, ToolArguments args, CancellationToken cancellationToken)
     {
-        var answer = scene.IdentifyView();
-        return answer == null
-            ? ToolResult.Failure(call, "Camera identification is not available yet. Use the part the user is looking at from the context.")
-            : ToolResult.Success(call, answer);
+        var answer = await scene.IdentifyViewAsync(cancellationToken);
+        if (answer == null)
+        {
+            return ToolResult.Failure(call, "Camera identification is not available. Use the part the user is looking at from the context.");
+        }
+
+        return answer.Value.Identified
+            ? ToolResult.Success(call, answer.Value.Text)
+            : ToolResult.Failure(call, answer.Value.Text + " Use the part the user is looking at from the context, if any.");
     }
 
     private static string JoinIds<T>(IReadOnlyList<T> items, Func<T, string> id)

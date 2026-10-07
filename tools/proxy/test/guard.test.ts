@@ -70,7 +70,7 @@ describe("routing", () => {
     const response = await route(new Request("https://proxy.test/v1/health"), makeEnv(), makeDeps().deps);
     const body = await response.json();
 
-    expect(body).toEqual({ ok: true, chatModel: "claude-haiku-4-5", sttModel: "nova-3", ttsModel: "eleven_flash_v2_5" });
+    expect(body).toEqual({ ok: true, chatModel: "claude-haiku-4-5", visionModel: "claude-haiku-4-5", sttModel: "nova-3", ttsModel: "eleven_flash_v2_5" });
     expect(JSON.stringify(body)).not.toContain("test");
   });
 

@@ -134,9 +134,15 @@ public class AssistantToolsTests
         Assert.That((await Run("set_language", "{\"language\":\"de\"}")).Content, Is.EqualTo("Language set to German."));
         Assert.That(language, Is.EqualTo("de"));
 
-        Assert.That((await Run("identify_view", "{}")).IsError, Is.True, "vision arrives in M2");
-        scene.Identified = "That's the relief valve.";
+        Assert.That((await Run("identify_view", "{}")).IsError, Is.True, "a scene without vision");
+        scene.Identified = ViewAnswer.Of("That's the relief valve.");
         Assert.That((await Run("identify_view", "{}")).Content, Is.EqualTo("That's the relief valve."));
+
+        scene.Identified = ViewAnswer.Unavailable("Camera access was denied.");
+        var denied = await Run("identify_view", "{}");
+        Assert.That(denied.IsError, Is.True);
+        Assert.That(denied.Content, Does.StartWith("Camera access was denied.").And.Contains("from the context"),
+            "the model can relay why and still help from the gaze");
     }
 
     private void RunToTheReadingStep()

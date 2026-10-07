@@ -6,12 +6,13 @@ A Cloudflare Worker that holds the provider keys, so the public repo and APK nev
 | Route | Upstream | Notes |
 |---|---|---|
 | `POST /v1/chat` | Anthropic Messages API (`claude-haiku-4-5`) | App sends `{system, messages, tools, max_tokens}`; model, output cap (600) and prompt caching are set here |
+| `POST /v1/vision` | Anthropic Messages API (`CHAT_MODEL`, or `VISION_MODEL` if set) | Body `{image: base64 JPEG/PNG ≤ 240 k chars, media_type, prompt ≤ 4000 chars}`: one camera frame per call, sent only when the user asks "What's this?". Returns `{text}` (the app parses the JSON answer); output capped at 300 tokens. Nothing is stored |
 | `POST /v1/stt?language=en\|de` | Deepgram Nova-3 | Body: WAV audio (≤ 1.2 MB, ~30 s). Returns `{text, confidence, language}` |
 | `POST /v1/tts` | ElevenLabs Flash v2.5, streamed | Body `{text ≤ 600 chars, language}`. Returns 16-bit mono PCM at 22.05 kHz as it is generated |
 | `GET /v1/health` | — | Models in use; no secrets |
 
 Guardrails: request size limits, a per-IP rate limit (20/min), and daily caps across all public users
-(chat calls, STT seconds, TTS characters; see `wrangler.toml`). Requests with the dev token
+(chat calls, vision calls, STT seconds, TTS characters; see `wrangler.toml`). Requests with the dev token
 (`x-fieldmate-dev-token` header) skip the rate limit and caps. Errors come back as
 `{ "error": { "type", "message" } }`; `tts_quota` means answers continue as text.
 

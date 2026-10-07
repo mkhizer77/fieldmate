@@ -85,7 +85,6 @@ internal sealed class FakeScene : IAssistantScene
     public readonly List<string> Notes = new();
     public ManualSection Shown;
     public int ShownStep;
-    public string Identified;
     public double Now { get; set; } = 10;
 
     public bool TryHighlightPart(string partId)
@@ -100,7 +99,8 @@ internal sealed class FakeScene : IAssistantScene
     public void AddNote(string text) => Notes.Add(text);
     public bool? LabelsVisible;
     public void ShowPartLabels(bool visible) => LabelsVisible = visible;
-    public string IdentifyView() => Identified;
+    public ViewAnswer? Identified;
+    public Task<ViewAnswer?> IdentifyViewAsync(CancellationToken cancellationToken) => Task.FromResult(Identified);
 }
 
 /// <summary>A test clock that advances a fixed step every time it is read.</summary>

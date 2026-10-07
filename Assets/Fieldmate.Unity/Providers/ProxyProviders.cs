@@ -36,6 +36,35 @@ public sealed class ProxyChatModel : IChatModel
     }
 }
 
+/// <summary>Claude with an image (via the proxy's /v1/vision): one camera frame per "What's this?".</summary>
+public sealed class ProxyVisionModel : IVisionModel
+{
+    public const int TimeoutSeconds = 8;
+    private readonly ProxyClient client;
+
+    public ProxyVisionModel(ProxyClient client) => this.client = client ?? throw new ArgumentNullException(nameof(client));
+
+    public async Task<string> AskAsync(byte[] image, string mediaType, string prompt, CancellationToken cancellationToken)
+    {
+        if (image == null || image.Length == 0)
+        {
+            throw new ArgumentException("No image to send.", nameof(image));
+        }
+
+        var request = JsonValue.Object(
+            ("image", JsonValue.From(Convert.ToBase64String(image))),
+            ("media_type", JsonValue.From(mediaType)),
+            ("prompt", JsonValue.From(prompt ?? string.Empty)));
+        var body = await client.SendAsync(client.Post("v1/vision", ProxyClient.Json(request), "application/json", TimeoutSeconds), cancellationToken);
+        if (!JsonReader.TryParse(Encoding.UTF8.GetString(body), out var json, out _) || !json["text"].TryGetString(out var text))
+        {
+            throw new ProviderException(ProviderException.InvalidResponse, "Unreadable vision response.");
+        }
+
+        return text;
+    }
+}
+
 /// <summary>Deepgram Nova-3 (via the proxy's /v1/stt). Audio goes up as a 16-bit WAV.</summary>
 public sealed class ProxySpeechToText : ISpeechToText
 {
