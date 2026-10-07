@@ -6,14 +6,17 @@ using UnityEngine;
 namespace Fieldmate.Assistant
 {
     /// <summary>
-    /// Makes the assistant speak on its own (#61): a completed step announces the next one, a safety violation or an
-    /// out-of-order action interrupts whatever is playing, the debrief reads the score. Every event also goes into the
-    /// session's scene log so the model knows what just happened when the user asks.
+    /// Makes the assistant speak on its own (#61): a completed step announces the next one, a safety violation, a part
+    /// the interlock holds again, an undone step or an out-of-order action interrupts whatever is playing (#90), the
+    /// debrief reads the score. Every event also goes into the session's scene log so the model knows what just
+    /// happened when the user asks.
     /// </summary>
     public sealed class ProactiveNarrator : MonoBehaviour
     {
         [SerializeField] private MachineServices machine;
         [SerializeField] private VoiceLoop loop;
+
+        private readonly SafetyLineGate safetyLines = new();
 
         public void Configure(MachineServices services, VoiceLoop voiceLoop)
         {
@@ -26,6 +29,9 @@ namespace Fieldmate.Assistant
             var runner = machine.Runner;
             runner.StepCompleted += OnStepCompleted;
             runner.ViolationRaised += OnViolation;
+            runner.AttemptRefused += OnRefused;
+            runner.StepUndone += OnUndone;
+            runner.StepStarted += OnStepStarted;
             runner.ErrorRecorded += OnError;
             runner.ProcedureCompleted += OnCompleted;
         }
@@ -40,6 +46,9 @@ namespace Fieldmate.Assistant
             var runner = machine.Runner;
             runner.StepCompleted -= OnStepCompleted;
             runner.ViolationRaised -= OnViolation;
+            runner.AttemptRefused -= OnRefused;
+            runner.StepUndone -= OnUndone;
+            runner.StepStarted -= OnStepStarted;
             runner.ErrorRecorded -= OnError;
             runner.ProcedureCompleted -= OnCompleted;
         }
@@ -59,10 +68,38 @@ namespace Fieldmate.Assistant
             }
         }
 
+        private void OnStepStarted(int index, StepDefinition step)
+        {
+            if (index == 0)
+            {
+                safetyLines.Reset(); // a new run
+            }
+        }
+
         private void OnViolation(SafetyRule rule, InteractionEvent e)
         {
             loop.RecordEvent($"safety violation: {rule.Description}");
-            loop.Narrate(Narration.Violation(rule), interrupt: true);
+            if (safetyLines.ShouldSpeak(rule, e.Time))
+            {
+                loop.Narrate(Narration.Violation(rule), interrupt: true);
+            }
+        }
+
+        // Every later attempt the interlock holds: the violation is only raised once per rule and run.
+        private void OnRefused(SafetyRule rule, InteractionEvent e)
+        {
+            if (safetyLines.ShouldSpeak(rule, e.Time))
+            {
+                loop.RecordEvent($"held by the interlock: {rule.Description}");
+                loop.Narrate(Narration.StillHeld(rule), interrupt: true);
+            }
+        }
+
+        private void OnUndone(int index, StepDefinition step, InteractionEvent e)
+        {
+            var part = machine.Catalog?.DisplayName(step.PartId) ?? step.PartId;
+            loop.RecordEvent($"step {index + 1} '{step.Title}' undone: {step.PartId} is now {e.Value}");
+            loop.Narrate(Narration.Undone(part.ToLowerInvariant(), step.TargetState, Instruction(step)), interrupt: true);
         }
 
         private void OnError(ProcedureError error)

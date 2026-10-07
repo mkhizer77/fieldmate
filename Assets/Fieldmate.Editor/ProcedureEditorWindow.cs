@@ -212,7 +212,7 @@ namespace Fieldmate.Editor
             var list = new ReorderableList(serialized, serialized.FindProperty("rules"), true, true, true, true)
             {
                 drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Safety rules: required part must be in its state before the guarded part is touched"),
-                elementHeightCallback = _ => 5 * (EditorGUIUtility.singleLineHeight + 2f) + 6f,
+                elementHeightCallback = _ => 6 * (EditorGUIUtility.singleLineHeight + 2f) + 6f,
             };
             list.drawElementCallback = (rect, i, active, focused) =>
             {
@@ -223,6 +223,7 @@ namespace Fieldmate.Editor
                 PartRow(ref line, rule.FindPropertyRelative("guardedPartId"), "Guarded part");
                 PartRow(ref line, rule.FindPropertyRelative("requiredPartId"), "Required part");
                 Row(ref line, rule, "requiredState");
+                Row(ref line, rule, "exceptWhenGuardedIs", "Except when guarded is");
             };
             return list;
         }

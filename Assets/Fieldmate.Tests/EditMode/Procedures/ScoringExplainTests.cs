@@ -42,9 +42,7 @@ public class ScoringExplainTests
     public void The_assistant_context_carries_the_breakdown_after_a_run()
     {
         var runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
-        runner.SetInitialState("main_breaker", "on");
-        runner.SetInitialState("inlet_valve", "open");
-        runner.SetInitialState("pump_cover", "fitted");
+        DemoProcedures.ApplyInitialStates(runner);
         var clock = 0d;
         ProcedureReplayForTests.Complete(runner, ref clock);
         Assert.That(runner.State, Is.EqualTo(RunnerState.Completed));

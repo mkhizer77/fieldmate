@@ -115,9 +115,32 @@ public class RotaryTrackerTests
         var geared = new RotaryTracker(Vector3.up, 0f, 720f, 0f, turnGain: 1.5f);
         plain.Begin(Vector3.right);
         geared.Begin(Vector3.right);
-        plain.Update(Quaternion.AngleAxis(60f, Vector3.up) * Vector3.right);
-        geared.Update(Quaternion.AngleAxis(60f, Vector3.up) * Vector3.right);
+        for (var a = 10f; a <= 60f; a += 10f)
+        {
+            plain.Update(Quaternion.AngleAxis(a, Vector3.up) * Vector3.right);
+            geared.Update(Quaternion.AngleAxis(a, Vector3.up) * Vector3.right);
+        }
+
         Assert.That(plain.Angle, Is.EqualTo(60f).Within(0.01f));
         Assert.That(geared.Angle, Is.EqualTo(90f).Within(0.01f), "1.5 handle degrees per hand degree");
+    }
+
+    [Test]
+    public void A_tracking_jump_between_updates_does_not_swing_the_handle()
+    {
+        // Device test 2026-10-02 (#90): the breaker went on → locked in 0.4 s; the two grips' line flipped as they crossed.
+        var tracker = new RotaryTracker(Vector3.back, 0f, 135f, 90f, turnGain: 1.25f);
+        Vector3 Bar(float degrees) => Quaternion.AngleAxis(degrees, Vector3.back) * new Vector3(0.25f, 0f, 0f);
+        tracker.Begin(Bar(90f));
+        for (var a = 85f; a >= 10f; a -= 5f)
+        {
+            tracker.Update(Bar(a)); // turning back to ON
+        }
+
+        Assert.That(tracker.Angle, Is.EqualTo(0f).Within(0.01f), "on");
+        tracker.Update(Bar(10f + 180f)); // the line between the grips flips in one frame
+        Assert.That(tracker.Angle, Is.EqualTo(0f).Within(0.01f), "a half-turn in one frame is a tracking jump, not a turn");
+        tracker.Update(Bar(10f + 185f));
+        Assert.That(tracker.Angle, Is.EqualTo(5f * 1.25f).Within(0.01f), "re-anchored: real motion afterwards still turns it");
     }
 }

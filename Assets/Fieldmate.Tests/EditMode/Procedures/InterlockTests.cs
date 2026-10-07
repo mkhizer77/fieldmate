@@ -57,6 +57,51 @@ public class InterlockTests
     }
 
     [Test]
+    public void Breaker_stays_held_while_the_outlet_is_closed_and_a_closed_outlet_can_always_be_reopened()
+    {
+        // Device test 2026-10-02 (#90): the outlet closed while locked out, power back on, 5.5 bar on the relief valve,
+        // and the interlock then refused to reopen the outlet.
+        var demo = Demo();
+        double clock = 0;
+        ProcedureReplay.AdvanceTo(demo, "power_on", ref clock);
+        Assert.That(demo.Interlock(Outlet), Is.Null, "locked out: the outlet may be closed");
+        demo.Handle(InteractionEvent.State(clock + 1, Outlet, "closed"));
+        Assert.That(demo.Interlock(Breaker)?.Id, Is.EqualTo("outlet_before_power"), "no start against a closed outlet");
+
+        demo.Handle(InteractionEvent.State(clock + 2, Outlet, "open"));
+        Assert.That(demo.Interlock(Breaker), Is.Null);
+
+        // Even with the pump running (state forced: the interlock would not let it get here), reopening is allowed.
+        var running = Demo();
+        running.SetInitialState(Outlet, "closed");
+        Assert.That(running.Interlock(Outlet), Is.Null, "a closed outlet can be reopened while the pump runs");
+        running.SetInitialState(Outlet, "open");
+        Assert.That(running.Interlock(Outlet)?.Id, Is.EqualTo("outlet_locked_out"), "but an open one can't be throttled");
+    }
+
+    [Test]
+    public void Breaker_going_back_off_after_power_on_is_an_undone_step_but_not_while_restoring()
+    {
+        // Device test 2026-10-02 (#90): on → locked → off during the last check; the pump stopped and nothing was said.
+        var demo = Demo();
+        var undone = new List<string>();
+        demo.StepUndone += (i, step, e) => undone.Add($"{step.Id}:{e.Value}");
+        double clock = 0;
+        ProcedureReplay.AdvanceTo(demo, "power_on", ref clock);
+        demo.Handle(InteractionEvent.State(clock + 1, Breaker, "off"));
+        Assert.That(undone, Is.Empty, "turning through off is how the restore step switches it on");
+
+        demo.Handle(InteractionEvent.State(clock + 2, Breaker, "on"));
+        Assert.That(demo.CurrentStep.Id, Is.EqualTo("verify_running"));
+        demo.Handle(InteractionEvent.State(clock + 3, Breaker, "locked"));
+        demo.Handle(InteractionEvent.State(clock + 4, Breaker, "off"));
+        Assert.That(undone, Is.EqualTo(new[] { "power_on:locked", "power_on:off" }));
+        demo.Handle(InteractionEvent.State(clock + 5, Breaker, "on"));
+        Assert.That(undone, Has.Count.EqualTo(2), "back on: nothing to report");
+        Assert.That(demo.Errors, Is.Empty, "not scored");
+    }
+
+    [Test]
     public void Restore_runs_cover_then_inlet_then_breaker()
     {
         var demo = Demo();
@@ -115,10 +160,7 @@ public class InterlockTests
     [Test]
     public void Cover_off_holds_the_breaker_so_power_cannot_come_back_on()
     {
-        runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement()); // the shipped rules include cover_before_power
-        runner.SetInitialState(Breaker, "on");
-        runner.SetInitialState(InletValve, "open");
-        runner.SetInitialState(Cover, "fitted");
+        runner = Demo(); // the shipped rules include cover_before_power
         runner.Start(0);
         runner.Handle(InteractionEvent.State(1, Breaker, "locked"));
         runner.Handle(InteractionEvent.State(2, Cover, "removed"));
@@ -133,9 +175,7 @@ public class InterlockTests
     private static ProcedureRunner Demo()
     {
         var demo = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
-        demo.SetInitialState(Breaker, "on");
-        demo.SetInitialState(InletValve, "open");
-        demo.SetInitialState(Cover, "fitted");
+        DemoProcedures.ApplyInitialStates(demo);
         return demo;
     }
 

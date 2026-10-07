@@ -22,7 +22,15 @@ public static class ProcedureReplay
             throw new ArgumentException($"Unknown step '{stepId}'.", nameof(stepId));
         }
 
-        runner.Start(clock);
+        if (runner.State == RunnerState.Running)
+        {
+            runner.Restart(clock); // jumping to a step mid-run starts it over from there
+        }
+        else
+        {
+            runner.Start(clock);
+        }
+
         while (runner.State == RunnerState.Running && runner.CurrentStep.Id != stepId)
         {
             var step = runner.CurrentStep;

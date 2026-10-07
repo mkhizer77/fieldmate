@@ -35,6 +35,8 @@ namespace Fieldmate.Procedures
             [Tooltip("The part that may not be touched until the requirement holds.")] public string guardedPartId;
             public string requiredPartId;
             public string requiredState;
+            [Tooltip("Optional: while the guarded part is in this state the rule lets it go (a closed outlet may always be reopened).")]
+            public string exceptWhenGuardedIs;
         }
 
         public string id = "procedure";
@@ -62,7 +64,7 @@ namespace Fieldmate.Procedures
             var safety = new List<SafetyRule>(rules.Count);
             foreach (var r in rules)
             {
-                safety.Add(new SafetyRule(r.id, r.description, r.guardedPartId, r.requiredPartId, r.requiredState));
+                safety.Add(new SafetyRule(r.id, r.description, r.guardedPartId, r.requiredPartId, r.requiredState, r.exceptWhenGuardedIs));
             }
 
             return new ProcedureDefinition(id, title, built, safety, timeLimitSeconds);
@@ -90,7 +92,7 @@ namespace Fieldmate.Procedures
                 rules.Add(new Rule
                 {
                     id = r.Id, description = r.Description, guardedPartId = r.GuardedPartId, requiredPartId = r.RequiredPartId,
-                    requiredState = r.RequiredState,
+                    requiredState = r.RequiredState, exceptWhenGuardedIs = r.ExceptWhenGuardedIs,
                 });
             }
         }
