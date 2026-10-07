@@ -15,6 +15,15 @@ public interface IChatModel
     Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// A vision-capable model asked one question about one image (design.md §5.5 step 3). Returns the model's text; the
+/// caller parses it (<c>Fieldmate.Vision.VisionQuery.TryParseAnswer</c>).
+/// </summary>
+public interface IVisionModel
+{
+    Task<string> AskAsync(byte[] image, string mediaType, string prompt, CancellationToken cancellationToken);
+}
+
 public interface ISpeechToText
 {
     Task<Transcript> TranscribeAsync(AudioData audio, string languageCode, CancellationToken cancellationToken);

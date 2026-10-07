@@ -256,7 +256,7 @@ public sealed class EvalHarness
         public void ShowManualSection(ManualSection section) { }
         public void ShowStep(ProcedureDefinition procedure, int stepNumber) { }
         public void AddNote(string text) { }
-        public string IdentifyView() => null;
+        public Task<ViewAnswer?> IdentifyViewAsync(CancellationToken cancellationToken) => Task.FromResult<ViewAnswer?>(null);
         public void ShowPartLabels(bool visible) { }
     }
 }

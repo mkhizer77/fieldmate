@@ -6,6 +6,7 @@ using Fieldmate.AI;
 using Fieldmate.Knowledge;
 using Fieldmate.Procedures;
 using Fieldmate.Providers;
+using Fieldmate.Vision;
 using Fieldmate.XR;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -27,6 +28,7 @@ namespace Fieldmate.Assistant
         [SerializeField] private StreamingAudioPlayer player;
         [SerializeField] private UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor leftHand;
         [SerializeField] private Transform head;
+        [SerializeField] private VisionRequester vision;
 
         private readonly List<string> notes = new();
         private readonly MicrophoneRecorder recorder = new();
@@ -61,7 +63,7 @@ namespace Fieldmate.Assistant
             var providers = AssistantProviders.Load();
             if (providers.IsEnabled)
             {
-                Configure(providers.Chat, providers.SpeechToText, providers.TextToSpeech);
+                Configure(providers.Chat, providers.SpeechToText, providers.TextToSpeech, providers.Vision);
                 Debug.Log($"[Assistant] providers from {providers.Source}");
             }
             else
@@ -92,14 +94,21 @@ namespace Fieldmate.Assistant
         }
 
         /// <summary>Builds the session around the given providers (also used by tests with fakes).</summary>
-        public void Configure(IChatModel chat, ISpeechToText speechToText, ITextToSpeech textToSpeech)
+        /// <param name="visionModel">Offers identify_view ("What's this?") when set and the scene has a camera requester.</param>
+        public void Configure(IChatModel chat, ISpeechToText speechToText, ITextToSpeech textToSpeech, IVisionModel visionModel = null)
         {
-            var registry = FieldmateTools.CreateRegistry(includeVision: false); // identify_view arrives with M2 vision
+            if (vision != null)
+            {
+                vision.SetModel(visionModel);
+            }
+
+            var hasVision = vision != null && vision.HasModel;
+            var registry = FieldmateTools.CreateRegistry(includeVision: hasVision);
             var tools = new AssistantTools(machine.Manual, machine.Runner, machine.Telemetry, this);
             tools.AttachTo(registry);
 
             session = new AssistantSession(chat, speechToText, textToSpeech, registry, new ConversationState(),
-                language => AssistantPrompt.System(machine.Manual.MachineName, language, vision: false), BuildContext, () => Time.realtimeSinceStartupAsDouble);
+                language => AssistantPrompt.System(machine.Manual.MachineName, language, vision: hasVision), BuildContext, () => Time.realtimeSinceStartupAsDouble);
             tools.LanguageChanged += language => session.Language = language;
             session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
@@ -479,7 +488,15 @@ namespace Fieldmate.Assistant
             panel.ShowNotes(notes);
         }
 
-        string IAssistantScene.IdentifyView() => null; // M2 Vision
+        async Task<ViewAnswer?> IAssistantScene.IdentifyViewAsync(CancellationToken cancellationToken)
+        {
+            if (vision == null || !vision.HasModel)
+            {
+                return null;
+            }
+
+            return await vision.IdentifyAsync(session?.Language ?? "en", cancellationToken);
+        }
 
         void IAssistantScene.ShowPartLabels(bool visible)
         {
