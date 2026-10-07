@@ -44,7 +44,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -76,6 +76,10 @@ public static class AssistantBenchBuilder
             typeof(AROcclusionManager), typeof(ARShaderOcclusion));
         cameraGo.GetComponent<AROcclusionManager>().enabled = false; // OcclusionSettings turns it on after the scene permission
         cameraGo.GetComponent<ARShaderOcclusion>().enabled = false;
+        cameraGo.GetComponent<ARCameraManager>().enabled = false; // CameraFrameSource starts it once HEADSET_CAMERA is answered (#20)
+        var frameSource = cameraGo.AddComponent<CameraFrameSource>();
+        Set(frameSource, "cameraManager", cameraGo.GetComponent<ARCameraManager>());
+        Set(frameSource, "head", cameraGo.transform);
         cameraGo.tag = "MainCamera";
         cameraGo.transform.SetParent(offset, false);
         cameraGo.transform.localPosition = new Vector3(0f, 1.6f, 0f); // editor preview height; tracking overrides on device
