@@ -19,7 +19,10 @@
     "Fieldmate.Net",
     "Unity.TextMeshPro",
     "Unity.TextMeshPro.Editor",
-    "Unity.XR.Hands"
+    "Unity.XR.Hands",
+    "Unity.Addressables",
+    "Unity.Addressables.Editor",
+    "Unity.ResourceManager"
   ],
   "includePlatforms": [
     "Editor"

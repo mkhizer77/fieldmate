@@ -13,7 +13,9 @@
     "Unity.XR.Hands",
     "Unity.XR.OpenXR",
     "Unity.XR.MetaOpenXR",
-    "glTFast"
+    "glTFast",
+    "Unity.Addressables",
+    "Unity.ResourceManager"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

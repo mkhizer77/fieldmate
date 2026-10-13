@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4954de6813076444599f8fd6ce8a1ce0, type: 3}
+  m_Name: FM200
+  m_EditorClassIdentifier: Fieldmate.Unity::Fieldmate.Twin.MachineDefinition
+  tagId: 7
+  machineName: FM-200 centrifugal pump skid (fictional demo machine)
+  spokenName: FM-200 pump skid
+  manual: {fileID: 4900000, guid: 934c3153402e6433eb98a7f9a606057d, type: 3}
+  tagSide: 0.2
+  mount: 0
+  offset: {x: 0, y: 0, z: -0.9}
+  yawDegrees: 0
