@@ -129,15 +129,27 @@ namespace Fieldmate.Assistant
             }
         }
 
+        /// <summary>Moves <paramref name="presence"/> toward <paramref name="target"/>; true while it changed.</summary>
+        internal static bool StepFade(ref float presence, float target, float dt)
+        {
+            // Exact compare on purpose (#98): MoveTowards lands on the target, Approximately stopped a hair short of it.
+            if (presence == target)
+            {
+                return false;
+            }
+
+            presence = Mathf.MoveTowards(presence, target, dt / MaterialiseSeconds);
+            return true;
+        }
+
         private void Awake() => Build();
 
         private void Update()
         {
             var dt = Time.deltaTime;
             var now = Time.time;
-            if (!Mathf.Approximately(presence, presenceTarget))
+            if (StepFade(ref presence, presenceTarget, dt))
             {
-                presence = Mathf.MoveTowards(presence, presenceTarget, dt / MaterialiseSeconds);
                 ApplyPresence();
             }
 
