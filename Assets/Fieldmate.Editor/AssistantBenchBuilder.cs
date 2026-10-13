@@ -4,6 +4,7 @@ using Fieldmate.Interaction;
 using Fieldmate.Knowledge;
 using Fieldmate.Procedures;
 using Fieldmate.Twin;
+using Fieldmate.Vision;
 using Fieldmate.XR;
 using Unity.XR.CoreUtils;
 using UnityEditor;
@@ -44,7 +45,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -132,6 +133,15 @@ public static class AssistantBenchBuilder
         Set(loop, "highlighter", assistant.GetComponent<PartHighlighter>());
         Set(loop, "player", audio.GetComponent<StreamingAudioPlayer>());
         Set(loop, "head", cameraGo.transform);
+
+        // "What's this?" (#22): camera frame → vision model → label pinned where the answer points.
+        var visionGo = new GameObject("Vision", typeof(VisionRequester), typeof(LabelAnchor));
+        visionGo.transform.SetParent(assistant.transform, false);
+        Set(visionGo.GetComponent<LabelAnchor>(), "head", cameraGo.transform);
+        Set(visionGo.GetComponent<VisionRequester>(), "frameSource", frameSource);
+        Set(visionGo.GetComponent<VisionRequester>(), "machine", services.GetComponent<MachineServices>());
+        Set(visionGo.GetComponent<VisionRequester>(), "labels", visionGo.GetComponent<LabelAnchor>());
+        Set(loop, "vision", visionGo.GetComponent<VisionRequester>());
         Set(loop, "leftHand", leftHand); // the talk pinch is ignored while this hand holds a control
 
         var placementGo = new GameObject("Machine Placement", typeof(MachinePlacement));
