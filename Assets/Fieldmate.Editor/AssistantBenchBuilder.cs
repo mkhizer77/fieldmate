@@ -45,7 +45,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(QuestPerformance), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -215,6 +215,7 @@ public static class AssistantBenchBuilder
         occlusion.GetComponent<OcclusionSettings>().Configure(cameraGo.GetComponent<AROcclusionManager>(),
             cameraGo.GetComponent<ARShaderOcclusion>(), Button(menuGo, "Occlusion Button"));
         occlusion.GetComponent<FrameTimeProbe>().Configure(occlusion.GetComponent<OcclusionSettings>());
+        new GameObject("Quest Performance", typeof(QuestPerformance)); // foveation + CPU/GPU level hints (#29)
         var perf = new GameObject("Perf Overlay", typeof(RectTransform), typeof(PerfOverlay)).GetComponent<PerfOverlay>();
         perf.Configure(occlusion.GetComponent<FrameTimeProbe>(), Button(menuGo, "Stats Button"), skid.transform, new Vector3(-0.78f, 2.05f, 0.3f), cameraGo.transform);
 

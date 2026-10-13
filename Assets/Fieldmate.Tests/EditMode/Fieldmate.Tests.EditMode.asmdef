@@ -15,7 +15,9 @@
     "Unity.XR.OpenXR",
     "Unity.XR.OpenXR.Features.MetaHandMeshData",
     "Unity.XR.MetaOpenXR",
-    "Unity.XR.Management.Editor"
+    "Unity.XR.Management.Editor",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime"
   ],
   "includePlatforms": [
     "Editor"
