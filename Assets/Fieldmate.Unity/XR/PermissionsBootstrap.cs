@@ -5,13 +5,13 @@ using UnityEngine;
 namespace Fieldmate.XR
 {
     /// <summary>
-    /// Requests every runtime permission the app needs in one go (scene data, microphone). Separate simultaneous
+    /// Requests every runtime permission the app needs in one go (scene data, microphone, passthrough camera images). Separate simultaneous
     /// requests can cancel each other on Android. Components ask <see cref="WhenAnswered"/> instead of requesting.
     /// </summary>
     [DefaultExecutionOrder(-200)]
     public sealed class PermissionsBootstrap : MonoBehaviour
     {
-        private static readonly string[] Needed = { QuestPermissions.Scene, QuestPermissions.Microphone };
+        private static readonly string[] Needed = { QuestPermissions.Scene, QuestPermissions.Microphone, QuestPermissions.HeadsetCamera };
         private static PermissionsBootstrap instance;
 
         private readonly Dictionary<string, bool> answers = new();
