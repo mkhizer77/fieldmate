@@ -202,9 +202,7 @@ public sealed class EvalHarness
     public async Task<EvalResult> RunAsync(EvalCase evalCase, CancellationToken cancellationToken)
     {
         var runner = new ProcedureRunner(DemoProcedures.ReliefValveReplacement());
-        runner.SetInitialState("main_breaker", "on");
-        runner.SetInitialState("inlet_valve", "open");
-        runner.SetInitialState("pump_cover", "fitted");
+        DemoProcedures.ApplyInitialStates(runner);
         var telemetry = new TelemetryModel(FaultModel.CreateDefault());
         telemetry.Faults.Inject(FaultModel.Overpressure);
         var clock = 0d;
