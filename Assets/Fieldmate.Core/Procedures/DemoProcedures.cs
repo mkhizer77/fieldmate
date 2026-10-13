@@ -34,8 +34,28 @@ public static class DemoProcedures
             new SafetyRule("cover_before_power", "Refit the pump cover before switching the breaker.", "main_breaker", "pump_cover", "fitted"),
             new SafetyRule("cover_before_inlet", "Refit the pump cover before opening the inlet, or water leaks out of the pump.", "inlet_valve", "pump_cover", "fitted"),
             new SafetyRule("inlet_before_power", "Open the inlet before switching the breaker, or the pump runs dry.", "main_breaker", "inlet_valve", "open"),
-            // Throttling the discharge of a running pump spikes the line pressure: the outlet only moves while locked out.
-            new SafetyRule("outlet_locked_out", "Lock out the breaker before touching the outlet valve; throttling it while the pump runs spikes the pressure.", "outlet_valve", "main_breaker", "locked"),
+            // Throttling the discharge of a running pump spikes the line pressure: the outlet only closes while locked out.
+            // Reopening a closed outlet is always safe, so it is never held then (#90: it was, and the pressure stuck).
+            new SafetyRule("outlet_locked_out", "Lock out the breaker before closing the outlet valve; throttling it while the pump runs spikes the pressure.", "outlet_valve", "main_breaker", "locked", exceptWhenGuardedIs: "closed"),
+            // A centrifugal pump started against a closed outlet runs dead-headed: pressure up, water heating (#90).
+            new SafetyRule("outlet_before_power", "Open the outlet valve before switching the breaker on; the pump must never run against a closed outlet.", "main_breaker", "outlet_valve", "open"),
         },
         timeLimitSeconds: 600f);
+
+    /// <summary>
+    /// The skid as it stands before the job: running, both valves open, the cover on. Every runner of the demo procedure
+    /// starts from these (the scene, the eval and the tests), so a new rule can't meet an unknown state.
+    /// </summary>
+    public static void ApplyInitialStates(ProcedureRunner runner)
+    {
+        if (runner == null)
+        {
+            throw new System.ArgumentNullException(nameof(runner));
+        }
+
+        runner.SetInitialState("main_breaker", "on");
+        runner.SetInitialState("inlet_valve", "open");
+        runner.SetInitialState("outlet_valve", "open");
+        runner.SetInitialState("pump_cover", "fitted");
+    }
 }
