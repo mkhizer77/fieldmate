@@ -39,9 +39,20 @@ public sealed class AssistantProviders
     public ISpeechToText SpeechToText { get; }
     public IStreamingTextToSpeech TextToSpeech { get; }
 
+    /// <summary>
+    /// False while tests run (PlayModeSetup): a test must never reach the live proxy, which spends TTS and LLM credits
+    /// (#101). Tests that need an assistant configure fakes.
+    /// </summary>
+    public static bool LiveAllowed { get; set; } = true;
+
     /// <summary>Loads config from the standard sources and creates UnityWebRequest-backed providers.</summary>
     public static AssistantProviders Load()
     {
+        if (!LiveAllowed)
+        {
+            return new AssistantProviders("Live providers are off while tests run.");
+        }
+
         var candidates = new (string source, string json)[]
         {
             ("device keys.json", ReadFile(Path.Combine(Application.persistentDataPath, KeysFileName))),
