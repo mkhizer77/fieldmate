@@ -4,8 +4,8 @@ An AI-assisted mixed-reality maintenance companion for Meta Quest 3. A digital t
 in your real room; a small holographic mate walks you through a real maintenance procedure, checks every action you
 take on the machine, stops you when something is unsafe, and answers questions by voice from the machine's manual.
 
-Built with Unity 6, OpenXR (Meta feature group), XR Interaction Toolkit 3 and XR Hands. Work in progress towards
-v0.1.0: see the issues and milestones.
+Built with Unity 6, OpenXR (Meta feature group), XR Interaction Toolkit 3 and XR Hands. Work in progress: v0.2.0
+adds camera-based "What's this?" and a German mode; see the issues and milestones.
 
 ![The hologram mate](docs/ui/2026-09-30-hologram-mate.png)
 
@@ -14,7 +14,7 @@ v0.1.0: see the issues and milestones.
 1. **Setup, one step at a time.** The headset checks the room scan; the mate materialises in front of you, introduces
    itself, and you point it to where it should stay. It then asks for the machine: you point at the floor and the
    skid appears, sized to fit the free space. The mate briefs the job and step 1 starts.
-2. **The procedure** (replace a stuck relief valve cartridge, 8 steps): inspect by looking, lock out the breaker
+2. **The procedure** (replace a stuck relief valve cartridge, 10 steps): inspect by looking, lock out the breaker
    with both hands, close the inlet, read zero on the gauge, take the cover off, seat the new cartridge, restore and
    verify. Steps complete only from what you actually do; out-of-order actions are recorded, and parts guarded by a
    safety rule (lockout before the inlet valve or the cover) stay still until the rule is met.
@@ -25,8 +25,11 @@ v0.1.0: see the issues and milestones.
 4. **"What's this?"** Look at something and ask. The app takes one camera frame, asks a vision model which of the
    nearby machine parts (or what else) it is, and pins the answer as a label on the spot for 20 seconds. If the model
    is unsure, the twin's own part data answers instead. A red "Camera" pill shows every time a frame is taken.
-5. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
-   Start/Restart, Move machine, occlusion, performance stats, part labels and the camera (local-only mode).
+5. **Deutsch, bitte.** Ask the mate to speak German, or flip Language in the hand menu: its voice, the step guidance,
+   the manual, the labels and every panel switch to German on the spot, mid-procedure.
+6. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
+   Start/Restart, Move machine, occlusion, performance stats, part labels, the camera (local-only mode) and the
+   language.
 
 ## Architecture
 
@@ -60,6 +63,31 @@ flowchart LR
 - **`Fieldmate.Editor`**: builders that generate the bench scene and prefabs (nothing hand-edited), project setup,
   the AI eval runner.
 - **`tools/proxy`**: the Worker that holds the provider keys; the app never ships them.
+
+## "What's this?": the vision pipeline
+
+```mermaid
+flowchart TD
+  Ask["User: “What's this?”"] --> Tool["identify_view tool call"]
+  Tool --> Gate{"Camera allowed?<br/>local-only off · permission · ≥ 1 s since last"}
+  Gate -->|no| Explain["Assistant says why<br/>(local-only, permission)"]
+  Gate -->|yes| Capture["CameraFrameSource<br/>one CPU frame + intrinsics + capture pose"]
+  Capture --> Pill["Red “Camera” pill"]
+  Capture --> Gaze["Gaze ray at capture time<br/>→ twin part under the gaze, nearby parts"]
+  Gaze --> Query["VisionQuery: JPEG ≤ 640 px<br/>+ gaze pixel (PixelToRay) + candidate part names + language"]
+  Query -->|HTTPS| Proxy["Proxy /v1/vision"] --> Model["Vision model"]
+  Model --> Answer["label · part id · confidence · box"]
+  Answer --> Fuse["AnswerFusion<br/>unsure model → the twin's gazed part"]
+  Fuse --> Ray["PixelToRay<br/>box centre → world ray (intrinsics, camera mount, capture pose)"]
+  Ray --> Label["LabelAnchor: 3D label for 20 s<br/>chip: Model data / Not sure / Camera"]
+  Fuse --> Speak["Tool result → the mate answers"]
+```
+
+- One frame per request, only on request; nothing is stored. The pure maths (`PixelToRay`, `AnswerFusion`,
+  `CaptureSettings`, `VisionQuery`) lives in `Fieldmate.Core` and is unit-tested; the camera and labels are in
+  `Fieldmate.Unity`.
+- The label lands where the model saw the part, cast from the camera pose at capture time, so turning your head while
+  the model answers doesn't move it.
 
 ## Privacy: what leaves the headset
 
@@ -99,7 +127,7 @@ The assistant needs a proxy: copy `Assets/_Project/Secrets/keys.json.template` t
 `Fieldmate > Configure Project for Quest` re-applies the Quest defaults; `Fieldmate > Build Assistant Bench Scene`
 regenerates the scene.
 
-`Fieldmate > Run AI Eval` sends the 25 utterances in `Assets/Fieldmate.Tests/AIEval/utterances.json` to the real
+`Fieldmate > Run AI Eval` sends the 30 utterances (25 English, 5 German) in `Assets/Fieldmate.Tests/AIEval/utterances.json` to the real
 model and writes a report to `docs/eval/`; CI runs the same cases against a mocked model on every pull request.
 
 ## Licence
