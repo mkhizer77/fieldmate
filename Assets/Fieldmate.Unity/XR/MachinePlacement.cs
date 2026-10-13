@@ -407,7 +407,13 @@ namespace Fieldmate.XR
             // Not "the last floor-like hit's height" for the fallback: a table or the machine's own frame is floor-like too,
             // and the machine then followed a phantom floor. The easing absorbs a frame's switch between scan and plane.
             LastHitWasSceneMesh = best < float.MaxValue;
-            return LastHitWasSceneMesh || PlacementMath.TryHitFloorPlane(ray, 0f, out position);
+            if (!LastHitWasSceneMesh && !PlacementMath.TryHitFloorPlane(ray, 0f, out position))
+            {
+                return false;
+            }
+
+            position.y += PlacementMath.FloorClearance;
+            return true;
         }
 
         private void SetState(PlacementState state)

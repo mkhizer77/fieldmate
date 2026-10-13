@@ -81,6 +81,31 @@ namespace Fieldmate.Tests.PlayMode.Assistant
         }
 
         [UnityTest]
+        public IEnumerator Placing_RestsTheBaseJustAboveTheFloor_OnTheScanAndOnTheFallbackPlane()
+        {
+            var placement = Object.FindAnyObjectByType<MachinePlacement>();
+            Assert.That(placement.State, Is.EqualTo(PlacementState.Placing));
+            var pointer = GameObject.Find("Right Pointer").transform;
+            var skid = GameObject.Find("PlaceholderSkid").transform;
+            pointer.position = new Vector3(0f, 1.3f, 0f);
+            pointer.rotation = Quaternion.LookRotation(new Vector3(0f, 0f, 1.8f) - pointer.position);
+
+            // A scanned floor 5 cm below the tracking floor, as the room mesh reports it.
+            var scan = new GameObject("Test floor scan", typeof(BoxCollider));
+            scan.transform.position = new Vector3(0f, -0.05f - 0.05f, 2f);
+            scan.GetComponent<BoxCollider>().size = new Vector3(6f, 0.1f, 6f);
+            yield return new WaitForSeconds(1.5f);
+            Assert.That(placement.LastHitWasSceneMesh, Is.True);
+            Assert.That(skid.position.y, Is.EqualTo(-0.05f + PlacementMath.FloorClearance).Within(0.003f),
+                "#97: device 2026-10-02, the base sank into the floor");
+
+            Object.Destroy(scan);
+            yield return new WaitForSeconds(1.5f);
+            Assert.That(placement.LastHitWasSceneMesh, Is.False);
+            Assert.That(skid.position.y, Is.EqualTo(PlacementMath.FloorClearance).Within(0.003f));
+        }
+
+        [UnityTest]
         public IEnumerator FollowingThePointer_IsSmooth_ATremblingRayDoesNotShakeTheMachine()
         {
             var placement = Object.FindAnyObjectByType<MachinePlacement>();
