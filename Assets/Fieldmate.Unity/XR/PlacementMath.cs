@@ -11,6 +11,9 @@ public static class PlacementMath
     /// <summary>Furthest placement distance from the pointer origin, metres.</summary>
     public const float MaxDistance = 6f;
 
+    /// <summary>Lift above the floor hit: scan noise and floor depth occlusion otherwise sink the base (#97, device 2026-10-02).</summary>
+    public const float FloorClearance = 0.03f;
+
     public static bool IsFloorLike(Vector3 normal) => Vector3.Dot(normal.normalized, Vector3.up) >= MinUpDot;
 
     /// <summary>
