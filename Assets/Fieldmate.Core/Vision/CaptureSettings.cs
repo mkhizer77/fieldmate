@@ -6,6 +6,9 @@ namespace Fieldmate.Vision;
 /// <summary>Why the camera can or can't capture right now, in words the user and the assistant can be given.</summary>
 public enum CameraState
 {
+    /// <summary>The user turned on local-only mode: the camera isn't used and no image leaves the headset (#23).</summary>
+    LocalOnly,
+
     /// <summary>The HEADSET_CAMERA permission hasn't been answered yet.</summary>
     WaitingForPermission,
 
@@ -83,6 +86,7 @@ public static class CaptureSettings
     /// <summary>Why "What's this?" can't run, for the assistant to pass on; null when it can.</summary>
     public static string Explain(CameraState state) => state switch
     {
+        CameraState.LocalOnly => "Local-only mode is on, so the camera isn't used and no image leaves the headset. It can be turned off with the Camera button in the hand menu.",
         CameraState.WaitingForPermission => "The headset is still asking for camera access.",
         CameraState.Denied => "Camera access was denied. It can be allowed in the headset's Settings, under Apps, Permissions.",
         CameraState.Starting => "The camera isn't delivering images yet.",

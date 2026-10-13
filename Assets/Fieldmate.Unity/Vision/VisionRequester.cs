@@ -33,10 +33,6 @@ namespace Fieldmate.Vision
         private IVisionModel model;
         private bool busy;
 
-        internal delegate bool CaptureFn(out CameraFrame frame, out string error);
-
-        /// <summary>Tests stand in for the camera, which the editor doesn't have.</summary>
-        internal CaptureFn CaptureForTests;
 
         /// <summary>Raised with every answer the user gets (also from model data), for tests and the debug overlay.</summary>
         public event Action<FusedAnswer> Answered;
@@ -48,6 +44,18 @@ namespace Fieldmate.Vision
         public string LastTiming { get; private set; } = string.Empty;
 
         public LabelAnchor Labels => labels;
+
+        public CameraFrameSource FrameSource => frameSource;
+
+        /// <summary>
+        /// Why the camera can't help right now (local-only mode, permission), for the assistant's context so it can
+        /// explain when asked; null when it can.
+        /// </summary>
+        public string CameraNote => frameSource == null ? null : frameSource.State switch
+        {
+            CameraState.LocalOnly or CameraState.Denied or CameraState.WaitingForPermission => CaptureSettings.Explain(frameSource.State),
+            _ => null,
+        };
 
         public void SetModel(IVisionModel visionModel) => model = visionModel;
 
@@ -73,9 +81,7 @@ namespace Fieldmate.Vision
         {
             var total = Stopwatch.StartNew();
             var catalog = machine.Catalog;
-            var captured = CaptureForTests != null
-                ? CaptureForTests(out var frame, out var cameraError)
-                : frameSource.TryCapture(out frame, out cameraError);
+            var captured = frameSource.TryCapture(out var frame, out var cameraError);
             var headPose = captured ? frame.HeadPose : new Pose(frameSource.Head.position, frameSource.Head.rotation);
             var gaze = new Ray(headPose.position, headPose.rotation * Vector3.forward);
             var gazed = machine.PartAlong(gaze, out var gazeHit, MaxRayMetres);

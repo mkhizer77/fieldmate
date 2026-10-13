@@ -66,7 +66,8 @@ namespace Fieldmate.XR
         public event Action<CameraFrame> Captured;
 
         public CameraState State =>
-            !answered ? CameraState.WaitingForPermission
+            PrivacySettings.LocalOnly ? CameraState.LocalOnly
+            : !answered ? CameraState.WaitingForPermission
             : !granted ? CameraState.Denied
             : frameSeen ? CameraState.Ready
             : CameraState.Starting;
@@ -162,7 +163,7 @@ namespace Fieldmate.XR
         {
             frame = default;
             var state = State;
-            if (state is CameraState.WaitingForPermission or CameraState.Denied)
+            if (state is CameraState.LocalOnly or CameraState.WaitingForPermission or CameraState.Denied)
             {
                 error = CaptureSettings.Explain(state);
                 return false;
@@ -173,6 +174,18 @@ namespace Fieldmate.XR
             {
                 error = "A frame was just taken; ask again in a moment.";
                 return false;
+            }
+
+            if (CaptureForTests != null)
+            {
+                if (!CaptureForTests(out frame, out error))
+                {
+                    return false;
+                }
+
+                lastCapture = now;
+                Captured?.Invoke(frame);
+                return true;
             }
 
             if (cameraManager == null || !cameraManager.enabled || !cameraManager.TryAcquireLatestCpuImage(out var image))
@@ -238,6 +251,11 @@ namespace Fieldmate.XR
 
             texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { name = "Camera Frame" };
         }
+
+        internal delegate bool CaptureFn(out CameraFrame frame, out string error);
+
+        /// <summary>Tests stand in for the passthrough camera, which the editor doesn't have; every other rule applies.</summary>
+        internal CaptureFn CaptureForTests;
 
         internal void SetUpForTests(ARCameraManager manager, Transform headTransform)
         {

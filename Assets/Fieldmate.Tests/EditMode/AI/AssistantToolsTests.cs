@@ -215,6 +215,13 @@ public class AssistantPromptTests
     }
 
     [Test]
+    public void Context_SaysWhyTheCameraIsOff_OnlyWhenItIs()
+    {
+        Assert.That(AssistantPrompt.Context(null, null, null, null, camera: "Local-only mode is on."), Does.Contain("Camera: Local-only mode is on."));
+        Assert.That(AssistantPrompt.Context(null, null, null, null), Does.Not.Contain("Camera:"));
+    }
+
+    [Test]
     public void System_WithoutVision_NeverMentionsIdentifyView()
     {
         Assert.That(AssistantPrompt.System("FM-200", "en", vision: true), Does.Contain("identify_view"));

@@ -428,7 +428,7 @@ namespace Fieldmate.Assistant
             var step = machine.Runner.State == RunnerState.Running ? machine.Runner.CurrentStep.Id : null;
             var slice = machine.Retriever.Retrieve(new RetrievalQuery(gaze?.Id, step, userText));
             var events = session != null ? session.SceneEvents.ToPromptText(Time.realtimeSinceStartupAsDouble) : null;
-            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice, events, WhereLine(step));
+            return AssistantPrompt.Context(machine.Runner, machine.Telemetry, gaze, slice, events, WhereLine(step), vision != null ? vision.CameraNote : null);
         }
 
         // The step's part and the highlighted part relative to the head, so "where is it" gets a direction, not a shrug.

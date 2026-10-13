@@ -40,7 +40,9 @@ Rules:
     }
 
     /// <summary>Per-turn context block. Any argument may be null when unknown.</summary>
-    public static string Context(ProcedureRunner runner, TelemetryModel telemetry, PartInfo gazePart, ManualSlice manual, string recentEvents = null, string where = null)
+    /// <param name="camera">Why the camera can't be used right now (local-only mode, permission), or null.</param>
+    public static string Context(ProcedureRunner runner, TelemetryModel telemetry, PartInfo gazePart, ManualSlice manual, string recentEvents = null, string where = null,
+        string camera = null)
     {
         var sb = new StringBuilder();
         sb.Append("Procedure: ").Append(DescribeProcedure(runner, telemetry)).Append('\n');
@@ -52,6 +54,11 @@ Rules:
         if (!string.IsNullOrEmpty(where))
         {
             sb.Append("Where: ").Append(where).Append('\n');
+        }
+
+        if (!string.IsNullOrEmpty(camera))
+        {
+            sb.Append("Camera: ").Append(camera).Append('\n');
         }
 
         if (telemetry != null)
