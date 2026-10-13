@@ -5,6 +5,7 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Fieldmate.Core",
+    "Fieldmate.Net",
     "Fieldmate.Unity",
     "Unity.XR.ARFoundation",
     "Unity.XR.ARSubsystems",

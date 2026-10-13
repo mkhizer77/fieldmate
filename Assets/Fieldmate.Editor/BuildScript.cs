@@ -37,6 +37,28 @@ public static class BuildScript
             options = BuildOptions.None,
         };
 
+        Run(options);
+    }
+
+    /// <summary>The remote observer for macOS (#26): Builds/FieldmateObserver.app, the observer scene only.</summary>
+    public static void BuildObserverMac()
+    {
+        PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, PackageName + ".observer");
+        // Shared code references Microphone (the headset's voice loop), so macOS insists on a reason; the observer never records.
+        PlayerSettings.macOS.microphoneUsageDescription = "Fieldmate Observer does not record audio.";
+        var outputDir = Path.Combine(Directory.GetCurrentDirectory(), "Builds");
+        Directory.CreateDirectory(outputDir);
+        Run(new BuildPlayerOptions
+        {
+            scenes = new[] { ObserverSceneBuilder.ScenePath },
+            locationPathName = Path.Combine(outputDir, "FieldmateObserver.app"),
+            target = BuildTarget.StandaloneOSX,
+            options = BuildOptions.None,
+        });
+    }
+
+    private static void Run(BuildPlayerOptions options)
+    {
         var report = BuildPipeline.BuildPlayer(options);
         var summary = report.summary;
         Debug.Log($"Build {summary.result}: {summary.totalSize / (1024 * 1024)} MB in {summary.totalTime}");
