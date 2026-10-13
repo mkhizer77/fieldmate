@@ -1,5 +1,6 @@
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
+using Fieldmate.Localization;
 using Fieldmate.Procedures;
 using Fieldmate.UI;
 using TMPro;
@@ -10,7 +11,8 @@ namespace Fieldmate.XR
 {
     /// <summary>
     /// The app's controls in a hand menu on the left hand (#73), so nothing sits on the machine and nothing floats in
-    /// view until wanted: Start / Restart, Move machine, Occlusion, Stats and Labels in one column of flat rows.
+    /// view until wanted: Start / Restart, Move machine, Occlusion, Stats, Labels, Fit controllers, Camera and Language
+    /// (#24: English ↔ German, live) in one column of flat rows.
     /// With hands, turning the left palm towards the face opens it beside the palm (Microsoft's hand-menu pattern); when
     /// the palm turns away it stays world-locked for a moment so the right hand's ray can still press a row. With
     /// controllers, the left menu button toggles it above the controller. Closed during the guided setup. The rows are
@@ -31,6 +33,7 @@ namespace Fieldmate.XR
         [SerializeField] private Transform leftController;
         [SerializeField] private PressButton labelsButton;
         [SerializeField] private PressButton fitButton;
+        [SerializeField] private PressButton languageButton;
         [SerializeField] private SetupFlow setup;
 
         private readonly HiddenObjects hidden = new();
@@ -47,9 +50,11 @@ namespace Fieldmate.XR
         /// <summary>Y of a row's centre in the menu, rows counted from the top.</summary>
         public static float RowY(int row) => -(HeaderMm * 0.001f + RowPitch * 0.5f + row * RowPitch);
 
-        public void Configure(Transform headTransform, PalmPose leftPalm, Transform leftControllerPointer, PressButton labels, PressButton fit = null)
+        public void Configure(Transform headTransform, PalmPose leftPalm, Transform leftControllerPointer, PressButton labels, PressButton fit = null,
+            PressButton language = null)
         {
             fitButton = fit;
+            languageButton = language;
             head = headTransform;
             palm = leftPalm;
             leftController = leftControllerPointer;
@@ -79,6 +84,12 @@ namespace Fieldmate.XR
             {
                 fitButton.Pressed += ToggleFit;
             }
+
+            if (languageButton != null)
+            {
+                languageButton.SetLabel(LanguageLabel); // shown as "Sprache: Deutsch" while German is on
+                languageButton.Pressed += ToggleLanguage;
+            }
         }
 
         private void OnDisable()
@@ -92,6 +103,11 @@ namespace Fieldmate.XR
             if (fitButton != null)
             {
                 fitButton.Pressed -= ToggleFit;
+            }
+
+            if (languageButton != null)
+            {
+                languageButton.Pressed -= ToggleLanguage;
             }
         }
 
@@ -112,6 +128,12 @@ namespace Fieldmate.XR
         private bool Available => setup == null || setup.Stage == Fieldmate.AI.SetupStage.Done;
 
         private void ToggleLabels() => ControlTag.ShowAll = !ControlTag.ShowAll;
+
+        /// <summary>The language row's label key: one key, so it reads "Sprache: Deutsch" in German (GermanText).</summary>
+        public const string LanguageLabel = "Language: English";
+
+        // English ↔ German (#24): every label, card and the assistant's voice follow Lang.Changed.
+        private void ToggleLanguage() => Lang.Set(Lang.IsGerman ? Lang.English : Lang.German);
 
         // Controller model alignment (#80): thumbsticks move the models while on; saved when switched off.
         private void ToggleFit()

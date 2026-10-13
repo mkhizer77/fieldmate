@@ -1,12 +1,14 @@
 using System.Globalization;
 using Fieldmate.Knowledge;
+using Fieldmate.Localization;
 using Fieldmate.XR;
 
 namespace Fieldmate.Procedures;
 
 /// <summary>
 /// Step wording for the step card (a full sentence) and the highlight label (a few words), built from the step, the
-/// manual's part names and the active input: "pinch" with hands, "grip" with controllers.
+/// manual's part names and the active input: "pinch" with hands, "grip" with controllers. German (#24) is built
+/// separately: articles and pronouns follow each part's gender, and "auf"/"zu" are the verbs for opening and closing.
 /// </summary>
 public static class StepInstructions
 {
@@ -15,6 +17,11 @@ public static class StepInstructions
         if (step == null)
         {
             return string.Empty;
+        }
+
+        if (Lang.IsGerman)
+        {
+            return ForDe(step, catalog, modality);
         }
 
         var part = Name(step.PartId, catalog);
@@ -46,6 +53,11 @@ public static class StepInstructions
             return string.Empty;
         }
 
+        if (Lang.IsGerman)
+        {
+            return SpokenDe(step, catalog, modality);
+        }
+
         var part = Name(step.PartId, catalog);
         var take = modality == Modality.Controllers ? "Grip" : "Pinch";
         var hands = modality == Modality.Controllers ? "both controllers" : "both hands";
@@ -73,6 +85,11 @@ public static class StepInstructions
             return string.Empty;
         }
 
+        if (Lang.IsGerman)
+        {
+            return ShortDe(step, modality);
+        }
+
         var hands = modality == Modality.Controllers ? "both controllers" : "both hands";
         return step.Kind switch
         {
@@ -86,6 +103,72 @@ public static class StepInstructions
             _ => string.Empty,
         };
     }
+
+    private static string ForDe(StepDefinition step, PartCatalog catalog, Modality modality)
+    {
+        var part = Accusative(step.PartId, catalog);
+        var it = German.Pronoun(Gender(step.PartId, catalog));
+        var hands = modality == Modality.Controllers ? "beiden Controllern" : "beiden Händen";
+        var state = Lang.T(step.TargetState ?? string.Empty).ToUpperInvariant();
+        return step.Kind switch
+        {
+            StepKind.Inspect => $"Schau dir {part} einen Moment an.",
+            StepKind.Operate when step.PartId == "main_breaker" => $"Greif den roten Schaltergriff mit {hands} und dreh ihn in Pfeilrichtung auf {state}.",
+            StepKind.Operate when step.TargetState == "removed" => $"Greif {part} und zieh {it} zu dir hin ab.",
+            StepKind.Operate when step.TargetState == "fitted" => $"Greif {part} und setz {it} wieder auf, bis es klickt.",
+            StepKind.Operate => $"Greif {part} und dreh {it} in Pfeilrichtung auf {state}.",
+            StepKind.Tool => $"Greif {Accusative(step.ToolId, catalog)} auf dem Tablett und drück {German.Pronoun(Gender(step.ToolId, catalog))} in {part}.",
+            StepKind.Measure => $"Lies {part} ab: Es sollte {German.Number(step.ExpectedValue)} ± {German.Number(step.Tolerance)} {step.Unit} anzeigen.",
+            StepKind.Confirm => "Drück auf Fertig, wenn du so weit bist.",
+            _ => string.Empty,
+        };
+    }
+
+    private static string SpokenDe(StepDefinition step, PartCatalog catalog, Modality modality)
+    {
+        var part = Accusative(step.PartId, catalog);
+        var it = German.Pronoun(Gender(step.PartId, catalog));
+        var hands = modality == Modality.Controllers ? "beiden Controllern" : "beiden Händen";
+        var state = step.TargetState?.ToLowerInvariant();
+        return step.Kind switch
+        {
+            StepKind.Inspect => $"Schau dir zuerst {part} genau an.",
+            StepKind.Operate when step.PartId == "main_breaker" => $"Greif den roten Griff mit {hands} und dreh ihn, bis er auf {Lang.T(state)} einrastet.",
+            StepKind.Operate when state == "removed" => $"Greif {part} und zieh {it} zu dir hin ab.",
+            StepKind.Operate when state == "fitted" => $"Greif {part} und setz {it} wieder auf, bis es klickt.",
+            StepKind.Operate when state == "open" => $"Greif {part} und dreh {it} auf.",
+            StepKind.Operate when state == "closed" => $"Greif {part} und dreh {it} zu.",
+            StepKind.Operate => $"Greif {part} und dreh {it} auf {Lang.T(state)}.",
+            StepKind.Tool => $"Nimm {Accusative(step.ToolId, catalog)} vom Tablett und drück {German.Pronoun(Gender(step.ToolId, catalog))} in {part}.",
+            StepKind.Measure when step.ExpectedValue == 0f => $"Behalte {part} im Auge, bis es null anzeigt.",
+            StepKind.Measure => $"Prüf {part}: Es sollte sich bei etwa {German.Number(step.ExpectedValue)} {step.Unit} einpendeln.",
+            StepKind.Confirm => "Sag mir Bescheid, wenn du fertig bist.",
+            _ => string.Empty,
+        };
+    }
+
+    private static string ShortDe(StepDefinition step, Modality modality)
+    {
+        var hands = modality == Modality.Controllers ? "beide Controller" : "beide Hände";
+        var state = Lang.T(step.TargetState ?? string.Empty).ToUpperInvariant();
+        return step.Kind switch
+        {
+            StepKind.Inspect => "hier hinschauen",
+            StepKind.Operate when step.PartId == "main_breaker" => $"{hands} · auf {state} drehen",
+            StepKind.Operate when step.TargetState == "removed" => $"{InputWords.Grab(modality)} · abziehen",
+            StepKind.Operate when step.TargetState == "fitted" => $"{InputWords.Grab(modality)} · wieder aufsetzen",
+            StepKind.Operate => $"{InputWords.Grab(modality)} · auf {state} drehen",
+            StepKind.Tool => "neuen Einsatz hier einsetzen",
+            StepKind.Measure => $"ablesen: {German.Number(step.ExpectedValue)} ± {German.Number(step.Tolerance)} {step.Unit}",
+            _ => string.Empty,
+        };
+    }
+
+    private static string Accusative(string partId, PartCatalog catalog) =>
+        catalog != null && partId != null ? catalog.WithArticle(partId, GermanCase.Accusative) : "das Teil";
+
+    private static string Gender(string partId, PartCatalog catalog) =>
+        catalog != null && catalog.TryGet(partId, out var part) ? part.German?.Gender : null;
 
     private static string Name(string partId, PartCatalog catalog) =>
         partId == null ? "part" : (catalog?.DisplayName(partId) ?? partId).ToLowerInvariant();

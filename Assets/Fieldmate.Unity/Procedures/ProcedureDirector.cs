@@ -1,5 +1,6 @@
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
+using Fieldmate.Localization;
 using Fieldmate.Twin;
 using Fieldmate.UI;
 using Fieldmate.XR;
@@ -40,6 +41,7 @@ namespace Fieldmate.Procedures
         private bool readingShown;
         private bool runsBefore;
         private bool placementConfirmed;
+        private ProcedureResult lastResult;
 
         /// <summary>Placement is step 0: the procedure can't start until the machine stands where the user wants it.</summary>
         public bool ReadyToStart => placementConfirmed || placement == null;
@@ -69,6 +71,7 @@ namespace Fieldmate.Procedures
             runner.ProcedureCompleted += OnCompleted;
             button.Pressed += OnButton;
             InputModalityProbe.Changed += OnModalityChanged;
+            Lang.Changed += OnLanguageChanged;
             if (placement != null)
             {
                 placement.StateChanged += OnPlacementChanged;
@@ -140,7 +143,7 @@ namespace Fieldmate.Procedures
             }
             else if (hands == 2)
             {
-                panel.ShowStatus("Both hands on. Turn them together.", Theme.Accent, 3f);
+                panel.ShowStatus(Lang.T("Both hands on. Turn them together."), Theme.Accent, 3f);
             }
         }
 
@@ -155,6 +158,18 @@ namespace Fieldmate.Procedures
             {
                 ShowIdle();
             }
+        }
+
+        // Live switch (#24): the card re-renders in the new language; the debrief stays a debrief.
+        private void OnLanguageChanged(string language)
+        {
+            if (machine.Runner.State == RunnerState.Completed && lastResult != null)
+            {
+                panel.ShowDebrief(lastResult, Lang.T(machine.Runner.Definition.Title));
+                return;
+            }
+
+            OnModalityChanged(InputModalityProbe.Current);
         }
 
         private void OnModalityChanged(Modality modality)
@@ -177,8 +192,9 @@ namespace Fieldmate.Procedures
             var total = machine.Runner.Definition.Steps.Count;
             if (ReadyToStart)
             {
-                panel.ShowIdle(machine.Runner.Definition.Title,
-                    $"{total} steps. {InputWords.Press(modality)} Start, or ask Fieldmate to start the procedure.", "Ready", "Procedure");
+                panel.ShowIdle(Lang.T(machine.Runner.Definition.Title),
+                    Lang.F("{0} steps. {1} {2}, or ask Fieldmate to start the procedure.", total, InputWords.Press(modality), Lang.T("Start")),
+                    Lang.T("Ready"), Lang.T("Procedure"));
                 button.SetLabel("Start");
                 button.SetStyle(ButtonStyle.Primary);
                 return;
@@ -187,19 +203,22 @@ namespace Fieldmate.Procedures
             switch (placement.State)
             {
                 case PlacementState.Placed:
-                    panel.ShowIdle("Step 0: Place the machine",
-                        $"It is where you left it. {InputWords.Press(modality)} Keep here to continue, or Move machine to place it again.",
-                        "Setup", "Before you start");
+                    panel.ShowIdle(Lang.T("Step 0: Place the machine"),
+                        Lang.F("It is where you left it. {0} {1} to continue, or {2} to place it again.", InputWords.Press(modality),
+                            Lang.T("Keep here"), Lang.T("Move machine")),
+                        Lang.T("Setup"), Lang.T("Before you start"));
                     button.SetLabel("Keep here");
                     button.SetStyle(ButtonStyle.Primary);
                     break;
                 case PlacementState.Placing:
-                    panel.ShowIdle("Step 0: Place the machine", InputWords.Place(modality) + ". Leave room to walk around it.", "Setup", "Before you start");
+                    panel.ShowIdle(Lang.T("Step 0: Place the machine"), InputWords.Place(modality) + Lang.T(". Leave room to walk around it."),
+                        Lang.T("Setup"), Lang.T("Before you start"));
                     button.SetLabel("Place first");
                     button.SetStyle(ButtonStyle.Muted);
                     break;
                 default:
-                    panel.ShowIdle("Step 0: Place the machine", "Looking for where you left it…", "Setup", "Before you start");
+                    panel.ShowIdle(Lang.T("Step 0: Place the machine"), Lang.T("Looking for where you left it…"), Lang.T("Setup"),
+                        Lang.T("Before you start"));
                     button.SetLabel("Place first");
                     button.SetStyle(ButtonStyle.Muted);
                     break;
@@ -209,6 +228,7 @@ namespace Fieldmate.Procedures
         private void OnDestroy()
         {
             InputModalityProbe.Changed -= OnModalityChanged; // static event: always unsubscribe, even if services are gone
+            Lang.Changed -= OnLanguageChanged;
             if (watched != null)
             {
                 watched.HoldingChanged -= OnHoldingChanged;
@@ -272,7 +292,7 @@ namespace Fieldmate.Procedures
 
             restartArmedUntil = Time.unscaledTime + RestartConfirmSeconds;
             button.SetLabel("Confirm restart");
-            panel.ShowStatus("Press again to restart the procedure from step 1.", ProcedurePanel.Hint, RestartConfirmSeconds);
+            panel.ShowStatus(Lang.T("Press again to restart the procedure from step 1."), ProcedurePanel.Hint, RestartConfirmSeconds);
         }
 
         private void Update()
@@ -318,7 +338,7 @@ namespace Fieldmate.Procedures
             else if (step.Kind == StepKind.Measure && readsTaken == 0 && !readingShown)
             {
                 readingShown = true; // the user sees the look is registering before the first reading lands
-                panel.ShowStatus("Reading the gauge…", Theme.Accent, GaugeCheck.ReadSeconds + 0.5f);
+                panel.ShowStatus(Lang.T("Reading the gauge…"), Theme.Accent, GaugeCheck.ReadSeconds + 0.5f);
             }
 
             if (step.Kind == StepKind.Measure && seconds >= (readsTaken + 1) * GaugeCheck.ReadSeconds)
@@ -357,8 +377,8 @@ namespace Fieldmate.Procedures
             placementConfirmed = true; // a run started (e.g. by voice) means the machine is where the user wants it
             if (!fresh)
             {
-                panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
-                    StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), machine.Runner.Definition.Title);
+                panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, Lang.T(step.Title),
+                    StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), Lang.T(machine.Runner.Definition.Title));
                 return;
             }
 
@@ -378,8 +398,8 @@ namespace Fieldmate.Procedures
             readsTaken = 0;
             readingShown = false;
             highlighter.Clear();
-            panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, step.Title,
-                StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), machine.Runner.Definition.Title);
+            panel.ShowStep(index + 1, machine.Runner.Definition.Steps.Count, Lang.T(step.Title),
+                StepInstructions.For(step, machine.Catalog, InputModalityProbe.Current), Lang.T(machine.Runner.Definition.Title));
             ShowGuide(step);
             WatchControl(step);
             ShowTip(step);
@@ -411,19 +431,19 @@ namespace Fieldmate.Procedures
         private void OnStepCompleted(int index, StepDefinition step, double seconds)
         {
             MarkRelevant(null);
-            panel.ShowStatus($"✓ {step.Title}", ProcedurePanel.Done, 3f);
+            panel.ShowStatus("✓ " + Lang.T(step.Title), ProcedurePanel.Done, 3f);
             Debug.Log($"[Procedure] done {step.Id} in {seconds:0.0}s");
         }
 
         private void OnViolation(SafetyRule rule, InteractionEvent e)
         {
-            panel.ShowStatus($"Safety: {rule.Description}", ProcedurePanel.Violation, 8f);
+            panel.ShowStatus(Lang.F("Safety: {0}", Lang.T(rule.Description)), ProcedurePanel.Violation, 8f);
             Debug.Log($"[Procedure] violation {rule.Id} by {e}");
         }
 
         // Every try on a held part says why it didn't move (the violation itself is spoken once).
         private void OnAttemptRefused(SafetyRule rule, InteractionEvent e) =>
-            panel.ShowStatus($"Safety: {rule.Description}", ProcedurePanel.Violation, 8f);
+            panel.ShowStatus(Lang.F("Safety: {0}", Lang.T(rule.Description)), ProcedurePanel.Violation, 8f);
 
         private void OnError(ProcedureError error)
         {
@@ -512,7 +532,8 @@ namespace Fieldmate.Procedures
             gazeRing?.Hide();
             WatchControl(null);
             highlighter.Clear();
-            panel.ShowDebrief(result, machine.Runner.Definition.Title);
+            lastResult = result;
+            panel.ShowDebrief(result, Lang.T(machine.Runner.Definition.Title));
             button.SetLabel("Run again");
             button.SetStyle(ButtonStyle.Primary);
             Debug.Log($"[Procedure] completed: score {result.Score}, passed {result.Passed}, {result.TotalSeconds:0}s, " +

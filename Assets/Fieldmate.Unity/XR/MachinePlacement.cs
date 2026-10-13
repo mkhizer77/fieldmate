@@ -1,5 +1,6 @@
 using System;
 using Fieldmate.Assistant;
+using Fieldmate.Localization;
 using Fieldmate.UI;
 using TMPro;
 using UnityEngine;
@@ -52,6 +53,8 @@ namespace Fieldmate.XR
         private LineRenderer ring;
         private Transform hint;
         private TMP_Text hintText;
+        private TMP_Text hintEyebrow;
+        private TMP_Text hintTitle;
         private ARAnchor anchor;
         private float extraYaw;
         private float nextConfirm;
@@ -107,6 +110,7 @@ namespace Fieldmate.XR
         private void OnEnable()
         {
             InputModalityProbe.Changed += OnModalityChanged;
+            Lang.Changed += OnLanguageChanged;
             confirmAction.Enable();
             moveAction.Enable();
             rotateAction.Enable();
@@ -115,6 +119,7 @@ namespace Fieldmate.XR
         private void OnDisable()
         {
             InputModalityProbe.Changed -= OnModalityChanged;
+            Lang.Changed -= OnLanguageChanged;
             confirmAction.Disable();
             moveAction.Disable();
             rotateAction.Disable();
@@ -449,6 +454,8 @@ namespace Fieldmate.XR
 
         private void OnModalityChanged(Modality modality) => RefreshHint();
 
+        private void OnLanguageChanged(string language) => RefreshHint(); // live switch (#24)
+
         // What to do, and how big the machine will be (#57): auto-fitted to the free floor, nudged with the thumbstick.
         private void RefreshHint()
         {
@@ -457,18 +464,21 @@ namespace Fieldmate.XR
                 return;
             }
 
+            hintEyebrow.text = Lang.T("Setup");
+            hintTitle.text = Lang.T("Place the machine");
             var modality = InputModalityProbe.Current;
             if (scanning)
             {
-                hintText.text = $"Follow the headset's room setup so the machine can stand on your real floor.\n<color={Theme.MutedHex}>You can place it once the scan is done.</color>";
+                hintText.text = Lang.T("Follow the headset's room setup so the machine can stand on your real floor.") +
+                                $"\n<color={Theme.MutedHex}>" + Lang.T("You can place it once the scan is done.") + "</color>";
                 return;
             }
 
             var percent = Mathf.RoundToInt(Mathf.Clamp(fitScale + nudge, MachineFit.MinScale, MachineFit.MaxScale) * 100f);
             var size = FitIsTight
-                ? $"Size {percent} % · tight here, try a more open spot"
-                : percent >= 100 ? "Full size: it fits here" : $"Size {percent} % to fit the space";
-            var adjust = modality == Modality.Controllers ? " · thumbstick up/down to resize" : string.Empty;
+                ? Lang.F("Size {0} % · tight here, try a more open spot", percent)
+                : percent >= 100 ? Lang.T("Full size: it fits here") : Lang.F("Size {0} % to fit the space", percent);
+            var adjust = modality == Modality.Controllers ? Lang.T(" · thumbstick up/down to resize") : string.Empty;
             hintText.text = $"{InputWords.Place(modality)}\n<color={Theme.MutedHex}>{size}{adjust}</color>";
         }
 
@@ -506,10 +516,10 @@ namespace Fieldmate.XR
             var pad = new Vector2(Theme.Pad, 0f);
             var eyebrow = UiKit.Eyebrow("Eyebrow", card, new Vector2(0f, 0.72f), new Vector2(1f, 0.92f), Theme.TextMuted);
             eyebrow.rectTransform.offsetMin = pad;
-            eyebrow.text = "Setup";
+            hintEyebrow = eyebrow;
             var title = UiKit.Label("Title", card, new Vector2(0f, 0.46f), new Vector2(1f, 0.74f), Theme.Title - 4f, Theme.TextPrimary,
                 TextAlignmentOptions.MidlineLeft, semiBold: true, pad, -pad);
-            title.text = "Place the machine";
+            hintTitle = title;
             hintText = UiKit.Label("Hint", card, new Vector2(0f, 0.06f), new Vector2(1f, 0.46f), Theme.Caption + 2f, Theme.TextSecondary,
                 TextAlignmentOptions.TopLeft, semiBold: false, pad, -pad);
             OnModalityChanged(InputModalityProbe.Current);

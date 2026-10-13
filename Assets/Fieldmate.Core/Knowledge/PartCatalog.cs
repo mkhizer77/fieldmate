@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fieldmate.Localization;
 
 namespace Fieldmate.Knowledge;
 
@@ -44,6 +45,21 @@ public sealed class PartCatalog
         return partId != null && parts.TryGetValue(partId, out part);
     }
 
-    /// <summary>Human name for UI and speech; falls back to the id for unknown parts.</summary>
-    public string DisplayName(string partId) => TryGet(partId, out var part) ? part.Name : partId ?? string.Empty;
+    /// <summary>Human name for UI and speech in the current language (#24); falls back to the id for unknown parts.</summary>
+    public string DisplayName(string partId) => TryGet(partId, out var part) ? part.In(Lang.Current).Name : partId ?? string.Empty;
+
+    /// <summary>
+    /// The German name with its article in <paramref name="grammaticalCase"/> ("den Hauptschalter", "das Manometer");
+    /// the bare English name when German is off or the part has no German.
+    /// </summary>
+    public string WithArticle(string partId, GermanCase grammaticalCase)
+    {
+        if (!TryGet(partId, out var part))
+        {
+            return partId ?? string.Empty;
+        }
+
+        var german = part.German;
+        return Lang.IsGerman && german != null ? German.Article(german.Gender, grammaticalCase) + " " + german.Name : part.Name;
+    }
 }

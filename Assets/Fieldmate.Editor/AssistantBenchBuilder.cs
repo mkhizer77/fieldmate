@@ -188,9 +188,11 @@ public static class AssistantBenchBuilder
         Set(cameraButton, "label", PrivacySettings.ButtonLabel(false));
         new GameObject("Privacy Settings", typeof(PrivacySettings)).GetComponent<PrivacySettings>().Configure(cameraButton);
         Set(fitButton, "label", "Fit controllers");
+        var languageButton = MenuButton(menuGo.transform, "Language Button", 7, ButtonStyle.Secondary); // English ↔ German (#24)
+        Set(languageButton, "label", HandMenu.LanguageLabel);
         new GameObject("Controller Fit", typeof(ControllerFit));
         var menu = menuGo.GetComponent<HandMenu>();
-        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton, fitButton);
+        menu.Configure(cameraGo.transform, palm.GetComponent<PalmPose>(), leftPointer.transform, labelsButton, fitButton, languageButton);
 
         var director = new GameObject("Procedure", typeof(ProcedureDirector)).GetComponent<ProcedureDirector>();
         director.Configure(services.GetComponent<MachineServices>(), router, assistant.GetComponent<PartHighlighter>(),

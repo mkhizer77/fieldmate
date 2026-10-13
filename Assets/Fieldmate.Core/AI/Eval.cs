@@ -19,8 +19,10 @@ namespace Fieldmate.AI;
 public sealed class EvalCase
 {
     public EvalCase(string id, string utterance, string step, IReadOnlyList<string> tools,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> args, IReadOnlyList<string> forbid, IReadOnlyList<string> keywords)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> args, IReadOnlyList<string> forbid, IReadOnlyList<string> keywords,
+        string language = null)
     {
+        Language = language == "de" ? "de" : "en";
         Id = string.IsNullOrWhiteSpace(id) ? throw new ArgumentException("Case id is required.", nameof(id)) : id;
         Utterance = string.IsNullOrWhiteSpace(utterance) ? throw new ArgumentException($"{id}: utterance is required.", nameof(utterance)) : utterance;
         Step = string.IsNullOrWhiteSpace(step) ? null : step;
@@ -47,6 +49,9 @@ public sealed class EvalCase
     /// <summary>Words the spoken answer must contain (case-insensitive); "a|b" accepts either.</summary>
     public IReadOnlyList<string> Keywords { get; }
 
+    /// <summary>The language the assistant is in when the user speaks (#24): "en" (default) or "de".</summary>
+    public string Language { get; }
+
     /// <summary>Reads <c>{"cases": [...]}</c>.</summary>
     public static IReadOnlyList<EvalCase> ParseFixture(string json)
     {
@@ -67,7 +72,8 @@ public sealed class EvalCase
             }
 
             cases.Add(new EvalCase(item["id"].AsString(), item["utterance"].AsString(), item["step"].AsString(),
-                item["tools"].AsStringList(), args, item["forbid"].AsStringList(), item["keywords"].AsStringList()));
+                item["tools"].AsStringList(), args, item["forbid"].AsStringList(), item["keywords"].AsStringList(),
+                item["language"].AsString()));
         }
 
         return cases;
@@ -216,10 +222,10 @@ public sealed class EvalHarness
         new AssistantTools(manual, runner, telemetry, scene).AttachTo(registry);
         var retriever = new ManualRetriever(manual);
         var session = new AssistantSession(chatFor(evalCase), null, null, registry, new ConversationState(),
-            language => AssistantPrompt.System(manual.MachineName, language, vision: false),
+            language => AssistantPrompt.System(manual.MachineName, language, vision: false, manual.Parts),
             text => AssistantPrompt.Context(runner, telemetry, null,
                 retriever.Retrieve(new RetrievalQuery(null, runner.State == RunnerState.Running ? runner.CurrentStep.Id : null, text))),
-            () => clock);
+            () => clock) { Language = evalCase.Language };
 
         var calls = new List<string>();
         session.TranscriptAdded += entry =>

@@ -1,3 +1,4 @@
+using Fieldmate.Localization;
 using Fieldmate.UI;
 
 namespace Fieldmate.Interaction;
@@ -9,7 +10,7 @@ public static class ControlTagText
     {
         var detail = string.IsNullOrEmpty(state)
             ? purpose ?? string.Empty
-            : string.IsNullOrEmpty(purpose) ? state.ToUpperInvariant() : $"{purpose} · {state.ToUpperInvariant()}";
+            : string.IsNullOrEmpty(purpose) ? StateWord(state) : $"{purpose} · {StateWord(state)}";
         return string.IsNullOrEmpty(detail) ? title : $"{title}\n<size=26>{detail}</size>";
     }
 
@@ -21,9 +22,12 @@ public static class ControlTagText
             return string.IsNullOrEmpty(purpose) ? title : $"{title}\n<size=26><color={Theme.SecondaryHex}>{purpose}</color></size>";
         }
 
-        var stateText = $"<color={TagStateStyle.Hex(state)}>{state.ToUpperInvariant()}</color>";
+        var stateText = $"<color={TagStateStyle.Hex(state)}>{StateWord(state)}</color>";
         return string.IsNullOrEmpty(purpose)
             ? $"{title}\n<size=26>{stateText}</size>"
             : $"{title}\n<size=26><color={Theme.SecondaryHex}>{purpose} · </color>{stateText}</size>";
     }
+
+    /// <summary>The state as the tag shows it: in the current language (#24), upper case ("ON", "GESPERRT").</summary>
+    private static string StateWord(string state) => Lang.T(state).ToUpperInvariant();
 }

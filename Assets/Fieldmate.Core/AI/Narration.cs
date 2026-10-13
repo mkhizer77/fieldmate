@@ -1,3 +1,4 @@
+using Fieldmate.Localization;
 using Fieldmate.Procedures;
 
 namespace Fieldmate.AI;
@@ -7,14 +8,30 @@ namespace Fieldmate.AI;
 /// runner's events, no model round trip, so a violation is called out the moment it happens. Worded like a colleague
 /// beside you, not a status readout (device test 2026-10-01): no "step 2 of 8" (the step card shows progress), varied
 /// acknowledgements, and the next task as a sentence. Variation is chosen by step number, so lines are deterministic.
+/// German (#24) has its own wording, not a word-for-word translation: step titles are infinitive phrases there
+/// ("Einlassventil schließen"), so they follow a colon instead of "let's".
 /// </summary>
 public static class Narration
 {
     private static readonly string[] Acknowledgements = { "Nice work.", "Good, that's done.", "Perfect.", "Great, that's it.", "Well done." };
     private static readonly string[] Transitions = { "Now let's", "Next, let's", "Okay, now we", "Next up, we" };
+    private static readonly string[] AcknowledgementsDe = { "Gut gemacht.", "Gut, das ist erledigt.", "Perfekt.", "Super, das war's.", "Sehr gut." };
+    private static readonly string[] TransitionsDe = { "Jetzt:", "Als Nächstes:", "Okay, weiter:", "Nächster Schritt:" };
 
     public static string StepDone(int doneNumber, int total, StepDefinition next, string nextInstruction)
     {
+        if (Lang.IsGerman)
+        {
+            var ackDe = AcknowledgementsDe[(doneNumber - 1) % AcknowledgementsDe.Length];
+            if (next == null)
+            {
+                return $"{ackDe} Das war der letzte Schritt.";
+            }
+
+            var lead = doneNumber + 1 == total ? "Letzter Schritt:" : TransitionsDe[(doneNumber - 1) % TransitionsDe.Length];
+            return $"{ackDe} {lead} {Lang.T(next.Title)}.{Then(nextInstruction)}";
+        }
+
         var ack = Acknowledgements[(doneNumber - 1) % Acknowledgements.Length];
         if (next == null)
         {
@@ -27,17 +44,19 @@ public static class Narration
     }
 
     /// <summary>A safety stop: calm, immediate, and what to do instead.</summary>
-    public static string Violation(SafetyRule rule) => $"Hold on. {rule.Description}";
+    public static string Violation(SafetyRule rule) => Lang.IsGerman ? $"Moment. {Lang.T(rule.Description)}" : $"Hold on. {rule.Description}";
 
     /// <summary>The interlock held the part again (#90): the reason once more, shorter on the way in.</summary>
-    public static string StillHeld(SafetyRule rule) => $"Not yet. {rule.Description}";
+    public static string StillHeld(SafetyRule rule) => Lang.IsGerman ? $"Noch nicht. {Lang.T(rule.Description)}" : $"Not yet. {rule.Description}";
 
     /// <summary>
     /// A finished step was undone (#90: the breaker went back off during the last check): what changed, then how to put it
-    /// back. <paramref name="partName"/> is the manual's name, <paramref name="instruction"/> the step's spoken instruction.
+    /// back. <paramref name="partName"/> is the manual's name (in German with its article, "der Hauptschalter"),
+    /// <paramref name="instruction"/> the step's spoken instruction.
     /// </summary>
-    public static string Undone(string partName, string targetState, string instruction) =>
-        $"Careful, the {partName} isn't {targetState} any more. {(instruction ?? string.Empty).Trim()}".TrimEnd();
+    public static string Undone(string partName, string targetState, string instruction) => Lang.IsGerman
+        ? $"Vorsicht, {partName} ist nicht mehr {Lang.T(targetState)}.{Then(instruction)}"
+        : $"Careful, the {partName} isn't {targetState} any more. {(instruction ?? string.Empty).Trim()}".TrimEnd();
 
     /// <summary>
     /// Something done out of order or a wrong reading: no blame, then what to do now. An action that belongs to a later
@@ -46,6 +65,14 @@ public static class Narration
     public static string Mistake(ProcedureError error, int currentNumber, StepDefinition current, string instruction)
     {
         var outOfOrder = current != null && error.StepId != current.Id;
+        if (Lang.IsGerman)
+        {
+            // The runner's own message is English and model-facing; the German line says what to do instead.
+            var whatDe = outOfOrder ? "Vorsicht, das kommt erst etwas später." : "Hmm, nicht ganz.";
+            var nowDe = current != null ? $" Zuerst: {Lang.T(current.Title)}." : string.Empty;
+            return $"{whatDe}{nowDe}{Then(instruction)}";
+        }
+
         var what = outOfOrder ? "Careful, that one comes a bit later." : $"Hmm, not quite. {(error.Message ?? string.Empty).Trim()}";
         var now = current != null ? $" First, let's {Lower(current.Title)}." : string.Empty;
         var how = string.IsNullOrWhiteSpace(instruction) ? string.Empty : " " + instruction.Trim();
@@ -56,6 +83,20 @@ public static class Narration
     {
         var errors = result.Errors.Count;
         var violations = result.Violations.Count;
+        if (Lang.IsGerman)
+        {
+            if (result.Passed)
+            {
+                var cleanDe = errors == 0 && violations == 0
+                    ? "ohne einen einzigen Fehler"
+                    : $"{CountDe(errors, "kleiner Fehler", "kleine Fehler")}, keine Sicherheitsprobleme";
+                return $"Fertig, und bestanden: {result.Score} von 100 Punkten, {cleanDe}. Die Pumpe ist wieder in Betrieb.";
+            }
+
+            return $"Der Auftrag ist erledigt, aber diesmal nicht bestanden: {result.Score} von 100 Punkten, " +
+                   $"{CountDe(violations, "Sicherheitsverstoß", "Sicherheitsverstöße")}. Schauen wir uns an, was passiert ist.";
+        }
+
         if (result.Passed)
         {
             var clean = errors == 0 && violations == 0
@@ -67,6 +108,10 @@ public static class Narration
         return $"That's the job finished, but it didn't pass this time: {result.Score} out of 100, " +
                $"{Count(violations, "safety issue")}. Let's go over what happened.";
     }
+
+    private static string CountDe(int n, string one, string many) => n == 1 ? $"ein {one}" : $"{(n == 0 ? "keine" : n.ToString())} {many}";
+
+    private static string Then(string instruction) => string.IsNullOrWhiteSpace(instruction) ? string.Empty : " " + instruction.Trim();
 
     private static string Count(int n, string thing) => n == 1 ? $"one {thing}" : $"{(n == 0 ? "no" : n.ToString())} {thing}s";
 

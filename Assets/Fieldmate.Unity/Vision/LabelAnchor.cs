@@ -1,3 +1,4 @@
+using Fieldmate.Localization;
 using Fieldmate.UI;
 using TMPro;
 using UnityEngine;
@@ -65,9 +66,9 @@ namespace Fieldmate.Vision
             card.Shown = true;
             card.Title.text = answer.Label;
             card.Help.text = answer.Help;
-            var (chip, colour) = answer.Source == AnswerSource.ModelData ? ("Model data", Theme.Neutral)
-                : answer.IsUnsure ? ("Not sure", Theme.Warning)
-                : ("Camera", Theme.Accent);
+            var (chip, colour) = answer.Source == AnswerSource.ModelData ? (Lang.T("Model data"), Theme.Neutral)
+                : answer.IsUnsure ? (Lang.T("Not sure"), Theme.Warning)
+                : (Lang.T("Camera"), Theme.Accent);
             card.Chip.text = chip;
             card.ChipFill.color = colour;
             card.Root.position = point + Vector3.up * RiseMetres;

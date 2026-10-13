@@ -1,4 +1,5 @@
 using Fieldmate.AI;
+using Fieldmate.Localization;
 using Fieldmate.Procedures;
 using Fieldmate.XR;
 using UnityEngine;
@@ -97,9 +98,11 @@ namespace Fieldmate.Assistant
 
         private void OnUndone(int index, StepDefinition step, InteractionEvent e)
         {
-            var part = machine.Catalog?.DisplayName(step.PartId) ?? step.PartId;
+            var part = Lang.IsGerman
+                ? machine.Catalog?.WithArticle(step.PartId, GermanCase.Nominative) ?? step.PartId
+                : (machine.Catalog?.DisplayName(step.PartId) ?? step.PartId).ToLowerInvariant();
             loop.RecordEvent($"step {index + 1} '{step.Title}' undone: {step.PartId} is now {e.Value}");
-            loop.Narrate(Narration.Undone(part.ToLowerInvariant(), step.TargetState, Instruction(step)), interrupt: true);
+            loop.Narrate(Narration.Undone(part, step.TargetState, Instruction(step)), interrupt: true);
         }
 
         private void OnError(ProcedureError error)

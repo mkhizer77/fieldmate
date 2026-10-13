@@ -1,5 +1,5 @@
 {
-  "about": "AI eval fixture (design.md §5.4, #17). step = the procedure step the user is on (null: not started). tools must be called, forbid must not; args are checked as the transcript shows them; keywords must appear in the answer ('a|b' = either).",
+  "about": "AI eval fixture (design.md §5.4, #17). step = the procedure step the user is on (null: not started). tools must be called, forbid must not; args are checked as the transcript shows them; keywords must appear in the answer ('a|b' = either). language = what the assistant speaks when the user asks (default en; #24).",
   "cases": [
     { "id": "find-relief-valve", "utterance": "Where is the relief valve?", "step": null,
       "tools": ["highlight_part"], "args": { "highlight_part": { "part_id": "relief_valve" } }, "keywords": ["relief"] },
@@ -50,6 +50,16 @@
     { "id": "off-topic", "utterance": "What's the weather like in Berlin tomorrow?", "step": null,
       "forbid": ["highlight_part", "start_procedure", "read_telemetry"], "keywords": ["machine|pump|procedure|maintenance"] },
     { "id": "verify-running", "utterance": "Is the pressure back to normal?", "step": "verify_running",
-      "tools": ["read_telemetry|report_reading"], "keywords": ["bar"] }
+      "tools": ["read_telemetry|report_reading"], "keywords": ["bar"] },
+    { "id": "de-find-breaker", "language": "de", "utterance": "Wo ist der Hauptschalter?", "step": null,
+      "tools": ["highlight_part"], "args": {"highlight_part": {"part_id": "main_breaker"}}, "keywords": ["Hauptschalter"] },
+    { "id": "de-why-pressure", "language": "de", "utterance": "Warum ist der Druck so hoch?", "step": null,
+      "tools": ["read_telemetry"], "forbid": ["start_procedure"], "keywords": ["Überdruckventil|Einsatz|Ventil"] },
+    { "id": "de-start", "language": "de", "utterance": "Ja, lass uns mit dem Verfahren anfangen.", "step": null,
+      "tools": ["start_procedure"], "args": {"start_procedure": {"procedure_id": "relief_valve_replacement"}}, "keywords": ["Überdruckventil|Schritt 1|prüf"] },
+    { "id": "de-what-now", "language": "de", "utterance": "Was muss ich jetzt machen?", "step": "lockout",
+      "forbid": ["start_procedure"], "keywords": ["Hauptschalter|abschließ|sperr"] },
+    { "id": "de-back-to-english", "language": "de", "utterance": "Kannst du bitte wieder Englisch sprechen?", "step": null,
+      "tools": ["set_language"], "args": {"set_language": {"language": "en"}} }
   ]
 }
