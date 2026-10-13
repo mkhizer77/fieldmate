@@ -187,6 +187,16 @@ public static class GermanText
         ["Fit controllers"] = "Controller anpassen",
         ["Fit controllers: On"] = "Controller anpassen: An",
         ["Camera: On"] = "Kamera: An",
+
+        // Remote observer (#26).
+        ["Observer: Off"] = "Beobachter: Aus",
+        ["Observer: starting…"] = "Beobachter: startet …",
+        ["Observer: {0}"] = "Beobachter: {0}",
+        ["Observer code: {0}"] = "Beobachter-Code: {0}",
+        ["Relay unavailable, local network only"] = "Relay nicht verfügbar, nur lokales Netzwerk",
+        ["Observer link failed. Check the network and try again."] = "Beobachter-Verbindung fehlgeschlagen. Prüf das Netzwerk und versuch es noch mal.",
+        ["Message from your supervisor: {0}"] = "Nachricht von deinem Betreuer: {0}",
+        ["Hint from your supervisor: {0}"] = "Tipp von deinem Betreuer: {0}",
         ["Camera: Off (local-only)"] = "Kamera: Aus (nur lokal)",
         ["Occlusion: Hard"] = "Verdeckung: Hart",
         ["Occlusion: Soft"] = "Verdeckung: Weich",

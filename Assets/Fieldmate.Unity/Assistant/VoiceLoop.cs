@@ -136,7 +136,7 @@ namespace Fieldmate.Assistant
             tools.LanguageChanged += language => Lang.Set(language);
             session.Language = Lang.Current;
             session.StateChanged += ShowState;
-            session.TranscriptAdded += panel.Add;
+            session.TranscriptAdded += Show;
             session.Fallback = new FallbackResponses(machine.Manual, machine.Runner, machine.Telemetry);
             session.OfflineChanged += offline =>
             {
@@ -273,7 +273,7 @@ namespace Fieldmate.Assistant
             }
 
             Debug.LogWarning("[Assistant] microphone failed to start");
-            panel.Add(new TranscriptEntry(TranscriptKind.Error, Lang.T("No microphone available (or permission denied).")));
+            Show(new TranscriptEntry(TranscriptKind.Error, Lang.T("No microphone available (or permission denied).")));
             return false;
         }
 
@@ -369,7 +369,7 @@ namespace Fieldmate.Assistant
             catch (Exception e)
             {
                 Debug.LogException(e);
-                panel.Add(new TranscriptEntry(TranscriptKind.Error, Lang.T("Something went wrong with the assistant.")));
+                Show(new TranscriptEntry(TranscriptKind.Error, Lang.T("Something went wrong with the assistant.")));
                 return null;
             }
         }
@@ -390,6 +390,15 @@ namespace Fieldmate.Assistant
         private string pendingNarration;
 
         /// <summary>Records a machine event for the model's context (#61).</summary>
+        /// <summary>Every line the panel shows, for the remote observer (#26).</summary>
+        public event Action<TranscriptEntry> TranscriptAdded;
+
+        private void Show(TranscriptEntry entry)
+        {
+            panel.Add(entry);
+            TranscriptAdded?.Invoke(entry);
+        }
+
         public void RecordEvent(string text) => session?.SceneEvents.Add(Time.realtimeSinceStartupAsDouble, text);
 
         /// <summary>
@@ -400,7 +409,7 @@ namespace Fieldmate.Assistant
         {
             if (session == null)
             {
-                panel.Add(new TranscriptEntry(TranscriptKind.Assistant, text));
+                Show(new TranscriptEntry(TranscriptKind.Assistant, text));
                 return;
             }
 

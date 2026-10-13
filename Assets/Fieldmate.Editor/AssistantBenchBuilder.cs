@@ -2,6 +2,7 @@ using System.Linq;
 using Fieldmate.Assistant;
 using Fieldmate.Interaction;
 using Fieldmate.Knowledge;
+using Fieldmate.Net;
 using Fieldmate.Procedures;
 using Fieldmate.Twin;
 using Fieldmate.Vision;
@@ -45,7 +46,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator), typeof(ObserverNetwork), typeof(TraineeObserverHost) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -187,6 +188,11 @@ public static class AssistantBenchBuilder
         var cameraButton = MenuButton(menuGo.transform, "Camera Button", 6, ButtonStyle.Secondary); // local-only mode (#23)
         Set(cameraButton, "label", PrivacySettings.ButtonLabel(false));
         new GameObject("Privacy Settings", typeof(PrivacySettings)).GetComponent<PrivacySettings>().Configure(cameraButton);
+        var observerButton = MenuButton(menuGo.transform, "Observer Button", 7, ButtonStyle.Secondary); // remote observer (#26)
+        Set(observerButton, "label", "Observer: Off");
+        var observerGo = new GameObject("Remote Observer", typeof(ObserverNetwork), typeof(TraineeObserverHost));
+        observerGo.GetComponent<TraineeObserverHost>().Configure(observerGo.GetComponent<ObserverNetwork>(), services.GetComponent<MachineServices>(),
+            loop, assistant.GetComponent<PartHighlighter>(), panel.GetComponent<AssistantPanel>(), observerButton);
         Set(fitButton, "label", "Fit controllers");
         var languageButton = MenuButton(menuGo.transform, "Language Button", 7, ButtonStyle.Secondary); // English ↔ German (#24)
         Set(languageButton, "label", HandMenu.LanguageLabel);

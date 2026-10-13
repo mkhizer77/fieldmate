@@ -27,9 +27,14 @@ adds camera-based "What's this?" and a German mode; see the issues and milestone
    is unsure, the twin's own part data answers instead. A red "Camera" pill shows every time a frame is taken.
 5. **Deutsch, bitte.** Ask the mate to speak German, or flip Language in the hand menu: its voice, the step guidance,
    the manual, the labels and every panel switch to German on the spot, mid-procedure.
-6. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
-   Start/Restart, Move machine, occlusion, performance stats, part labels, the camera (local-only mode) and the
-   language.
+6. **A supervisor can watch.** The Observer button in the hand menu shows a join code; the Fieldmate Observer app on
+   a Mac joins with it and sees the twin's telemetry, the procedure and the conversation live. From there the
+   supervisor can inject or clear a fault, nudge the trainee with a hint (the step's part lights up and the mate says
+   it) or send a message the mate speaks. The headset stays in charge: it validates every request and never waits on
+   the observer.
+7. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
+   Start/Restart, Move machine, occlusion, performance stats, part labels, the camera (local-only mode), the
+   language and the observer.
 
 ## Architecture
 
@@ -54,6 +59,8 @@ flowchart LR
   Proxy --> STT[Speech-to-text]
   Proxy --> LLM[Chat model]
   Proxy --> TTS[Text-to-speech]
+  Runner -.->|"10 Hz state, transcript"| Observer["Observer app (Mac)<br/>Netcode + Relay"]
+  Observer -.->|"fault · hint · message"| Runner
 ```
 
 - **`Fieldmate.Core`**: procedures, AI orchestration (session, tools, prompts, fallback, eval), manual retrieval
@@ -62,6 +69,10 @@ flowchart LR
   loop, hologram, speech bubble) and UI, all built in code with a small UI kit.
 - **`Fieldmate.Editor`**: builders that generate the bench scene and prefabs (nothing hand-edited), project setup,
   the AI eval runner.
+- **`Fieldmate.Net`**: the remote observer over Netcode for GameObjects (one named message, no networked prefabs)
+  and Unity Relay, with a local-network fallback. The protocol, the trainee-authoritative server and the observer's
+  mirror live in `Fieldmate.Core/Net` and are tested over an in-memory link; a PlayMode test runs both ends over real
+  Netcode on localhost.
 - **`tools/proxy`**: the Worker that holds the provider keys; the app never ships them.
 
 ## "What's this?": the vision pipeline
@@ -97,6 +108,7 @@ flowchart TD
 | The transcript, matching manual sections and the machine's state (step, telemetry, the part you look at) | Each assistant turn | Proxy → chat model (Anthropic) |
 | The assistant's reply text | Each spoken reply | Proxy → text-to-speech (ElevenLabs) |
 | **One camera frame** (JPEG, at most 640 px) and the names of nearby parts | **Only when you ask "What's this?"**, never in the background. A red "Camera" pill shows every time | Proxy → vision model (Anthropic) |
+| Telemetry, procedure progress and the conversation transcript (no audio, no camera) | Only while you share with the Observer button | The observer's Mac: directly on the local network, or through Unity Relay (DTLS-encrypted) |
 
 - **Stays on the headset:** the passthrough video, the room scan and scene mesh, spatial anchors, hand tracking.
   A captured frame lives only in memory, overwritten by the next one; nothing is written to storage.
@@ -126,6 +138,12 @@ The assistant needs a proxy: copy `Assets/_Project/Secrets/keys.json.template` t
 (`tools/proxy` deploys one). Without it the app runs with scripted answers. After changing project settings by hand,
 `Fieldmate > Configure Project for Quest` re-applies the Quest defaults; `Fieldmate > Build Assistant Bench Scene`
 regenerates the scene.
+
+**Remote observer (Mac):** `tools/build-observer.sh` builds `Builds/FieldmateObserver.app`. In the headset, press
+Observer in the hand menu and type the code it shows into the app. Codes look like `K7Q2XB` through Unity Relay
+(works across networks; the Unity project must be linked to a Unity Gaming Services project, Relay's free tier is
+enough) or `192.168.1.20:7788` on the same Wi-Fi when Relay isn't set up. To try the dashboard without a headset,
+start it with a simulated trainee: `open Builds/FieldmateObserver.app --args -preview`.
 
 `Fieldmate > Run AI Eval` sends the 30 utterances (25 English, 5 German) in `Assets/Fieldmate.Tests/AIEval/utterances.json` to the real
 model and writes a report to `docs/eval/`; CI runs the same cases against a mocked model on every pull request.

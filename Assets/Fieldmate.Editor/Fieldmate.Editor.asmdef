@@ -16,6 +16,7 @@
     "Unity.InputSystem",
     "Unity.XR.MetaOpenXR",
     "Fieldmate.Core",
+    "Fieldmate.Net",
     "Unity.TextMeshPro",
     "Unity.TextMeshPro.Editor",
     "Unity.XR.Hands"
