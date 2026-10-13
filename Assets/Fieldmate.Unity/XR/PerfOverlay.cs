@@ -33,6 +33,7 @@ namespace Fieldmate.XR
         private ProfilerRecorder gcReserved;
         private TMP_Text text;
         private CanvasGroup group;
+        private Canvas canvas;
         private float nextRefresh;
         private float nextLog;
 
@@ -134,6 +135,7 @@ namespace Fieldmate.XR
         {
             IsShown = shown;
             group.alpha = shown ? 1f : 0f;
+            canvas.enabled = shown; // a canvas at alpha 0 still submits its geometry every frame (#29)
             if (button != null)
             {
                 button.SetLabel(shown ? "Stats: On" : "Stats");
@@ -147,7 +149,7 @@ namespace Fieldmate.XR
 
         private void Build()
         {
-            UiKit.WorldCanvas(gameObject, WidthMm, HeightMm);
+            canvas = UiKit.WorldCanvas(gameObject, WidthMm, HeightMm);
             group = GetComponent<CanvasGroup>();
             var card = UiKit.Card("Background", transform, Vector2.zero, Vector2.one, Theme.Surface, stroke: true).transform;
             var eyebrow = UiKit.Eyebrow("Eyebrow", card, new Vector2(0f, 0.72f), new Vector2(1f, 0.94f), Theme.TextMuted);

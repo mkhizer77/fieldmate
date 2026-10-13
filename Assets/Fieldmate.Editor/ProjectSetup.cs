@@ -36,6 +36,8 @@ public static class ProjectSetup
         "OculusTouchControllerProfile", "MetaQuestTouchPlusControllerProfile", "HandInteractionProfile",
         // Controllers like Meta's home (#80): the runtime's controller models, and hands posed around held controllers.
         "RenderModelFeature", "HandTrackingDataSourceFeature",
+        // Performance pass (#29): fixed foveated rendering, and CPU/GPU level hints (QuestPerformance sets both).
+        "FoveatedRenderingFeature", "XrPerformanceSettingsFeature",
     };
 
     // Enabled by the Meta Quest feature group but not used by Fieldmate (single user, no shared space).
@@ -65,6 +67,12 @@ public static class ProjectSetup
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.Vulkan });
         PlayerSettings.colorSpace = ColorSpace.Linear;
 
+        // Performance pass (#29). The XR compositor paces frames, so Android's Swappy only gets in its way; a stack trace
+        // per Debug.Log costs a millisecond or more on Quest, so only errors and exceptions keep theirs.
+        PlayerSettings.Android.optimizedFramePacing = false;
+        PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+        PlayerSettings.SetStackTraceLogType(LogType.Warning, StackTraceLogType.None);
+
         // Input System only (XRI 3.x). No public API for this; 1 = new Input System.
         var playerSettings = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset").FirstOrDefault();
         if (playerSettings != null)
@@ -74,8 +82,20 @@ public static class ProjectSetup
             if (handler != null)
             {
                 handler.intValue = 1;
-                so.ApplyModifiedPropertiesWithoutUndo();
             }
+
+            // Skin the tracked-hand meshes on the GPU (compute, batched) instead of the main thread (#29). 2 = GPU batched.
+            if (so.FindProperty("meshDeformation") is { } deformation)
+            {
+                deformation.intValue = 2;
+            }
+
+            if (so.FindProperty("gpuSkinning") is { } gpuSkinning)
+            {
+                gpuSkinning.boolValue = true;
+            }
+
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 
@@ -127,6 +147,50 @@ public static class ProjectSetup
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
+    public const string HologramDepthFeature = "Hologram Depth";
+    public const string HologramDepthLightMode = "HologramDepth";
+
+    /// <summary>
+    /// The hologram's depth pre-pass as one renderer feature before transparents (#29). As a second pass in the same
+    /// shader, URP ran depth and light alternately per renderer, so none of the mate's draws could batch (28 SetPass
+    /// calls for one small figure); drawn all at once, depth batches, and the light passes batch after it.
+    /// </summary>
+    public static void EnsureHologramDepthPass(UniversalRendererData renderer)
+    {
+        var feature = renderer.rendererFeatures.OfType<RenderObjects>().FirstOrDefault(f => f != null && f.name == HologramDepthFeature);
+        if (feature == null)
+        {
+            feature = ScriptableObject.CreateInstance<RenderObjects>();
+            feature.name = HologramDepthFeature;
+            AssetDatabase.AddObjectToAsset(feature, renderer);
+            renderer.rendererFeatures.Add(feature);
+        }
+
+        feature.settings.passTag = HologramDepthFeature;
+        feature.settings.Event = RenderPassEvent.BeforeRenderingTransparents;
+        feature.settings.filterSettings.RenderQueueType = RenderQueueType.Transparent;
+        feature.settings.filterSettings.LayerMask = ~0;
+        feature.settings.filterSettings.PassNames = new[] { HologramDepthLightMode };
+        feature.SetActive(true);
+        EditorUtility.SetDirty(feature);
+
+        // The renderer serialises its features with a parallel list of local file ids; keep it in step.
+        var so = new SerializedObject(renderer);
+        var map = so.FindProperty("m_RendererFeatureMap");
+        map.arraySize = renderer.rendererFeatures.Count;
+        for (var i = 0; i < renderer.rendererFeatures.Count; i++)
+        {
+            if (renderer.rendererFeatures[i] != null &&
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(renderer.rendererFeatures[i], out _, out long localId))
+            {
+                map.GetArrayElementAtIndex(i).longValue = localId;
+            }
+        }
+
+        so.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(renderer);
+    }
+
     private static void ConfigureUrp()
     {
         EnsureFolder(SettingsDir);
@@ -155,9 +219,12 @@ public static class ProjectSetup
         // Meta OpenXR graphics settings for passthrough: terrain holes off, no post-processing, intermediate texture Auto.
         var urpSo = new SerializedObject(urp);
         urpSo.FindProperty("m_SupportsTerrainHoles").boolValue = false;
+        // Nothing casts shadows (#29): no shadow passes or shadow shader variants.
+        urpSo.FindProperty("m_MainLightShadowsSupported").boolValue = false;
         urpSo.ApplyModifiedPropertiesWithoutUndo();
         renderer.postProcessData = null;
         renderer.intermediateTextureMode = IntermediateTextureMode.Auto;
+        EnsureHologramDepthPass(renderer);
         EditorUtility.SetDirty(renderer);
         EditorUtility.SetDirty(urp);
 

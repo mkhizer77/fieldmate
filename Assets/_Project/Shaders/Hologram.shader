@@ -2,7 +2,9 @@
 // figure, a fine interlace, a slow flicker and the odd glitch band that shears a slice sideways, fading out towards
 // the projector at the figure's base (_FadeStart, a world height the component keeps at the waist). Unlit; a depth pre-pass keeps the figure's own back faces from stacking up.
 // Colour adds to the passthrough (premultiplied: rgb + (1 - a) * passthrough); alpha dims the room just behind it a
-// little so the figure stays readable in a bright room. URP draws one pass per LightMode tag, in this order.
+// little so the figure stays readable in a bright room. The depth pass has its own LightMode, drawn for every hologram
+// renderer at once by the Quest renderer's "Hologram Depth" feature before transparents (#29); URP then draws the light
+// pass in the normal transparent queue, where consecutive hologram draws batch.
 Shader "Fieldmate/Hologram"
 {
     Properties
@@ -83,7 +85,7 @@ Shader "Fieldmate/Hologram"
         Pass
         {
             Name "HologramDepth"
-            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Tags { "LightMode" = "HologramDepth" }
             ZWrite [_DepthWrite]
             ColorMask 0
             Cull Back

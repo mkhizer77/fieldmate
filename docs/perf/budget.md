@@ -6,7 +6,7 @@ so GPU time comes from Unity's `FrameTimingManager`, which reports 0 on this pla
 
 | Item | Budget | Measured 2026-09-30, build from main 1ad4f26 (bench scene, machine placed, hands tracked) |
 |---|---|---|
-| App frame time | ≤ 11 ms | **13.9 ms** steady (72 Hz frame budget; app is on the edge). CPU 13.9–15.9 ms; GPU not reported |
+| App frame time | ≤ 11 ms | **13.9 ms** steady, but that was `cpuFrameTime`, which includes the wait for the display: it shows the app held 72 fps, not its work. Since #29 the probe logs `main`/`render`/`gpu` work separately; see `before-after.md` |
 | Draw calls | ≤ 120 | **not reported** by the release player (Draw Calls / Batches counters read 0; the overlay shows "–"). SetPass **9–50** as the proxy (build 15:30, main + #59/#60/#62/#63) |
 | Triangles | ≤ 400 k | **5–34 k** (same build; hands tracked, machine in view) |
 | Texture memory | ≤ 300 MB | not separable on device: System Used Memory **~500 MB** for the whole process (Unity + XR runtime + textures), GC reserved 9–23 MB |
@@ -29,7 +29,7 @@ Spikes seen in the same session, for the record: 27 s and 2.1 s single samples w
 
    ```
    adb logcat -s Unity | grep -E "\[Perf\] (stats|occlusion)"
-   [Perf] occlusion=Hard cpu 13.9 ms gpu 0.0 ms frame 13.9 ms (361 frames)
+   [Perf] occlusion=Hard main 6.1 ms render 4.3 ms gpu 9.1 ms cpu 13.9 ms frame 13.9 ms (361 frames)
    [Perf] stats frame 13.9 ms draws 84 batches 40 setpass 22 tris 118500 mem 412 MB gc 18 MB
    ```
 

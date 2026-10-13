@@ -17,6 +17,7 @@ namespace Fieldmate.Procedures
         private Transform head;
         private Image fill;
         private CanvasGroup group;
+        private Canvas canvas;
 
         public bool IsShowing => group != null && group.alpha > 0f;
         public float Progress => fill != null ? fill.fillAmount : 0f;
@@ -48,6 +49,7 @@ namespace Fieldmate.Procedures
 
             fill.fillAmount = Mathf.Clamp01(progress);
             group.alpha = 1f;
+            canvas.enabled = true;
         }
 
         public void Hide()
@@ -56,12 +58,13 @@ namespace Fieldmate.Procedures
             {
                 group.alpha = 0f;
                 fill.fillAmount = 0f;
+                canvas.enabled = false; // a hidden canvas still submits its geometry unless disabled (#29)
             }
         }
 
         private void Build()
         {
-            UiKit.WorldCanvas(gameObject, SizeMm, SizeMm);
+            canvas = UiKit.WorldCanvas(gameObject, SizeMm, SizeMm);
             group = GetComponent<CanvasGroup>();
             var track = UiKit.Rect("Track", transform, Vector2.zero, Vector2.one).gameObject.AddComponent<Image>();
             RingImage(track, new Color(1f, 1f, 1f, 0.18f));
@@ -73,6 +76,7 @@ namespace Fieldmate.Procedures
             fill.fillClockwise = true;
             fill.fillAmount = 0f;
             group.alpha = 0f;
+            canvas.enabled = false;
         }
 
         private static void RingImage(Image image, Color color)
