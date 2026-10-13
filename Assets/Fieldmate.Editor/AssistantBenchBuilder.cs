@@ -46,7 +46,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator), typeof(ObserverNetwork), typeof(TraineeObserverHost) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator), typeof(ObserverNetwork), typeof(TraineeObserverHost), typeof(TagScanner), typeof(MachineDefinition) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -54,6 +54,7 @@ public static class AssistantBenchBuilder
             }
         }
 
+        MachineTagsSetup.Ensure(); // the skid's tag definition, its Addressables entry and the printable tag (#27)
         ProjectSetup.EnsureFolder(MaterialsDir);
         ProjectSetup.EnsureFolder(ScenePath[..ScenePath.LastIndexOf('/')]);
         var skidPrefab = BuildSkidPrefab();
@@ -193,6 +194,10 @@ public static class AssistantBenchBuilder
         var observerGo = new GameObject("Remote Observer", typeof(ObserverNetwork), typeof(TraineeObserverHost));
         observerGo.GetComponent<TraineeObserverHost>().Configure(observerGo.GetComponent<ObserverNetwork>(), services.GetComponent<MachineServices>(),
             loop, assistant.GetComponent<PartHighlighter>(), panel.GetComponent<AssistantPanel>(), observerButton);
+        var scanButton = MenuButton(menuGo.transform, "Scan Tag Button", 8, ButtonStyle.Secondary); // machine tags (#27)
+        Set(scanButton, "label", "Scan tag");
+        new GameObject("Tag Scanner", typeof(TagScanner)).GetComponent<TagScanner>().Configure(frameSource, services.GetComponent<MachineServices>(),
+            placement, loop, panel.GetComponent<AssistantPanel>(), scanButton);
         Set(fitButton, "label", "Fit controllers");
         var languageButton = MenuButton(menuGo.transform, "Language Button", 7, ButtonStyle.Secondary); // English ↔ German (#24)
         Set(languageButton, "label", HandMenu.LanguageLabel);

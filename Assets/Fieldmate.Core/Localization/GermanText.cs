@@ -188,6 +188,16 @@ public static class GermanText
         ["Fit controllers: On"] = "Controller anpassen: An",
         ["Camera: On"] = "Kamera: An",
 
+        // Machine tags (#27).
+        ["Scan tag"] = "Etikett scannen",
+        ["Scanning…"] = "Scanne …",
+        ["No machine tag in view. Look straight at the tag from about a metre."] = "Kein Maschinenetikett im Blick. Schau aus etwa einem Meter direkt auf das Etikett.",
+        ["Tag {0} isn't a machine this app knows."] = "Etikett {0} gehört zu keiner Maschine, die diese App kennt.",
+        ["This tag is for {0}; this app runs {1}."] = "Dieses Etikett gehört zu {0}; diese App zeigt {1}.",
+        ["The camera can't measure the tag yet. Try again in a moment."] = "Die Kamera kann das Etikett noch nicht vermessen. Versuch es gleich noch mal.",
+        ["Found the {0} on its tag."] = "{0} gefunden und auf das Etikett gestellt.",
+        ["FM-200 pump skid"] = "Pumpenanlage FM-200",
+
         // Remote observer (#26).
         ["Observer: Off"] = "Beobachter: Aus",
         ["Observer: starting…"] = "Beobachter: startet …",

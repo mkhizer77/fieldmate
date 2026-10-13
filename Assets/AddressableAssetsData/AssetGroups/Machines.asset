@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Machines
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Machines
+  m_GUID: d38fa3c1135b3481aad90b619cf6034a
+  m_SerializeEntries:
+  - m_GUID: cfff97b5acd124072b189a6dfd862d32
+    m_Address: machines/tag-07
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - machine
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: a3eaed0847188477b851548f82f07c61, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 7f33689422db24c26b946a7de163cfc1, type: 2}
+    - {fileID: 11400000, guid: 913ff57f46d1c44578fe73a8fe2639d8, type: 2}

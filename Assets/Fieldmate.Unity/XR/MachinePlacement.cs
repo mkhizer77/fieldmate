@@ -393,7 +393,21 @@ namespace Fieldmate.XR
 
         private bool TryGetTarget(out Vector3 position)
         {
-            var ray = new Ray(pointer.position, pointer.forward);
+            if (!TryFloorPoint(new Ray(pointer.position, pointer.forward), out position))
+            {
+                return false;
+            }
+
+            position.y += PlacementMath.FloorClearance;
+            return true;
+        }
+
+        /// <summary>
+        /// Where <paramref name="ray"/> meets the real floor: the room scan when it has a floor-like hit (never the
+        /// machine's own colliders), else the tracked floor plane. Also used by the tag scanner (#27).
+        /// </summary>
+        public bool TryFloorPoint(Ray ray, out Vector3 position)
+        {
             // Room scan first: accept only floor-like hits, ignoring the machine's own colliders.
             var hits = Physics.RaycastAll(ray, PlacementMath.MaxDistance);
             var best = float.MaxValue;
@@ -412,13 +426,7 @@ namespace Fieldmate.XR
             // Not "the last floor-like hit's height" for the fallback: a table or the machine's own frame is floor-like too,
             // and the machine then followed a phantom floor. The easing absorbs a frame's switch between scan and plane.
             LastHitWasSceneMesh = best < float.MaxValue;
-            if (!LastHitWasSceneMesh && !PlacementMath.TryHitFloorPlane(ray, 0f, out position))
-            {
-                return false;
-            }
-
-            position.y += PlacementMath.FloorClearance;
-            return true;
+            return LastHitWasSceneMesh || PlacementMath.TryHitFloorPlane(ray, 0f, out position);
         }
 
         private void SetState(PlacementState state)

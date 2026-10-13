@@ -32,9 +32,12 @@ adds camera-based "What's this?" and a German mode; see the issues and milestone
    supervisor can inject or clear a fault, nudge the trainee with a hint (the step's part lights up and the mate says
    it) or send a message the mate speaks. The headset stays in charge: it validates every request and never waits on
    the observer.
-7. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
+7. **Scan the machine's tag.** Instead of pointing at the floor, lay the machine's printed tag where it stands and
+   press Scan tag: the headset finds the tag in one camera frame (on the device, nothing uploaded), looks the machine
+   up by the tag's id through Addressables, and anchors the twin on it. Tags and print instructions: `docs/markers`.
+8. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
    Start/Restart, Move machine, occlusion, performance stats, part labels, the camera (local-only mode), the
-   language and the observer.
+   language, the observer and the tag scanner.
 
 ## Architecture
 
@@ -73,6 +76,9 @@ flowchart LR
   and Unity Relay, with a local-network fallback. The protocol, the trainee-authoritative server and the observer's
   mirror live in `Fieldmate.Core/Net` and are tested over an in-memory link; a PlayMode test runs both ends over real
   Netcode on localhost.
+- **`Fieldmate.Core/Markers`**: machine tags from scratch: a 32-code dictionary with error correction, adaptive
+  threshold + contour + quad detection with sub-pixel corners, and planar pose from the homography; tested on
+  synthetic camera frames with known poses.
 - **`tools/proxy`**: the Worker that holds the provider keys; the app never ships them.
 
 ## "What's this?": the vision pipeline
@@ -118,6 +124,8 @@ flowchart TD
 - **Local-only mode** (Camera button in the hand menu): the camera is never read and no image leaves the headset;
   "What's this?" answers from the twin's own part data. Voice still uses the cloud. Without a proxy configured, the
   assistant runs on scripted answers and nothing leaves the headset at all.
+- **Scan tag** reads one camera frame and finds the tag on the headset; that frame never leaves it. The Camera pill
+  shows for it too, and local-only mode turns it off with the rest of the camera.
 - The camera needs the Horizon OS `HEADSET_CAMERA` permission. Deny it and everything else keeps working.
 
 Decisions live in [`docs/adr/`](docs/adr): OpenXR route (001), Unity version (002), voice providers and proxy (003).
