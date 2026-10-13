@@ -20,6 +20,8 @@ VOICE_DE = "fzqS9sNPYJhLlhsfDm0l"
 DAILY_CHAT_CALLS = "300"
 DAILY_STT_SECONDS = "1800"
 DAILY_TTS_CHARS = "5000"
+# "What's this?" frames (/v1/vision, CHAT_MODEL unless VISION_MODEL is set).
+DAILY_VISION_CALLS = "100"
 
 # Daily usage counters. Create with: wrangler kv namespace create USAGE, then paste the id here.
 [[kv_namespaces]]

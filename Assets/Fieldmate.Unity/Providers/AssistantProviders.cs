@@ -17,8 +17,9 @@ public sealed class AssistantProviders
     public const string PublicDefaultResource = "FieldmateProxy";
     public const string EditorKeysPath = "Assets/_Project/Secrets/keys.json";
 
-    private AssistantProviders(ProxyConfig config, string source, IChatModel chat, ISpeechToText stt, IStreamingTextToSpeech tts)
+    private AssistantProviders(ProxyConfig config, string source, IChatModel chat, ISpeechToText stt, IStreamingTextToSpeech tts, IVisionModel vision)
     {
+        Vision = vision;
         Config = config;
         Source = source;
         Chat = chat;
@@ -39,9 +40,23 @@ public sealed class AssistantProviders
     public ISpeechToText SpeechToText { get; }
     public IStreamingTextToSpeech TextToSpeech { get; }
 
+    /// <summary>"What's this?" frames; the same proxy, its /v1/vision route.</summary>
+    public IVisionModel Vision { get; }
+
+    /// <summary>
+    /// False while tests run (PlayModeSetup): a test must never reach the live proxy, which spends TTS and LLM credits
+    /// (#101). Tests that need an assistant configure fakes.
+    /// </summary>
+    public static bool LiveAllowed { get; set; } = true;
+
     /// <summary>Loads config from the standard sources and creates UnityWebRequest-backed providers.</summary>
     public static AssistantProviders Load()
     {
+        if (!LiveAllowed)
+        {
+            return new AssistantProviders("Live providers are off while tests run.");
+        }
+
         var candidates = new (string source, string json)[]
         {
             ("device keys.json", ReadFile(Path.Combine(Application.persistentDataPath, KeysFileName))),
@@ -69,7 +84,7 @@ public sealed class AssistantProviders
             {
                 var client = new ProxyClient(config, transport);
                 return new AssistantProviders(config, source, new ProxyChatModel(client), new ProxySpeechToText(client),
-                    new ProxyTextToSpeech(client));
+                    new ProxyTextToSpeech(client), new ProxyVisionModel(client));
             }
 
             reason = $"{source}: {why}";

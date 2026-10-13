@@ -4,6 +4,7 @@ import { checkRateLimit, isDev, reserveUsage } from "./guard";
 import { errorResponse, HttpError } from "./http";
 import { handleStt } from "./stt";
 import { handleTts } from "./tts";
+import { handleVision } from "./vision";
 
 /** Injected so tests can replace the upstream clients. */
 export interface Deps {
@@ -17,7 +18,7 @@ export async function route(request: Request, env: Env, deps: Deps = defaultDeps
   const { pathname } = new URL(request.url);
   try {
     if (request.method === "GET" && pathname === "/v1/health") {
-      return Response.json({ ok: true, chatModel: env.CHAT_MODEL, sttModel: env.STT_MODEL, ttsModel: env.TTS_MODEL });
+      return Response.json({ ok: true, chatModel: env.CHAT_MODEL, visionModel: env.VISION_MODEL || env.CHAT_MODEL, sttModel: env.STT_MODEL, ttsModel: env.TTS_MODEL });
     }
 
     if (request.method !== "POST") {
@@ -30,6 +31,10 @@ export async function route(request: Request, env: Env, deps: Deps = defaultDeps
         await checkRateLimit(request, env, dev);
         await reserveUsage(env, "chat", 1, dev);
         return await handleChat(request, env, deps.chatClient(env));
+      case "/v1/vision":
+        await checkRateLimit(request, env, dev);
+        await reserveUsage(env, "vision", 1, dev);
+        return await handleVision(request, env, deps.chatClient(env));
       case "/v1/stt":
         await checkRateLimit(request, env, dev);
         return await handleStt(request, env, dev, deps.fetch);

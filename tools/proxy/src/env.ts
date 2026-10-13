@@ -7,6 +7,8 @@ export interface Env {
   DEV_TOKEN?: string;
 
   CHAT_MODEL: string;
+  /** Optional: the model for /v1/vision; CHAT_MODEL when unset. */
+  VISION_MODEL?: string;
   MAX_OUTPUT_TOKENS: string;
   STT_MODEL: string;
   TTS_MODEL: string;
@@ -15,6 +17,7 @@ export interface Env {
   DAILY_CHAT_CALLS: string;
   DAILY_STT_SECONDS: string;
   DAILY_TTS_CHARS: string;
+  DAILY_VISION_CALLS?: string;
 
   USAGE?: KVNamespace;
   RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };

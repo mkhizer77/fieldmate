@@ -4,6 +4,7 @@ using Fieldmate.Interaction;
 using Fieldmate.Knowledge;
 using Fieldmate.Procedures;
 using Fieldmate.Twin;
+using Fieldmate.Vision;
 using Fieldmate.XR;
 using Unity.XR.CoreUtils;
 using UnityEditor;
@@ -44,7 +45,7 @@ public static class AssistantBenchBuilder
                      typeof(RotaryInteractable), typeof(RemovablePart), typeof(ToolItem), typeof(ToolSocket), typeof(MachineControlRouter),
                      typeof(HoverTint), typeof(ProcedureDirector), typeof(ProcedurePanel), typeof(PressButton), typeof(MoveMachineButton),
                      typeof(OcclusionSettings), typeof(FrameTimeProbe), typeof(ControlTag), typeof(ControlGuide), typeof(InputModalityProbe),
-                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout) })
+                     typeof(PresenceGlow), typeof(ModalityVisibility), typeof(BoundaryControl), typeof(PointerRayStyle), typeof(SceneScanBootstrap), typeof(PerfOverlay), typeof(HologramMate), typeof(SetupFlow), typeof(PointerPose), typeof(HandMenu), typeof(PalmPose), typeof(RayReach), typeof(ControllerFit), typeof(PressureGauge), typeof(SegmentReadout), typeof(CameraFrameSource), typeof(VisionRequester), typeof(LabelAnchor), typeof(PrivacySettings), typeof(CaptureIndicator) })
         {
             if (!AssetDatabase.FindAssets($"t:MonoScript {type.Name}").Any())
             {
@@ -76,6 +77,10 @@ public static class AssistantBenchBuilder
             typeof(AROcclusionManager), typeof(ARShaderOcclusion));
         cameraGo.GetComponent<AROcclusionManager>().enabled = false; // OcclusionSettings turns it on after the scene permission
         cameraGo.GetComponent<ARShaderOcclusion>().enabled = false;
+        cameraGo.GetComponent<ARCameraManager>().enabled = false; // CameraFrameSource starts it once HEADSET_CAMERA is answered (#20)
+        var frameSource = cameraGo.AddComponent<CameraFrameSource>();
+        Set(frameSource, "cameraManager", cameraGo.GetComponent<ARCameraManager>());
+        Set(frameSource, "head", cameraGo.transform);
         cameraGo.tag = "MainCamera";
         cameraGo.transform.SetParent(offset, false);
         cameraGo.transform.localPosition = new Vector3(0f, 1.6f, 0f); // editor preview height; tracking overrides on device
@@ -128,6 +133,17 @@ public static class AssistantBenchBuilder
         Set(loop, "highlighter", assistant.GetComponent<PartHighlighter>());
         Set(loop, "player", audio.GetComponent<StreamingAudioPlayer>());
         Set(loop, "head", cameraGo.transform);
+
+        // "What's this?" (#22): camera frame → vision model → label pinned where the answer points.
+        var visionGo = new GameObject("Vision", typeof(VisionRequester), typeof(LabelAnchor));
+        visionGo.transform.SetParent(assistant.transform, false);
+        Set(visionGo.GetComponent<LabelAnchor>(), "head", cameraGo.transform);
+        Set(visionGo.GetComponent<VisionRequester>(), "frameSource", frameSource);
+        Set(visionGo.GetComponent<VisionRequester>(), "machine", services.GetComponent<MachineServices>());
+        Set(visionGo.GetComponent<VisionRequester>(), "labels", visionGo.GetComponent<LabelAnchor>());
+        Set(loop, "vision", visionGo.GetComponent<VisionRequester>());
+        var indicator = new GameObject("Camera Indicator", typeof(CaptureIndicator)); // privacy: every capture shows it (#23)
+        indicator.GetComponent<CaptureIndicator>().Configure(frameSource, cameraGo.transform);
         Set(loop, "leftHand", leftHand); // the talk pinch is ignored while this hand holds a control
 
         var placementGo = new GameObject("Machine Placement", typeof(MachinePlacement));
@@ -168,6 +184,9 @@ public static class AssistantBenchBuilder
         MenuButton(menuGo.transform, "Stats Button", 3, ButtonStyle.Secondary); // perf overlay (#18)
         var labelsButton = MenuButton(menuGo.transform, "Labels Button", 4, ButtonStyle.Secondary);
         var fitButton = MenuButton(menuGo.transform, "Fit Button", 5, ButtonStyle.Secondary); // controller model alignment (#80)
+        var cameraButton = MenuButton(menuGo.transform, "Camera Button", 6, ButtonStyle.Secondary); // local-only mode (#23)
+        Set(cameraButton, "label", PrivacySettings.ButtonLabel(false));
+        new GameObject("Privacy Settings", typeof(PrivacySettings)).GetComponent<PrivacySettings>().Configure(cameraButton);
         Set(fitButton, "label", "Fit controllers");
         new GameObject("Controller Fit", typeof(ControllerFit));
         var menu = menuGo.GetComponent<HandMenu>();

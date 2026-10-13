@@ -22,8 +22,11 @@ v0.1.0: see the issues and milestones.
    "where is the breaker?", "what is what?") with tool calls: it highlights parts, reads live telemetry, opens manual
    sections, logs notes. Its lips follow the voice; a speech bubble shows the words as they are spoken. Without a
    network it falls back to scripted answers from the manual.
-4. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
-   Start/Restart, Move machine, occlusion, performance stats and part labels.
+4. **"What's this?"** Look at something and ask. The app takes one camera frame, asks a vision model which of the
+   nearby machine parts (or what else) it is, and pins the answer as a label on the spot for 20 seconds. If the model
+   is unsure, the twin's own part data answers instead. A red "Camera" pill shows every time a frame is taken.
+5. **Controls stay out of the way**: a hand menu on the left hand (palm towards you, or the left menu button) holds
+   Start/Restart, Move machine, occlusion, performance stats, part labels and the camera (local-only mode).
 
 ## Architecture
 
@@ -41,7 +44,9 @@ flowchart LR
     Interactables[Valves · breaker · cover · cartridge] --> Runner
     Runner --> Narrator[Narrator] --> Session
     Session --> Speaker[Streaming audio] --> Mate[Hologram mate<br/>lip-sync]
+    Tools --> Vision[What's this?<br/>one frame · gaze · twin candidates] --> Labels[3D label]
   end
+  Vision -->|"JPEG, on request"| Proxy
   Session <-->|HTTPS| Proxy["Proxy (Cloudflare Worker)<br/>keys, limits"]
   Proxy --> STT[Speech-to-text]
   Proxy --> LLM[Chat model]
@@ -55,6 +60,25 @@ flowchart LR
 - **`Fieldmate.Editor`**: builders that generate the bench scene and prefabs (nothing hand-edited), project setup,
   the AI eval runner.
 - **`tools/proxy`**: the Worker that holds the provider keys; the app never ships them.
+
+## Privacy: what leaves the headset
+
+| What | When | Goes to |
+|---|---|---|
+| Your voice (a short WAV clip) | Only while you hold the talk button or pinch | Proxy → speech-to-text (Deepgram) |
+| The transcript, matching manual sections and the machine's state (step, telemetry, the part you look at) | Each assistant turn | Proxy → chat model (Anthropic) |
+| The assistant's reply text | Each spoken reply | Proxy → text-to-speech (ElevenLabs) |
+| **One camera frame** (JPEG, at most 640 px) and the names of nearby parts | **Only when you ask "What's this?"**, never in the background. A red "Camera" pill shows every time | Proxy → vision model (Anthropic) |
+
+- **Stays on the headset:** the passthrough video, the room scan and scene mesh, spatial anchors, hand tracking.
+  A captured frame lives only in memory, overwritten by the next one; nothing is written to storage.
+- **The proxy** (`tools/proxy`) holds the provider keys and stores no content. It keeps daily request counts for its
+  cost caps and uses the caller's IP address only for the per-minute rate limit. Providers process requests under
+  their API terms.
+- **Local-only mode** (Camera button in the hand menu): the camera is never read and no image leaves the headset;
+  "What's this?" answers from the twin's own part data. Voice still uses the cloud. Without a proxy configured, the
+  assistant runs on scripted answers and nothing leaves the headset at all.
+- The camera needs the Horizon OS `HEADSET_CAMERA` permission. Deny it and everything else keeps working.
 
 Decisions live in [`docs/adr/`](docs/adr): OpenXR route (001), Unity version (002), voice providers and proxy (003).
 The performance budget and measurements are in [`docs/perf/`](docs/perf).
