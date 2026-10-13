@@ -29,6 +29,16 @@ public static class Narration
     /// <summary>A safety stop: calm, immediate, and what to do instead.</summary>
     public static string Violation(SafetyRule rule) => $"Hold on. {rule.Description}";
 
+    /// <summary>The interlock held the part again (#90): the reason once more, shorter on the way in.</summary>
+    public static string StillHeld(SafetyRule rule) => $"Not yet. {rule.Description}";
+
+    /// <summary>
+    /// A finished step was undone (#90: the breaker went back off during the last check): what changed, then how to put it
+    /// back. <paramref name="partName"/> is the manual's name, <paramref name="instruction"/> the step's spoken instruction.
+    /// </summary>
+    public static string Undone(string partName, string targetState, string instruction) =>
+        $"Careful, the {partName} isn't {targetState} any more. {(instruction ?? string.Empty).Trim()}".TrimEnd();
+
     /// <summary>
     /// Something done out of order or a wrong reading: no blame, then what to do now. An action that belongs to a later
     /// step is "a bit later"; anything else gets the runner's message.
