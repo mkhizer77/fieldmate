@@ -13,7 +13,7 @@ using UnityEngine;
 namespace Fieldmate.Editor;
 
 /// <summary>
-/// Fieldmate → Run AI Eval (design.md §5.4, #17): runs the fixture's 25 utterances against the real model through the
+/// Fieldmate → Run AI Eval (design.md §5.4, #17): runs the fixture's utterances (English and German) against the real model through the
 /// configured proxy (editor keys.json), with the same harness the CI contract tests use, and writes docs/eval/report.md
 /// plus a dated copy (docs/eval/ is gitignored). Calls the paid API: run it by hand before a release.
 /// Batch mode: <c>-executeMethod Fieldmate.Editor.AIEvalRunner.RunFromCommandLine</c> exits 0 when ≥ 80 % pass.
@@ -28,7 +28,7 @@ public static class AIEvalRunner
     public static async void RunFromMenu()
     {
         if (!EditorUtility.DisplayDialog("Run AI eval",
-                "Sends the 25 eval utterances to the real model through the proxy (a few cents). Continue?", "Run", "Cancel"))
+                "Sends the eval utterances to the real model through the proxy (a few cents). Continue?", "Run", "Cancel"))
         {
             return;
         }

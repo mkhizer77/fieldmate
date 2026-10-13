@@ -1,5 +1,6 @@
 using System.Collections;
 using Fieldmate.AI;
+using Fieldmate.Localization;
 using Fieldmate.Procedures;
 using Fieldmate.XR;
 using UnityEngine;
@@ -86,10 +87,26 @@ namespace Fieldmate.Assistant
 
         private void OnDisable() => confirmAction.Disable();
 
-        private void OnDestroy() => confirmAction.Dispose();
+        private void OnDestroy()
+        {
+            Lang.Changed -= OnLanguageChanged; // static event: unsubscribe first (Known pitfalls)
+            confirmAction.Dispose();
+        }
+
+        // The card on show, re-rendered when the language changes (#24); null once it is gone.
+        private System.Action card;
+
+        private void ShowCard(System.Action show)
+        {
+            card = show;
+            show();
+        }
+
+        private void OnLanguageChanged(string language) => card?.Invoke();
 
         private void Start()
         {
+            Lang.Changed += OnLanguageChanged;
             if (head != null)
             {
                 // Without the setup (tests), off to the front-right; with it, the setup moves it in front.
@@ -120,7 +137,7 @@ namespace Fieldmate.Assistant
             Stage = SetupStage.RoomScan;
             hidden.Hide(machineRoot);
             mate.SetVisible(false, instant: true);
-            panel.ShowSetup("Setup · 1 of 4 · Room", SetupScript.RoomScan);
+            ShowCard(() => panel.ShowSetup(Lang.T("Setup · 1 of 4 · Room"), SetupScript.RoomScan));
             Debug.Log("[Setup] room scan");
             yield return new WaitUntil(() => scan == null || scan.RoomReady);
 
@@ -131,7 +148,8 @@ namespace Fieldmate.Assistant
             Debug.Log("[Setup] mate appears");
             yield return new WaitForSeconds(1.2f); // let it materialise before it speaks
             var modality = InputModalityProbe.Current;
-            panel.ShowSetup("Setup · 2 of 4 · Your mate", "Point where you want Fieldmate to stay, then " + InputWords.Grab(modality) + ".");
+            ShowCard(() => panel.ShowSetup(Lang.T("Setup · 2 of 4 · Your mate"),
+                Lang.F("Point where you want Fieldmate to stay, then {0}.", InputWords.Confirm(InputModalityProbe.Current))));
             yield return Say(SetupScript.Intro(InputWords.PlaceMate(modality)));
 
             // 3. The user points the mate into place.
@@ -153,7 +171,7 @@ namespace Fieldmate.Assistant
             // 4. The machine appears and is placed fresh.
             // The mate asks for the machine first; it appears once the line has been heard (device test 2026-10-01).
             Stage = SetupStage.PlaceMachine;
-            panel.ShowSetup("Setup · 3 of 4 · Machine", InputWords.Place(InputModalityProbe.Current));
+            ShowCard(() => panel.ShowSetup(Lang.T("Setup · 3 of 4 · Machine"), InputWords.Place(InputModalityProbe.Current)));
             yield return Say(SetupScript.PlaceMachine(InputWords.PlaceMachineSpoken(InputModalityProbe.Current)));
             hidden.Show();
             placement.BeginPlacing();
@@ -163,7 +181,7 @@ namespace Fieldmate.Assistant
             // 5. Briefing, then the procedure.
             Stage = SetupStage.Briefing;
             var procedure = machine.Runner.Definition;
-            panel.ShowSetup("Setup · 4 of 4 · Today", procedure.Title);
+            ShowCard(() => panel.ShowSetup(Lang.T("Setup · 4 of 4 · Today"), Lang.T(procedure.Title)));
             var first = StepInstructions.Spoken(procedure.Steps[0], machine.Catalog, InputModalityProbe.Current);
             yield return Say(SetupScript.Briefing(procedure, first));
 
@@ -176,8 +194,10 @@ namespace Fieldmate.Assistant
             Debug.Log("[Setup] done: procedure started");
 
             // Where the app's controls went (#73): a short tip, then the card goes.
-            panel.ShowSetup("Menu", InputWords.Menu(InputModalityProbe.Current) + ": Start, Move machine, Occlusion, Stats, Labels.");
+            ShowCard(() => panel.ShowSetup(Lang.T("Menu"),
+                Lang.F("{0}: Start, Move machine, Occlusion, Stats, Labels, Camera, Language.", InputWords.Menu(InputModalityProbe.Current))));
             yield return new WaitForSeconds(10f);
+            card = null;
             panel.HideDetail();
         }
 

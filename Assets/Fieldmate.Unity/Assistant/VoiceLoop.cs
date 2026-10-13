@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fieldmate.AI;
 using Fieldmate.Knowledge;
+using Fieldmate.Localization;
 using Fieldmate.Procedures;
 using Fieldmate.Providers;
 using Fieldmate.Vision;
@@ -52,6 +53,7 @@ namespace Fieldmate.Assistant
         private void Start()
         {
             InputModalityProbe.Changed += OnModalityChanged;
+            Lang.Changed += OnLanguageChanged;
             panel.SetHead(head);
             talkAction = new InputAction("Talk", InputActionType.Button, "<XRController>{LeftHand}/primaryButton");
             talkAction.AddBinding("<MetaAimHand>{LeftHand}/middlePressed");
@@ -72,6 +74,27 @@ namespace Fieldmate.Assistant
             }
         }
 
+        /// <summary>
+        /// One language for everything (#24): set_language and the hand menu both go through <see cref="Lang"/>, and the
+        /// session (prompt, STT hint, TTS voice) follows it here.
+        /// </summary>
+        private void OnLanguageChanged(string language)
+        {
+            if (session != null)
+            {
+                session.Language = language;
+            }
+
+            if (DisabledReason != null)
+            {
+                idleHint = Lang.T("Assistant offline");
+                panel.SetState(AssistantState.Idle, idleHint);
+                return;
+            }
+
+            OnModalityChanged(InputModalityProbe.Current);
+        }
+
         private void OnModalityChanged(Modality modality)
         {
             if (DisabledReason != null)
@@ -89,6 +112,7 @@ namespace Fieldmate.Assistant
         private void OnDestroy()
         {
             InputModalityProbe.Changed -= OnModalityChanged;
+            Lang.Changed -= OnLanguageChanged;
             turn?.Cancel();
             talkAction?.Dispose();
         }
@@ -108,14 +132,15 @@ namespace Fieldmate.Assistant
             tools.AttachTo(registry);
 
             session = new AssistantSession(chat, speechToText, textToSpeech, registry, new ConversationState(),
-                language => AssistantPrompt.System(machine.Manual.MachineName, language, vision: hasVision), BuildContext, () => Time.realtimeSinceStartupAsDouble);
-            tools.LanguageChanged += language => session.Language = language;
+                language => AssistantPrompt.System(machine.Manual.MachineName, language, hasVision, machine.Manual.Parts), BuildContext, () => Time.realtimeSinceStartupAsDouble);
+            tools.LanguageChanged += language => Lang.Set(language);
+            session.Language = Lang.Current;
             session.StateChanged += ShowState;
             session.TranscriptAdded += panel.Add;
             session.Fallback = new FallbackResponses(machine.Manual, machine.Runner, machine.Telemetry);
             session.OfflineChanged += offline =>
             {
-                panel.ShowBanner(offline ? "Offline: scripted answers from the manual until the service is back." : null);
+                panel.ShowBanner(offline ? Lang.T("Offline: scripted answers from the manual until the service is back.") : null);
                 Debug.Log(offline ? "[Assistant] offline: scripted answers" : "[Assistant] back online");
             };
 
@@ -128,7 +153,7 @@ namespace Fieldmate.Assistant
         {
             DisabledReason = reason;
             session = null;
-            idleHint = "Assistant offline";
+            idleHint = Lang.T("Assistant offline");
             panel.ShowBanner(reason);
             panel.SetState(AssistantState.Idle, idleHint);
             Debug.LogWarning($"[Assistant] {reason}");
@@ -248,7 +273,7 @@ namespace Fieldmate.Assistant
             }
 
             Debug.LogWarning("[Assistant] microphone failed to start");
-            panel.Add(new TranscriptEntry(TranscriptKind.Error, "No microphone available (or permission denied)."));
+            panel.Add(new TranscriptEntry(TranscriptKind.Error, Lang.T("No microphone available (or permission denied).")));
             return false;
         }
 
@@ -344,7 +369,7 @@ namespace Fieldmate.Assistant
             catch (Exception e)
             {
                 Debug.LogException(e);
-                panel.Add(new TranscriptEntry(TranscriptKind.Error, "Something went wrong with the assistant."));
+                panel.Add(new TranscriptEntry(TranscriptKind.Error, Lang.T("Something went wrong with the assistant.")));
                 return null;
             }
         }
@@ -474,7 +499,7 @@ namespace Fieldmate.Assistant
                 return false;
             }
 
-            highlighter.Highlight(part, machine.Manual.TryGetPart(partId, out var info) ? info.Name : partId);
+            highlighter.Highlight(part, machine.Catalog.DisplayName(partId)); // in the current language (#24)
             return true;
         }
 

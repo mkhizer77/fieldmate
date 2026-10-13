@@ -1,3 +1,4 @@
+using Fieldmate.Localization;
 using Fieldmate.UI;
 using Fieldmate.XR;
 using TMPro;
@@ -25,6 +26,7 @@ namespace Fieldmate.Vision
 
         private Canvas canvas;
         private CanvasGroup group;
+        private TMP_Text label;
         private float shownAt = float.NegativeInfinity;
 
         public bool IsShown => canvas != null && canvas.enabled;
@@ -60,6 +62,7 @@ namespace Fieldmate.Vision
         {
             Count++;
             shownAt = Time.unscaledTime;
+            label.text = Lang.T("Camera"); // in the language of the moment (#24); the pill is up for seconds only
             canvas.enabled = true;
             group.alpha = 1f;
             Follow();
@@ -106,7 +109,8 @@ namespace Fieldmate.Vision
             var text = UiKit.Label("Text", go.transform, Vector2.zero, Vector2.one, 11f * UnitsPerMm, Theme.TextPrimary,
                 TextAlignmentOptions.MidlineLeft, semiBold: true, new Vector2(17f * UnitsPerMm, 0f), Vector2.zero);
             text.textWrappingMode = TextWrappingModes.NoWrap;
-            text.text = "Camera";
+            text.text = Lang.T("Camera");
+            label = text;
             canvas.enabled = false;
         }
     }

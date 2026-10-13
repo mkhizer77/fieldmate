@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using Fieldmate.AI;
 using Fieldmate.Knowledge;
+using Fieldmate.Localization;
 using Fieldmate.Procedures;
 using Fieldmate.UI;
 using TMPro;
@@ -65,6 +66,8 @@ namespace Fieldmate.Assistant
         private bool wasPlaying;
         private bool voiced;
         private float lastActivity = -100f;
+        private string hint;
+        private System.Action redrawDetail; // re-renders the detail card in the new language (#24)
 
         public string DetailText => detailText != null && detail.activeSelf ? detailText.text : string.Empty;
         public string TranscriptText => transcript;
@@ -77,7 +80,21 @@ namespace Fieldmate.Assistant
         public int VisibleCharacters => messageText != null ? Mathf.Min(messageText.maxVisibleCharacters, messageText.text.Length) : 0;
         public float ToastAlpha => toast != null ? toast.alpha : 0f;
 
-        private void Awake() => Build();
+        private void Awake()
+        {
+            Build();
+            Lang.Changed += OnLanguageChanged;
+        }
+
+        private void OnDestroy() => Lang.Changed -= OnLanguageChanged; // static event: unsubscribe first (Known pitfalls)
+
+        // Live switch (#24): the state line and whatever the detail card shows. The idle hint is the voice loop's; it
+        // re-sends its own when the language changes.
+        private void OnLanguageChanged(string language)
+        {
+            SetState(state, hint);
+            redrawDetail?.Invoke();
+        }
 
         public HologramMate Mate => mate;
 
@@ -101,16 +118,21 @@ namespace Fieldmate.Assistant
         }
 
         /// <summary>A setup prompt in the detail card (#71): what to do now.</summary>
-        public void ShowSetup(string eyebrow, string text) => ShowDetail(eyebrow, text);
+        public void ShowSetup(string eyebrow, string text)
+        {
+            redrawDetail = null; // the setup flow re-sends its prompt in the new language
+            ShowDetail(eyebrow, text);
+        }
 
         public void SetState(AssistantState next, string hint)
         {
             state = next;
+            this.hint = hint;
             var (label, color, busy) = next switch
             {
-                AssistantState.Listening => ("Listening…", Theme.Success, true),
-                AssistantState.Transcribing => ("Transcribing…", Theme.Warning, true),
-                AssistantState.Thinking => ("Thinking…", Theme.Warning, true),
+                AssistantState.Listening => (Lang.T("Listening…"), Theme.Success, true),
+                AssistantState.Transcribing => (Lang.T("Transcribing…"), Theme.Warning, true),
+                AssistantState.Thinking => (Lang.T("Thinking…"), Theme.Warning, true),
                 AssistantState.Speaking => ("Fieldmate", Theme.Accent, true),
                 _ => (hint, Theme.TextMuted, false),
             };
@@ -177,23 +199,34 @@ namespace Fieldmate.Assistant
             banner.SetActive(!string.IsNullOrEmpty(text));
         }
 
-        public void ShowSection(ManualSection section) => ShowDetail("From the manual", $"<b>[{section.Id}] {section.Title}</b>\n{section.Text}");
+        public void ShowSection(ManualSection section)
+        {
+            redrawDetail = () => ShowDetail(Lang.T("From the manual"),
+                $"<b>[{section.Id}] {section.TitleIn(Lang.Current)}</b>\n{section.TextIn(Lang.Current)}");
+            redrawDetail();
+        }
 
         public void ShowStep(ProcedureDefinition procedure, int number)
         {
             var step = procedure.Steps[number - 1];
-            ShowDetail("Procedure", $"<b>{procedure.Title}</b>\nStep {number} of {procedure.Steps.Count}: {step.Title}");
+            redrawDetail = () => ShowDetail(Lang.T("Procedure"), $"<b>{Lang.T(procedure.Title)}</b>\n" +
+                Lang.F("Step {0} of {1}: {2}", number, procedure.Steps.Count, Lang.T(step.Title)));
+            redrawDetail();
         }
 
         public void ShowNotes(IReadOnlyList<string> notes)
         {
-            var sb = new StringBuilder("<b>Maintenance log</b>");
-            foreach (var note in notes)
+            redrawDetail = () =>
             {
-                sb.Append("\n•  ").Append(note);
-            }
+                var sb = new StringBuilder("<b>").Append(Lang.T("Maintenance log")).Append("</b>");
+                foreach (var note in notes)
+                {
+                    sb.Append("\n•  ").Append(note);
+                }
 
-            ShowDetail("Maintenance log", sb.ToString());
+                ShowDetail(Lang.T("Maintenance log"), sb.ToString());
+            };
+            redrawDetail();
         }
 
         /// <summary>Pins the bubble beside the machine instead of the mate (no mate in the scene).</summary>
@@ -204,7 +237,11 @@ namespace Fieldmate.Assistant
         }
 
         /// <summary>Hides the detail card (setup finished, nothing opened).</summary>
-        public void HideDetail() => detail.SetActive(false);
+        public void HideDetail()
+        {
+            redrawDetail = null;
+            detail.SetActive(false);
+        }
 
         private void ShowDetail(string eyebrow, string text)
         {

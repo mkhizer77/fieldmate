@@ -1,3 +1,4 @@
+using Fieldmate.Localization;
 using Fieldmate.UI;
 using TMPro;
 using UnityEngine;
@@ -74,7 +75,12 @@ namespace Fieldmate.Interaction
             control = GetComponent<IMachineControl>();
             Build();
             Refresh(control?.State);
+            Lang.Changed += OnLanguageChanged;
         }
+
+        private void OnDestroy() => Lang.Changed -= OnLanguageChanged; // static event: unsubscribe first (Known pitfalls)
+
+        private void OnLanguageChanged(string language) => Refresh(control?.State); // live switch (#24)
 
         private void OnEnable()
         {
@@ -96,8 +102,9 @@ namespace Fieldmate.Interaction
 
         private void Refresh(string state)
         {
-            plainText = ControlTagText.Format(title, purpose, state);
-            text.text = ControlTagText.Rich(title, purpose, state);
+            // Title and purpose are English keys from the scene builder; shown in the current language (#24).
+            plainText = ControlTagText.Format(Lang.T(title), Lang.T(purpose), state);
+            text.text = ControlTagText.Rich(Lang.T(title), Lang.T(purpose), state);
         }
 
         private void LateUpdate()
