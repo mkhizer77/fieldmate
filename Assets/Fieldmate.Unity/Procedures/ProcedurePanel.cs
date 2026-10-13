@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Fieldmate.Localization;
 using Fieldmate.UI;
 using TMPro;
 using UnityEngine;
@@ -66,9 +67,9 @@ namespace Fieldmate.Procedures
                 eyebrowText.text = procedureTitle;
             }
 
-            SetChip($"Step {number} of {total}", Theme.AccentSoft, Theme.Accent);
+            SetChip(Lang.F("Step {0} of {1}", number, total), Theme.AccentSoft, Theme.Accent);
             progress.Set(number - 1, total);
-            titleText.text = $"Step {number} of {total}: {title}";
+            titleText.text = Lang.F("Step {0} of {1}: {2}", number, total, title);
             bodyText.text = instruction;
         }
 
@@ -84,12 +85,12 @@ namespace Fieldmate.Procedures
 
         public void ShowDebrief(ProcedureResult result, string procedureTitle)
         {
-            eyebrowText.text = "Debrief";
-            SetChip(result.Passed ? "Passed" : "Not passed", result.Passed ? Theme.Success : Theme.Danger, Theme.TextOnAccent);
+            eyebrowText.text = Lang.T("Debrief");
+            SetChip(result.Passed ? Lang.T("Passed") : Lang.T("Not passed"), result.Passed ? Theme.Success : Theme.Danger, Theme.TextOnAccent);
             progress.Set(progress.Total, progress.Total, current: false);
             titleText.text = procedureTitle;
             bodyText.text = DebriefText(result);
-            ShowStatus(result.Passed ? "Well done." : "Review the notes above and run it again.", result.Passed ? Done : Hint, 0f);
+            ShowStatus(result.Passed ? Lang.T("Well done.") : Lang.T("Review the notes above and run it again."), result.Passed ? Done : Hint, 0f);
         }
 
         /// <summary>Score, time and counts on one line, then up to four notes (violations first).</summary>
@@ -98,15 +99,15 @@ namespace Fieldmate.Procedures
             var sb = new StringBuilder();
             sb.Append("<size=").Append((Theme.Display * 0.6f).ToString(CultureInfo.InvariantCulture)).Append("><color=").Append(Theme.AccentHex).Append('>')
                 .Append(result.Score).Append("</color></size><color=").Append(Theme.MutedHex).Append("> / 100</color>")
-                .Append("<color=").Append(Theme.SecondaryHex).Append(">   ·   Time ").Append(FormatTime(result.TotalSeconds))
-                .Append("   ·   Errors ").Append(result.Errors.Count)
-                .Append("   ·   Safety ").Append(result.Violations.Count)
-                .Append("   ·   Help ").Append(result.HelpRequests).Append("</color>");
+                .Append("<color=").Append(Theme.SecondaryHex).Append(">   ·   ").Append(Lang.T("Time")).Append(' ').Append(FormatTime(result.TotalSeconds))
+                .Append("   ·   ").Append(Lang.T("Errors")).Append(' ').Append(result.Errors.Count)
+                .Append("   ·   ").Append(Lang.T("Safety")).Append(' ').Append(result.Violations.Count)
+                .Append("   ·   ").Append(Lang.T("Help")).Append(' ').Append(result.HelpRequests).Append("</color>");
             var shown = 0;
             foreach (var violation in result.Violations)
             {
                 if (shown++ == 4) return sb.ToString();
-                sb.Append("\n<color=").Append(Theme.DangerHex).Append(">•  ").Append(violation.Description).Append("</color>");
+                sb.Append("\n<color=").Append(Theme.DangerHex).Append(">•  ").Append(Lang.T(violation.Description)).Append("</color>");
             }
 
             foreach (var error in result.Errors)

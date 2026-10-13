@@ -1,5 +1,6 @@
 using System;
 using Fieldmate.Interaction;
+using Fieldmate.Localization;
 using Fieldmate.UI;
 using TMPro;
 using UnityEngine;
@@ -69,18 +70,31 @@ namespace Fieldmate.Procedures
         {
             BuildVisuals(); // before base.Awake, which collects the cap's collider
             base.Awake();
+            Lang.Changed += OnLanguageChanged;
             clickSource = InteractionFeedback.CreateSource(gameObject);
             ApplyStyle();
         }
 
+        /// <summary>
+        /// The label in English: it is a key into <see cref="GermanText"/> and shows in the current language, re-rendered
+        /// when the language changes (#24), so owners never translate button labels themselves.
+        /// </summary>
         public void SetLabel(string text)
         {
             label = text;
             if (labelText != null)
             {
-                labelText.text = text;
+                labelText.text = Lang.T(text);
             }
         }
+
+        protected override void OnDestroy()
+        {
+            Lang.Changed -= OnLanguageChanged; // static event: unsubscribe first (Known pitfalls)
+            base.OnDestroy();
+        }
+
+        private void OnLanguageChanged(string language) => SetLabel(label);
 
         public void SetStyle(ButtonStyle buttonStyle)
         {
@@ -177,7 +191,7 @@ namespace Fieldmate.Procedures
             labelText.enableAutoSizing = true; // "Confirm restart" and "Occlusion: Hard" shrink to fit the cap
             labelText.fontSizeMin = 15f;
             labelText.fontSizeMax = Theme.Body - 2f;
-            labelText.text = label;
+            labelText.text = Lang.T(label);
         }
 
         // A flat rounded row: a thin collider for the ray and fingertip, the fill and the label on a small world canvas.
@@ -199,7 +213,7 @@ namespace Fieldmate.Procedures
             labelText.enableAutoSizing = true;
             labelText.fontSizeMin = Theme.Caption;
             labelText.fontSizeMax = Theme.Body;
-            labelText.text = label;
+            labelText.text = Lang.T(label);
         }
 
         private Transform Block(string name, Vector3 size, Vector3 localPosition, bool collider)

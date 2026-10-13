@@ -1,4 +1,5 @@
 using System.Globalization;
+using Fieldmate.Localization;
 
 namespace Fieldmate.Procedures;
 
@@ -30,8 +31,8 @@ public static class GaugeCheck
         var value = reading.ToString("0.0", CultureInfo.InvariantCulture);
         var expected = step.ExpectedValue.ToString("0.#", CultureInfo.InvariantCulture);
         hint = delta > 0f
-            ? $"Gauge reads {value} {step.Unit}, not {expected} yet. Keep watching or check the isolation."
-            : $"Gauge reads {value} {step.Unit}, below {expected}. Is the inlet open and the breaker on?";
+            ? Lang.F("Gauge reads {0} {1}, not {2} yet. Keep watching or check the isolation.", value, step.Unit, expected)
+            : Lang.F("Gauge reads {0} {1}, below {2}. Is the inlet open and the breaker on?", value, step.Unit, expected);
         return false;
     }
 }

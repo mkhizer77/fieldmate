@@ -15,12 +15,14 @@ public enum SectionKind
 
 public sealed class PartInfo
 {
-    public PartInfo(string id, string name, string description, string safety)
+    public PartInfo(string id, string name, string description, string safety, string gender = null, PartInfo german = null)
     {
         Id = id;
         Name = name;
         Description = description;
         Safety = safety;
+        Gender = gender;
+        German = german;
     }
 
     public string Id { get; }
@@ -29,14 +31,24 @@ public sealed class PartInfo
 
     /// <summary>Hazard note for the part, or empty.</summary>
     public string Safety { get; }
+
+    /// <summary>German grammatical gender of <see cref="Name"/> (m, f, n, pl) on the German text; null otherwise.</summary>
+    public string Gender { get; }
+
+    /// <summary>The German text (#24), or null when the manual has none.</summary>
+    public PartInfo German { get; }
+
+    /// <summary>The text in <paramref name="language"/> ("de" or "en"), English when there is no German.</summary>
+    public PartInfo In(string language) => language == "de" && German != null ? German : this;
 }
 
 public sealed class FaultInfo
 {
-    public FaultInfo(string id, string name, string symptoms, string cause, string procedureId)
+    public FaultInfo(string id, string name, string symptoms, string cause, string procedureId, string germanName = null)
     {
         Id = id;
         Name = name;
+        GermanName = germanName;
         Symptoms = symptoms;
         Cause = cause;
         ProcedureId = procedureId;
@@ -44,6 +56,10 @@ public sealed class FaultInfo
 
     public string Id { get; }
     public string Name { get; }
+
+    /// <summary>German name (#24), or null.</summary>
+    public string GermanName { get; }
+
     public string Symptoms { get; }
     public string Cause { get; }
 
@@ -83,9 +99,11 @@ public sealed class ProcedureInfo
 public sealed class ManualSection
 {
     public ManualSection(string id, SectionKind kind, string title, string text, IReadOnlyList<string> partIds,
-        IReadOnlyList<string> stepIds, IReadOnlyList<string> keywords)
+        IReadOnlyList<string> stepIds, IReadOnlyList<string> keywords, string germanTitle = null, string germanText = null)
     {
         Id = id;
+        GermanTitle = germanTitle;
+        GermanText = germanText;
         Kind = kind;
         Title = title;
         Text = text;
@@ -101,6 +119,17 @@ public sealed class ManualSection
     public IReadOnlyList<string> PartIds { get; }
     public IReadOnlyList<string> StepIds { get; }
     public IReadOnlyList<string> Keywords { get; }
+
+    /// <summary>German title and text (#24), or null.</summary>
+    public string GermanTitle { get; }
+
+    public string GermanText { get; }
+
+    /// <summary>Title in <paramref name="language"/>, English when there is no German.</summary>
+    public string TitleIn(string language) => language == "de" && GermanTitle != null ? GermanTitle : Title;
+
+    /// <summary>Text in <paramref name="language"/>, English when there is no German.</summary>
+    public string TextIn(string language) => language == "de" && GermanText != null ? GermanText : Text;
 }
 
 /// <summary>Manual content that could not be read, with a JSON-path-like location.</summary>
@@ -158,13 +187,22 @@ public sealed class MachineManual
             throw new ManualFormatException("The manual must be a JSON object.");
         }
 
-        var parts = ReadList(root, "parts", (item, path) => new PartInfo(
-            RequiredString(item, "id", path), RequiredString(item, "name", path),
-            item["description"].AsString(string.Empty), item["safety"].AsString(string.Empty)));
+        var parts = ReadList(root, "parts", (item, path) =>
+        {
+            var id = RequiredString(item, "id", path);
+            var de = item["de"];
+            var german = de.Kind == JsonKind.Object
+                ? new PartInfo(id, RequiredString(de, "name", path + ".de"), de["description"].AsString(string.Empty),
+                    de["safety"].AsString(string.Empty), de["gender"].AsString("n"))
+                : null;
+            return new PartInfo(id, RequiredString(item, "name", path), item["description"].AsString(string.Empty),
+                item["safety"].AsString(string.Empty), german: german);
+        });
 
         var faults = ReadList(root, "faults", (item, path) => new FaultInfo(
             RequiredString(item, "id", path), RequiredString(item, "name", path),
-            item["symptoms"].AsString(string.Empty), item["cause"].AsString(string.Empty), item["procedure"].AsString()));
+            item["symptoms"].AsString(string.Empty), item["cause"].AsString(string.Empty), item["procedure"].AsString(),
+            item["de"]["name"].AsString()));
 
         var procedures = ReadList(root, "procedures", (item, path) => new ProcedureInfo(
             RequiredString(item, "id", path), RequiredString(item, "title", path),
@@ -174,7 +212,8 @@ public sealed class MachineManual
         var sections = ReadList(root, "sections", (item, path) => new ManualSection(
             RequiredString(item, "id", path), ParseKind(item["kind"].AsString("overview"), path),
             RequiredString(item, "title", path), RequiredString(item, "text", path),
-            item["parts"].AsStringList(), item["steps"].AsStringList(), item["keywords"].AsStringList()));
+            item["parts"].AsStringList(), item["steps"].AsStringList(), item["keywords"].AsStringList(),
+            item["de"]["title"].AsString(), item["de"]["text"].AsString()));
 
         return new MachineManual(root["machine"].AsString(string.Empty), parts, faults, procedures, sections);
     }

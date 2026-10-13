@@ -17,10 +17,11 @@ public static class AssistantPrompt
     private static readonly Regex Citation = new(@"\s*\[[a-z0-9_]+(?:\.[a-z0-9_]+)+\]", RegexOptions.Compiled);
     private static readonly Regex Spaces = new(@"[ \t]{2,}", RegexOptions.Compiled);
 
-    public static string System(string machineName, string language, bool vision = true)
+    /// <param name="parts">The manual's parts: in German (#24) their German names are listed so speech matches the labels.</param>
+    public static string System(string machineName, string language, bool vision = true, IReadOnlyList<PartInfo> parts = null)
     {
         var identify = vision ? "; identify_view when the user asks what they are looking at" : string.Empty;
-        var reply = language == "de" ? "Reply in German." : "Reply in English.";
+        var reply = language == "de" ? "Reply in German." + GermanPartNames(parts) : "Reply in English.";
         return $@"You are Fieldmate, a voice assistant helping a technician maintain the {machineName} in mixed reality.
 The user hears your replies as speech and sees them on a panel.
 
@@ -37,6 +38,25 @@ Rules:
 - The app decides when a step is done, from the user's real actions (looking at a part, turning a control). Never say a step is complete or that you are moving to the next step unless a tool result says so; the context's Procedure line is the only truth. Tell the user what to do for the current step instead.
 - When the user tells you a gauge reading, or asks whether the reading is right or the step is done, call report_reading: it reads the machine's gauge and completes the current reading step only if the value fits. Relay its result; if the step is now complete, say what the next step asks.
 - {reply}";
+    }
+
+    private static string GermanPartNames(IReadOnlyList<PartInfo> parts)
+    {
+        if (parts == null || parts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var names = new List<string>(parts.Count);
+        foreach (var part in parts)
+        {
+            if (part.German != null)
+            {
+                names.Add($"{part.Id} = {part.German.Name}");
+            }
+        }
+
+        return names.Count == 0 ? string.Empty : " Use these German part names, the labels show them: " + string.Join(", ", names) + ".";
     }
 
     /// <summary>Per-turn context block. Any argument may be null when unknown.</summary>

@@ -24,10 +24,10 @@ public class EvalContractTests
         MachineManual.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "_Project", "Manual", "manual.json")));
 
     [Test]
-    public void Fixture_has_25_wellformed_cases_against_the_real_tools_and_steps()
+    public void Fixture_has_30_wellformed_cases_against_the_real_tools_and_steps()
     {
         var cases = EvalCase.ParseFixture(File.ReadAllText(FixturePath));
-        Assert.That(cases, Has.Count.EqualTo(25));
+        Assert.That(cases, Has.Count.EqualTo(30));
         Assert.That(cases.Select(c => c.Id), Is.Unique);
 
         var registry = FieldmateTools.CreateRegistry(includeVision: false);
@@ -106,6 +106,42 @@ public class EvalContractTests
         Assert.That(md, Does.Contain("Median turn 2.0 s"));
         Assert.That(md, Does.Contain("| ✅ | `a` | — | read_telemetry() |  |"));
         Assert.That(md, Does.Contain("| ❌ | `b` | lockout |  | answer lacks \"y\" |"));
+    }
+
+    [Test]
+    public async Task German_cases_run_with_the_German_prompt()
+    {
+        var cases = EvalCase.ParseFixture(File.ReadAllText(FixturePath));
+        var german = cases.Where(c => c.Language == "de").ToList();
+        Assert.That(german, Has.Count.EqualTo(5), "#24: five German utterances");
+        Assert.That(cases.Count(c => c.Language == "en"), Is.EqualTo(25));
+
+        string prompt = null;
+        var harness = new EvalHarness(Manual(), c => new PromptSpy(new ExpectedModel(c), p => prompt = p));
+        var result = await harness.RunAsync(german[0], CancellationToken.None);
+
+        Assert.That(result.Passed, Is.True, string.Join("; ", result.Failures));
+        Assert.That(prompt, Does.Contain("Reply in German."));
+    }
+
+    private sealed class PromptSpy : IChatModel
+    {
+        private readonly IChatModel inner;
+        private readonly Action<string> seen;
+
+        public PromptSpy(IChatModel inner, Action<string> seen)
+        {
+            this.inner = inner;
+            this.seen = seen;
+        }
+
+        public string Name => inner.Name;
+
+        public Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken cancellationToken)
+        {
+            seen(request.SystemPrompt);
+            return inner.CompleteAsync(request, cancellationToken);
+        }
     }
 
     /// <summary>Answers each case the way the fixture expects: its tools in one response, then a sentence with its words.</summary>
