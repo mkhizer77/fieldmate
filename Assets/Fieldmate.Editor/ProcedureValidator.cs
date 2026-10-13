@@ -55,6 +55,12 @@ public static class ProcedureValidator
             {
                 problems.Add($"{at}: '{rule.requiredPartId}' has no state '{rule.requiredState}' (it has: {states}).");
             }
+
+            if (!string.IsNullOrWhiteSpace(rule.exceptWhenGuardedIs) && parts.Contains(rule.guardedPartId)
+                && !CanReach(machine, rule.guardedPartId, rule.exceptWhenGuardedIs, out var guardedStates))
+            {
+                problems.Add($"{at}: '{rule.guardedPartId}' has no state '{rule.exceptWhenGuardedIs}' (it has: {guardedStates}).");
+            }
         }
 
         return problems;
